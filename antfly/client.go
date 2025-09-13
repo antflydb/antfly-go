@@ -407,3 +407,48 @@ func (c *AntflyClient) Batch(ctx context.Context, tableName string, request Batc
 
 	return &result, nil
 }
+
+func NewModelConfig(config any) (*ModelConfig, error) {
+	var provider Provider
+	modelConfig := &ModelConfig{}
+	switch v := config.(type) {
+	case OllamaConfig:
+		provider = Ollama
+		modelConfig.FromOllamaConfig(v)
+	case OpenAIConfig:
+		provider = Openai
+		modelConfig.FromOpenAIConfig(v)
+	case GoogleConfig:
+		provider = Gemini
+		modelConfig.FromGoogleConfig(v)
+	case BedrockConfig:
+		provider = Bedrock
+		modelConfig.FromBedrockConfig(v)
+	default:
+		return nil, fmt.Errorf("unknown model config type: %T", v)
+	}
+
+	modelConfig.Provider = provider
+	return modelConfig, nil
+}
+
+func NewIndexConfig(name string, config any) (*IndexConfig, error) {
+	var t IndexType
+	idxConfig := &IndexConfig{
+		Name: name,
+	}
+	switch v := config.(type) {
+	case EmbeddingIndexConfig:
+		t = VectorV2
+		idxConfig.FromEmbeddingIndexConfig(v)
+	case BleveIndexV2Config:
+		t = BleveV2
+		idxConfig.FromBleveIndexV2Config(v)
+	default:
+		return nil, fmt.Errorf("unsupported index config type: %T", config)
+	}
+	idxConfig.Type = t
+
+	return idxConfig, nil
+
+}

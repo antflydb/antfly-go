@@ -142,28 +142,20 @@ func (w *Antfly) newDocstore(ctx context.Context, cfg *IndexConfig) (*Docstore, 
 		if !strings.Contains(err.Error(), "not found") {
 			return nil, fmt.Errorf("antfly get table %q failed: %v", cfg.TableName, err)
 		} else {
-			var modelConfig = antfly.ModelConfig{
-				Provider: antfly.Ollama,
-			}
-			// TODO (ajr) Maybe we want a mock embedder for tests in antfly?
-			err = modelConfig.FromOllamaConfig(antfly.OllamaConfig{
-				Model: "all-minilm",
-			})
+			modelConfig, err := antfly.NewModelConfig(antfly.OllamaConfig{Model: "all-minilm"})
 			if err != nil {
 				return nil, fmt.Errorf("antfly model config failed: %v", err)
 			}
-			var idxConfig = antfly.IndexConfig{
-				Name: cfg.IndexName,
-				Type: antfly.VectorV2,
+			indexConfig, err := antfly.NewIndexConfig(cfg.IndexName, antfly.EmbeddingIndexConfig{
+				Field:          textKey,
+				EmbedderConfig: *modelConfig,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("antfly index config failed: %v", err)
 			}
-			idxConfig.FromEmbeddingIndexConfig(
-				antfly.EmbeddingIndexConfig{
-					Field:          textKey,
-					EmbedderConfig: modelConfig,
-				})
 			err = w.client.CreateTable(ctx, cfg.TableName, antfly.CreateTableRequest{
 				Indexes: map[string]antfly.IndexConfig{
-					cfg.IndexName: idxConfig,
+					cfg.IndexName: *indexConfig,
 				},
 			})
 			if err != nil {
@@ -171,48 +163,22 @@ func (w *Antfly) newDocstore(ctx context.Context, cfg *IndexConfig) (*Docstore, 
 			}
 		}
 	} else if tableStatus.Indexes == nil || tableStatus.Indexes[cfg.IndexName].Type == "" {
-		var modelConfig = antfly.ModelConfig{
-			Provider: antfly.Ollama,
-		}
-		// TODO (ajr) Maybe we want a mock embedder for tests in antfly?
-		err = modelConfig.FromOllamaConfig(antfly.OllamaConfig{
-			Model: "all-minilm",
-		})
+		modelConfig, err := antfly.NewModelConfig(antfly.OllamaConfig{Model: "all-minilm"})
 		if err != nil {
 			return nil, fmt.Errorf("antfly model config failed: %v", err)
 		}
-		var idxConfig = antfly.IndexConfig{
-			Name: cfg.IndexName,
-			Type: antfly.VectorV2,
+		indexConfig, err := antfly.NewIndexConfig(cfg.IndexName, antfly.EmbeddingIndexConfig{
+			Field:          textKey,
+			EmbedderConfig: *modelConfig,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("antfly index config failed: %v", err)
 		}
-		idxConfig.FromEmbeddingIndexConfig(
-			antfly.EmbeddingIndexConfig{
-				Field:          textKey,
-				EmbedderConfig: modelConfig,
-			})
-		err = w.client.CreateIndex(ctx, cfg.TableName, cfg.IndexName, idxConfig)
+		err = w.client.CreateIndex(ctx, cfg.TableName, cfg.IndexName, *indexConfig)
 		if err != nil {
 			return nil, fmt.Errorf("antfly create index %q failed: %v", cfg.TableName, err)
 		}
 	}
-	// TODO (ajr) Create the table/index if it doesn't already exist?
-	//
-	// exists, err := w.client.Schema().ClassExistenceChecker().WithClassName(cfg.Class).Do(ctx)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("weaviate class check failed for %q: %v", cfg.Class, err)
-	// }
-	// if !exists {
-	// 	cls := &models.Class{
-	// 		TableName:  cfg.Name,
-	// 		Vectorizer: "none",
-	// 	}
-
-	// 	err := w.client.Schema().ClassCreator().WithClass(cls).Do(ctx)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("failed to create weaviate class %q: %v", cfg.Class, err)
-	// 	}
-	// }
-
 	ds := &Docstore{
 		Client:    w.client,
 		TableName: cfg.TableName,

@@ -34,33 +34,22 @@ func TestGenkit(t *testing.T) {
 		BaseURL: *testURL,
 	}
 
-	// actions := af.Init(ctx)
-	// assert.Empty(t, actions)
-
 	g := genkit.Init(ctx, genkit.WithPlugins(af))
 
 	err := af.client.DropTable(ctx, *testTable)
 	require.NoError(t, err)
 
-	var modelConfig = antfly.ModelConfig{
-		Provider: antfly.Ollama,
-	}
 	// TODO (ajr) Maybe we want a mock embedder for tests in antfly?
-	err = modelConfig.FromOllamaConfig(antfly.OllamaConfig{
-		Model: "all-minilm",
+	modelConfig, err := antfly.NewModelConfig(antfly.OllamaConfig{Model: "all-minilm"})
+	require.NoError(t, err)
+	idxConfig, err := antfly.NewIndexConfig(*testIndex, antfly.EmbeddingIndexConfig{
+		Field:          textKey,
+		EmbedderConfig: *modelConfig,
 	})
 	require.NoError(t, err)
-	var idxConfig = antfly.IndexConfig{
-		Type: antfly.VectorV2,
-	}
-	idxConfig.FromEmbeddingIndexConfig(
-		antfly.EmbeddingIndexConfig{
-			Field:          textKey,
-			EmbedderConfig: modelConfig,
-		})
 	err = af.client.CreateTable(ctx, *testTable, antfly.CreateTableRequest{
 		Indexes: map[string]antfly.IndexConfig{
-			*testIndex: idxConfig,
+			*testIndex: *idxConfig,
 		},
 	})
 	require.NoError(t, err)
@@ -81,14 +70,10 @@ func TestGenkit(t *testing.T) {
 		},
 	}
 	ds, retriever, err := DefineRetriever(ctx, g, classCfg, retOpts)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	err = Index(ctx, []*ai.Document{d1, d2, d3}, ds)
-	if err != nil {
-		t.Fatalf("Index operation failed: %v", err)
-	}
+	require.NoError(t, err, "Index operation failed")
 
 	retrieverOptions := &RetrieverOptions{
 		Count:        2,
@@ -98,14 +83,10 @@ func TestGenkit(t *testing.T) {
 		ai.WithRetriever(retriever),
 		ai.WithDocs(d1),
 		ai.WithConfig(retrieverOptions))
-	if err != nil {
-		t.Fatalf("Retrieve operation failed: %v", err)
-	}
+	require.NoError(t, err, "Retrieve operation failed")
 
 	docs := retrieverResp.Documents
-	if len(docs) != 2 {
-		t.Errorf("got %d results, expected 2", len(docs))
-	}
+	require.Len(t, docs, 2, "expected 2 documents returned")
 	for _, d := range docs {
 		text := d.Content[0].Text
 		if !strings.HasPrefix(text, "hello") {
