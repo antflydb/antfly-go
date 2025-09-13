@@ -1,4 +1,4 @@
-module antflydb/antfly-go/genkit
+module github.com/antflydb/antfly-go/antfly-genkit
 
 go 1.25.1
 
