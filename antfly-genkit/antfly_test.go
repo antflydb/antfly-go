@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/antflydb/antfly/antfly-go/antfly"
+	"github.com/antflydb/antfly-go/antfly"
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/core"
 	"github.com/firebase/genkit/go/genkit"

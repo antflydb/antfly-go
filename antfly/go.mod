@@ -1,4 +1,4 @@
-module github.com/antflydb/antfly/antfly-go/antfly
+module github.com/antflydb/antfly-go/antfly
 
 go 1.25.1
 

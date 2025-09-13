@@ -1,11 +1,11 @@
-module antflydb/antfly/antfly-go/genkit
+module antflydb/antfly-go/genkit
 
 go 1.25.1
 
-replace github.com/antflydb/antfly/antfly-go/antfly => ../antfly
+replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly/antfly-go/antfly v0.0.0-00010101000000-000000000000
+	github.com/antflydb/antfly-go/antfly v0.0.0-20250913052234-c44b67f3d5ec
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/firebase/genkit/go v1.0.2
 	github.com/stretchr/testify v1.11.1
