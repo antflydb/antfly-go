@@ -202,9 +202,11 @@ type RetrieverOptions struct {
 	// Maximum number of values to retrieve.
 	Count int `json:"count,omitempty"`
 	// Keys to retrieve from document metadata.
-	MetadataKeys []string
+	MetadataKeys []string `json:"metadata_keys,omitempty"`
 	// Bleve query to filter results.
-	FilterQuery query.Query
+	FilterQuery query.Query `json:"-"`
+	// OrderBy specificies fields to order by: ascending (false) or descending (true)
+	OrderBy map[string]bool `json:"order_By,omitempty"`
 }
 
 // Retrieve implements the genkit Retriever.Retrieve method.
@@ -239,8 +241,9 @@ func (ds *Docstore) Retrieve(ctx context.Context, req *ai.RetrieverRequest) (*ai
 		FilterQuery:    filterQuery,
 		SemanticSearch: sb.String(),
 		// TODO (ajr) Add abiltiy to pass sub keys
-		Fields: []string{textKey, metadataKey},
-		Limit:  count,
+		Fields:  []string{textKey, metadataKey},
+		Limit:   count,
+		OrderBy: map[string]bool{},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("antfly retrieve failed: %v", err)
