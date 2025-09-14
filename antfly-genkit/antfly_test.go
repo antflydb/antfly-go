@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/antflydb/antfly-go/antfly"
+	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/core"
 	"github.com/firebase/genkit/go/genkit"
@@ -78,6 +79,13 @@ func TestGenkit(t *testing.T) {
 	retrieverOptions := &RetrieverOptions{
 		Count:        2,
 		MetadataKeys: []string{"name"},
+		FilterQuery: &query.BooleanQuery{
+			Must: &query.ConjunctionQuery{
+				Conjuncts: []query.Query{
+					&query.FuzzyQuery{FieldVal: "name", Term: "hello1", Prefix: 5, Fuzziness: 1},
+				},
+			},
+		},
 	}
 	retrieverResp, err := genkit.Retrieve(ctx, g,
 		ai.WithRetriever(retriever),

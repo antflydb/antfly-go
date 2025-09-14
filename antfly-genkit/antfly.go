@@ -17,6 +17,7 @@ package antfly
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -28,6 +29,7 @@ import (
 	"sync"
 
 	"github.com/antflydb/antfly-go/antfly"
+	"github.com/blevesearch/bleve/v2/search/query"
 	"github.com/cespare/xxhash/v2"
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/core/api"
@@ -80,7 +82,7 @@ func (w *Antfly) Init(ctx context.Context) []api.Action {
 
 	client, err := antfly.NewAntflyClient(url, http.DefaultClient)
 	if err != nil {
-		panic(fmt.Errorf("weaviate.Init: initialization failed: %v", err))
+		panic(fmt.Errorf("antfly.Init: initialization failed: %v", err))
 	}
 
 	w.BaseURL = url
@@ -193,7 +195,7 @@ func Retriever(g *genkit.Genkit, class string) ai.Retriever {
 }
 
 // RetrieverOptions may be passed in the Options field
-// [ai.RetrieverRequest] to pass options to Weaviate.
+// [ai.RetrieverRequest] to pass options to Antfly.
 // The options field should be either nil or
 // a value of type *RetrieverOptions.
 type RetrieverOptions struct {
@@ -201,19 +203,29 @@ type RetrieverOptions struct {
 	Count int `json:"count,omitempty"`
 	// Keys to retrieve from document metadata.
 	MetadataKeys []string
+	// Bleve query to filter results.
+	FilterQuery query.Query
 }
 
 // Retrieve implements the genkit Retriever.Retrieve method.
 func (ds *Docstore) Retrieve(ctx context.Context, req *ai.RetrieverRequest) (*ai.RetrieverResponse, error) {
 	count := 3 // by default we fetch 3 documents
 	var metadataKeys []string
+	var filterQuery json.RawMessage
 	if req.Options != nil {
 		ropt, ok := req.Options.(*RetrieverOptions)
 		if !ok {
-			return nil, fmt.Errorf("weaviate.Retrieve options have type %T, want %T", req.Options, &RetrieverOptions{})
+			return nil, fmt.Errorf("antfly.Retrieve options have type %T, want %T", req.Options, &RetrieverOptions{})
 		}
 		count = ropt.Count
 		metadataKeys = ropt.MetadataKeys
+		if ropt.FilterQuery != nil {
+			var err error
+			filterQuery, err = json.Marshal(ropt.FilterQuery)
+			if err != nil {
+				return nil, fmt.Errorf("antfly marshal filter query failed: %v", err)
+			}
+		}
 	}
 	var sb strings.Builder
 	for _, p := range req.Query.Content {
@@ -224,6 +236,7 @@ func (ds *Docstore) Retrieve(ctx context.Context, req *ai.RetrieverRequest) (*ai
 		Table:   ds.TableName,
 		Indexes: []string{ds.IndexName},
 
+		FilterQuery:    filterQuery,
 		SemanticSearch: sb.String(),
 		// TODO (ajr) Add abiltiy to pass sub keys
 		Fields: []string{textKey, metadataKey},
