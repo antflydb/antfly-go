@@ -214,6 +214,7 @@ func (ds *Docstore) Retrieve(ctx context.Context, req *ai.RetrieverRequest) (*ai
 	count := 3 // by default we fetch 3 documents
 	var metadataKeys []string
 	var filterQuery json.RawMessage
+	var orderBy map[string]bool
 	if req.Options != nil {
 		ropt, ok := req.Options.(*RetrieverOptions)
 		if !ok {
@@ -228,22 +229,28 @@ func (ds *Docstore) Retrieve(ctx context.Context, req *ai.RetrieverRequest) (*ai
 				return nil, fmt.Errorf("antfly marshal filter query failed: %v", err)
 			}
 		}
+		orderBy = ropt.OrderBy
 	}
 	var sb strings.Builder
 	for _, p := range req.Query.Content {
 		sb.WriteString(p.Text)
 	}
+	var indexes []string
+	semanticSearch := sb.String()
+	if semanticSearch != "" {
+		indexes = []string{ds.IndexName}
+	}
 	// TODO (ajr) Pass context through
 	res, err := ds.Client.Query(ctx, antfly.QueryRequest{
 		Table:   ds.TableName,
-		Indexes: []string{ds.IndexName},
+		Indexes: indexes,
 
 		FilterQuery:    filterQuery,
-		SemanticSearch: sb.String(),
+		SemanticSearch: semanticSearch,
 		// TODO (ajr) Add abiltiy to pass sub keys
 		Fields:  []string{textKey, metadataKey},
 		Limit:   count,
-		OrderBy: map[string]bool{},
+		OrderBy: orderBy,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("antfly retrieve failed: %v", err)
