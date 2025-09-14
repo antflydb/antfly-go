@@ -240,18 +240,23 @@ func (ds *Docstore) Retrieve(ctx context.Context, req *ai.RetrieverRequest) (*ai
 	if semanticSearch != "" {
 		indexes = []string{ds.IndexName}
 	}
-	// TODO (ajr) Pass context through
-	res, err := ds.Client.Query(ctx, antfly.QueryRequest{
+
+	q := antfly.QueryRequest{
 		Table:   ds.TableName,
 		Indexes: indexes,
 
-		FilterQuery:    filterQuery,
 		SemanticSearch: semanticSearch,
 		// TODO (ajr) Add abiltiy to pass sub keys
 		Fields:  []string{textKey, metadataKey},
 		Limit:   count,
 		OrderBy: orderBy,
-	})
+	}
+	if semanticSearch == "" {
+		q.FullTextSearch = filterQuery
+	} else {
+		q.FilterQuery = filterQuery
+	}
+	res, err := ds.Client.Query(ctx, q)
 	if err != nil {
 		return nil, fmt.Errorf("antfly retrieve failed: %v", err)
 	}
