@@ -29,7 +29,7 @@ import (
 	"sync"
 
 	"github.com/antflydb/antfly-go/antfly"
-	"github.com/blevesearch/bleve/v2/search/query"
+	"github.com/antflydb/antfly-go/antfly/query"
 	"github.com/cespare/xxhash/v2"
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/core/api"
@@ -204,7 +204,7 @@ type RetrieverOptions struct {
 	// Keys to retrieve from document metadata.
 	MetadataKeys []string `json:"metadata_keys,omitempty"`
 	// Bleve query to filter results.
-	FilterQuery query.Query `json:"-"`
+	FilterQuery *query.Query `json:"-"`
 	// OrderBy specificies fields to order by: ascending (false) or descending (true)
 	OrderBy map[string]bool `json:"order_By,omitempty"`
 }
