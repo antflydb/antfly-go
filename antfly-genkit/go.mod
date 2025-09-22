@@ -7,7 +7,7 @@ replace github.com/antflydb/antfly-go/antfly => ../antfly
 require (
 	github.com/antflydb/antfly-go/antfly v0.0.0-20250915003348-c01741384391
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/firebase/genkit/go v1.0.3
+	github.com/firebase/genkit/go v1.0.4
 	github.com/stretchr/testify v1.11.1
 )
 
