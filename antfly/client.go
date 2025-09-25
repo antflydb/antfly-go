@@ -408,6 +408,26 @@ func (c *AntflyClient) Batch(ctx context.Context, tableName string, request Batc
 	return &result, nil
 }
 
+// LookupKey looks up a document by its key
+func (c *AntflyClient) LookupKey(ctx context.Context, tableName, key string) (map[string]interface{}, error) {
+	resp, err := c.client.LookupKey(ctx, tableName, key)
+	if err != nil {
+		return nil, fmt.Errorf("looking up key: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("looking up key: %w", readErrorResponse(resp))
+	}
+
+	// Parse the response
+	var document map[string]interface{}
+	if err := decoder.NewStreamDecoder(resp.Body).Decode(&document); err != nil {
+		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+
+	return document, nil
+}
+
 func NewModelConfig(config any) (*ModelConfig, error) {
 	var provider Provider
 	modelConfig := &ModelConfig{}
