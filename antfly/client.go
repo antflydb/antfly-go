@@ -124,6 +124,7 @@ func (c *AntflyClient) CreateTable(ctx context.Context, tableName string, req Cr
 	if err != nil {
 		return fmt.Errorf("creating table: %w", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		err := readErrorResponse(resp)
 		if strings.Contains(err.Error(), "already exists") {
