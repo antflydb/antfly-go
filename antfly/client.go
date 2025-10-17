@@ -31,44 +31,22 @@ import (
 	"github.com/bytedance/sonic/encoder"
 )
 
-// Result types for SDK responses
-
-// TableInfo represents information about a table
-type TableInfo struct {
-	Name          string         `json:"name"`
-	Shards        map[string]any `json:"shards"`
-	Indexes       map[string]any `json:"indexes"`
-	Schema        *TableSchema   `json:"schema,omitempty"`
-	StorageStatus *StorageStatus `json:"storage_status,omitempty"`
-}
-
-// IndexInfo represents information about an index
-type IndexInfo struct {
-	Name   string         `json:"name"`
-	Type   string         `json:"type"`
-	Config map[string]any `json:"config"`
-	Status map[string]any `json:"status,omitempty"`
-}
-
-// BatchResult represents the result of a batch operation
+// BatchResult represents the result of a batch operation with detailed failure information
 type BatchResult struct {
-	Inserted int `json:"inserted"`
-	Deleted  int `json:"deleted"`
-	Failed   int `json:"failed"`
-}
+	// Deleted Number of documents successfully deleted
+	Deleted int `json:"deleted,omitempty"`
 
-// BackupResult represents the result of a backup operation
-type BackupResult struct {
-	BackupID string `json:"backup_id"`
-	Location string `json:"location"`
-	Status   string `json:"status,omitempty"`
-}
+	// Inserted Number of documents successfully inserted
+	Inserted int `json:"inserted,omitempty"`
 
-// RestoreResult represents the result of a restore operation
-type RestoreResult struct {
-	BackupID string `json:"backup_id"`
-	Location string `json:"location"`
-	Status   string `json:"status,omitempty"`
+	// Failed List of failed operations with error details
+	Failed []struct {
+		// Error message for this failure
+		Error string `json:"error,omitempty"`
+
+		// Id The document ID that failed
+		Id string `json:"id,omitempty"`
+	} `json:"failed,omitempty"`
 }
 
 // AntflyClient is a client for interacting with the Antfly API
@@ -176,7 +154,7 @@ func (c *AntflyClient) GetTable(ctx context.Context, tableName string) (*TableSt
 }
 
 // ListTables lists all tables
-func (c *AntflyClient) ListTables(ctx context.Context) ([]TableInfo, error) {
+func (c *AntflyClient) ListTables(ctx context.Context) ([]TableStatus, error) {
 	resp, err := c.client.ListTables(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("listing tables: %w", err)
@@ -187,7 +165,7 @@ func (c *AntflyClient) ListTables(ctx context.Context) ([]TableInfo, error) {
 	}
 
 	// Parse the response
-	var tables []TableInfo
+	var tables []TableStatus
 	if err := decoder.NewStreamDecoder(resp.Body).Decode(&tables); err != nil {
 		return nil, fmt.Errorf("parsing list tables response: %w", err)
 	}
@@ -222,7 +200,7 @@ func (c *AntflyClient) DropIndex(ctx context.Context, tableName, indexName strin
 }
 
 // ListIndexes lists all indexes for a table
-func (c *AntflyClient) ListIndexes(ctx context.Context, tableName string) ([]IndexInfo, error) {
+func (c *AntflyClient) ListIndexes(ctx context.Context, tableName string) (map[string]IndexStatus, error) {
 	resp, err := c.client.ListIndexes(ctx, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("listing indexes: %w", err)
@@ -232,7 +210,7 @@ func (c *AntflyClient) ListIndexes(ctx context.Context, tableName string) ([]Ind
 		return nil, fmt.Errorf("listing indexes: %w", readErrorResponse(resp))
 	}
 	// Parse the response
-	var indexes []IndexInfo
+	var indexes map[string]IndexStatus
 	if err := decoder.NewStreamDecoder(resp.Body).Decode(&indexes); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
@@ -240,7 +218,7 @@ func (c *AntflyClient) ListIndexes(ctx context.Context, tableName string) ([]Ind
 }
 
 // GetIndex gets a specific index for a table
-func (c *AntflyClient) GetIndex(ctx context.Context, tableName, indexName string) (*IndexInfo, error) {
+func (c *AntflyClient) GetIndex(ctx context.Context, tableName, indexName string) (*IndexStatus, error) {
 	resp, err := c.client.GetIndex(ctx, tableName, indexName)
 	if err != nil {
 		return nil, fmt.Errorf("getting index: %w", err)
@@ -250,7 +228,7 @@ func (c *AntflyClient) GetIndex(ctx context.Context, tableName, indexName string
 		return nil, fmt.Errorf("getting index: %w", readErrorResponse(resp))
 	}
 	// Parse the response
-	var index IndexInfo
+	var index IndexStatus
 	if err := decoder.NewStreamDecoder(resp.Body).Decode(&index); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
@@ -259,9 +237,9 @@ func (c *AntflyClient) GetIndex(ctx context.Context, tableName, indexName string
 }
 
 // Backup backs up a table
-func (c *AntflyClient) Backup(ctx context.Context, tableName, backupID, location string) (*BackupResult, error) {
+func (c *AntflyClient) Backup(ctx context.Context, tableName, backupID, location string) error {
 	if tableName == "" {
-		return nil, fmt.Errorf("empty table name")
+		return fmt.Errorf("empty table name")
 	}
 	backupURL, _ := url.JoinPath(c.baseURL, "table", tableName, "backup")
 	requestBody := map[string]string{
@@ -270,35 +248,24 @@ func (c *AntflyClient) Backup(ctx context.Context, tableName, backupID, location
 	}
 	bodyBytes, err := sonic.Marshal(requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("marshalling backup request: %w", err)
+		return fmt.Errorf("marshalling backup request: %w", err)
 	}
 
-	respBody, err := c.sendRequest(ctx, http.MethodPost, backupURL, "application/json", bytes.NewBuffer(bodyBytes))
+	_, err = c.sendRequest(ctx, http.MethodPost, backupURL, "application/json", bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		// API might return 201 Created or similar success codes as well.
 		if !strings.Contains(err.Error(), "received non-OK status 201") && !strings.Contains(err.Error(), "received non-OK status 202") {
-			return nil, fmt.Errorf("backup request failed: %w", err)
+			return fmt.Errorf("backup request failed: %w", err)
 		}
 	}
 
-	result := &BackupResult{
-		BackupID: backupID,
-		Location: location,
-		Status:   "initiated",
-	}
-
-	// Try to parse response if available
-	if len(respBody) > 0 {
-		_ = sonic.Unmarshal(respBody, result)
-	}
-
-	return result, nil
+	return nil
 }
 
 // Restore restores a table from a backup
-func (c *AntflyClient) Restore(ctx context.Context, tableName, backupID, location string) (*RestoreResult, error) {
+func (c *AntflyClient) Restore(ctx context.Context, tableName, backupID, location string) error {
 	if tableName == "" {
-		return nil, fmt.Errorf("empty table name")
+		return fmt.Errorf("empty table name")
 	}
 	restoreURL, _ := url.JoinPath(c.baseURL, "table", tableName, "restore")
 	requestBody := map[string]string{
@@ -307,29 +274,18 @@ func (c *AntflyClient) Restore(ctx context.Context, tableName, backupID, locatio
 	}
 	bodyBytes, err := sonic.Marshal(requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("marshalling restore request: %w", err)
+		return fmt.Errorf("marshalling restore request: %w", err)
 	}
 
-	respBody, err := c.sendRequest(ctx, http.MethodPost, restoreURL, "application/json", bytes.NewBuffer(bodyBytes))
+	_, err = c.sendRequest(ctx, http.MethodPost, restoreURL, "application/json", bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		// Restore API might return 202 Accepted.
 		if !strings.Contains(err.Error(), "received non-OK status 202") {
-			return nil, fmt.Errorf("restoring failed: %w", err)
+			return fmt.Errorf("restoring failed: %w", err)
 		}
 	}
 
-	result := &RestoreResult{
-		BackupID: backupID,
-		Location: location,
-		Status:   "initiated",
-	}
-
-	// Try to parse response if available
-	if len(respBody) > 0 {
-		_ = sonic.Unmarshal(respBody, result)
-	}
-
-	return result, nil
+	return nil
 }
 
 // Query executes queries against a table
@@ -410,7 +366,7 @@ func (c *AntflyClient) Batch(ctx context.Context, tableName string, request Batc
 }
 
 // LookupKey looks up a document by its key
-func (c *AntflyClient) LookupKey(ctx context.Context, tableName, key string) (map[string]interface{}, error) {
+func (c *AntflyClient) LookupKey(ctx context.Context, tableName, key string) (map[string]any, error) {
 	resp, err := c.client.LookupKey(ctx, tableName, key)
 	if err != nil {
 		return nil, fmt.Errorf("looking up key: %w", err)
@@ -421,7 +377,7 @@ func (c *AntflyClient) LookupKey(ctx context.Context, tableName, key string) (ma
 	}
 
 	// Parse the response
-	var document map[string]interface{}
+	var document map[string]any
 	if err := decoder.NewStreamDecoder(resp.Body).Decode(&document); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
