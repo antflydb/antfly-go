@@ -19,6 +19,7 @@ package antfly
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -26,9 +27,70 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/antflydb/antfly-go/antfly/oapi"
+	"github.com/antflydb/antfly-go/antfly/query"
 	"github.com/bytedance/sonic"
 	"github.com/bytedance/sonic/decoder"
 	"github.com/bytedance/sonic/encoder"
+)
+
+// Re-export commonly used types from oapi package
+type (
+	// Table and Index types
+	CreateTableRequest = oapi.CreateTableRequest
+	TableStatus        = oapi.TableStatus
+	TableSchema        = oapi.TableSchema
+	IndexConfig        = oapi.IndexConfig
+	IndexStatus        = oapi.IndexStatus
+	IndexType          = oapi.IndexType
+
+	// Index config types
+	EmbeddingIndexConfig = oapi.EmbeddingIndexConfig
+	BleveIndexV2Config   = oapi.BleveIndexV2Config
+	BleveIndexV2Stats    = oapi.BleveIndexV2Stats
+
+	// Model config types
+	ModelConfig    = oapi.ModelConfig
+	Provider       = oapi.Provider
+	OllamaConfig   = oapi.OllamaConfig
+	OpenAIConfig   = oapi.OpenAIConfig
+	GoogleConfig   = oapi.GoogleConfig
+	BedrockConfig  = oapi.BedrockConfig
+	RerankerConfig = oapi.RerankerConfig
+
+	// Batch types
+	BatchRequest = oapi.BatchRequest
+
+	// Query response types
+	QueryResponses = oapi.QueryResponses
+	QueryResult    = oapi.QueryResult
+	Hits           = oapi.QueryHits
+	Hit            = oapi.QueryHit
+	FacetOption    = oapi.FacetOption
+	FacetResult    = oapi.FacetResult
+
+	// Other types
+	AntflyType     = oapi.AntflyType
+	MergeStrategy  = oapi.MergeStrategy
+	DocumentSchema = oapi.DocumentSchema
+)
+
+// Constants from oapi
+const (
+	// IndexType values
+	BleveV2  = oapi.BleveV2
+	VectorV2 = oapi.VectorV2
+
+	// Provider values
+	Ollama  = oapi.Ollama
+	Openai  = oapi.Openai
+	Gemini  = oapi.Gemini
+	Bedrock = oapi.Bedrock
+	Mock    = oapi.Mock
+
+	// MergeStrategy values
+	Rrf      = oapi.Rrf
+	Failover = oapi.Failover
 )
 
 // BatchResult represents the result of a batch operation with detailed failure information
@@ -49,16 +111,79 @@ type BatchResult struct {
 	} `json:"failed,omitempty"`
 }
 
+// QueryRequest represents a query request with strongly-typed query fields.
+// This is the SDK-friendly version of oapi.QueryRequest with Query types instead of json.RawMessage.
+type QueryRequest struct {
+	// Table name to query
+	Table string `json:"table,omitempty"`
+
+	// Analyses specifies analysis operations to perform
+	Analyses *oapi.Analyses `json:"analyses,omitempty"`
+
+	// Count whether to return only the count of matching documents
+	Count bool `json:"count,omitempty"`
+
+	// DistanceOver minimum distance for semantic similarity search
+	DistanceOver *float32 `json:"distance_over,omitempty"`
+
+	// DistanceUnder maximum distance for semantic similarity search
+	DistanceUnder *float32 `json:"distance_under,omitempty"`
+
+	// Embeddings raw embeddings to use for semantic searches (the keys are the indexes to use for the queries)
+	Embeddings map[string][]float32 `json:"embeddings,omitempty"`
+
+	// ExclusionQuery strongly-typed Bleve search query for exclusions
+	ExclusionQuery *query.Query `json:"-"`
+
+	// Facets to compute
+	Facets map[string]FacetOption `json:"facets,omitempty"`
+
+	// Fields list of fields to include in the results
+	Fields []string `json:"fields,omitempty"`
+
+	// FilterPrefix for filtering by key prefix
+	FilterPrefix []byte `json:"filter_prefix,omitempty"`
+
+	// FilterQuery strongly-typed Bleve search query for filtering
+	FilterQuery *query.Query `json:"-"`
+
+	// FullTextSearch strongly-typed Bleve search query for full-text search
+	FullTextSearch *query.Query `json:"-"`
+
+	// Indexes to search (required for semantic search)
+	Indexes []string `json:"indexes,omitempty"`
+
+	// Limit maximum number of results to return or topk for semantic_search
+	Limit int `json:"limit,omitempty"`
+
+	// MergeStrategy for combining results from semantic_search and full_text_search
+	// rrf: Reciprocal Rank Fusion
+	// failover: Use full_text_search if embedding generation fails
+	MergeStrategy MergeStrategy `json:"merge_strategy,omitempty"`
+
+	// Offset number of results to skip for pagination (only available for full_text_search queries)
+	Offset int `json:"offset,omitempty"`
+
+	// OrderBy specifies fields to order by: field name -> descending (true) or ascending (false)
+	OrderBy map[string]bool `json:"order_by,omitempty"`
+
+	// Reranker configuration for reranking results
+	Reranker *RerankerConfig `json:"reranker,omitempty"`
+
+	// SemanticSearch text to use for semantic similarity search
+	SemanticSearch string `json:"semantic_search,omitempty"`
+}
+
 // AntflyClient is a client for interacting with the Antfly API
 type AntflyClient struct {
-	client     *Client
+	client     *oapi.Client
 	httpClient *http.Client
 	baseURL    string
 }
 
 // NewAntflyClient creates a new Antfly client
 func NewAntflyClient(baseURL string, httpClient *http.Client) (*AntflyClient, error) {
-	client, err := NewClient(baseURL, WithHTTPClient(httpClient))
+	client, err := oapi.NewClient(baseURL, oapi.WithHTTPClient(httpClient))
 	if err != nil {
 		return nil, err
 	}
@@ -303,7 +428,50 @@ func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryR
 			return nil, errors.New("offset not available when indexes are specified")
 		}
 
-		if err := e.Encode(opt); err != nil {
+		// Convert SDK QueryRequest to oapi.QueryRequest
+		oapiReq := oapi.QueryRequest{
+			Table:          opt.Table,
+			Analyses:       opt.Analyses,
+			Count:          opt.Count,
+			DistanceOver:   opt.DistanceOver,
+			DistanceUnder:  opt.DistanceUnder,
+			Embeddings:     opt.Embeddings,
+			Facets:         opt.Facets,
+			Fields:         opt.Fields,
+			FilterPrefix:   opt.FilterPrefix,
+			Indexes:        opt.Indexes,
+			Limit:          opt.Limit,
+			MergeStrategy:  opt.MergeStrategy,
+			Offset:         opt.Offset,
+			OrderBy:        opt.OrderBy,
+			Reranker:       opt.Reranker,
+			SemanticSearch: opt.SemanticSearch,
+		}
+
+		// Marshal query fields to json.RawMessage
+		if opt.FilterQuery != nil {
+			filterQueryJSON, err := json.Marshal(opt.FilterQuery)
+			if err != nil {
+				return nil, fmt.Errorf("marshalling filter_query: %w", err)
+			}
+			oapiReq.FilterQuery = filterQueryJSON
+		}
+		if opt.FullTextSearch != nil {
+			fullTextSearchJSON, err := json.Marshal(opt.FullTextSearch)
+			if err != nil {
+				return nil, fmt.Errorf("marshalling full_text_search: %w", err)
+			}
+			oapiReq.FullTextSearch = fullTextSearchJSON
+		}
+		if opt.ExclusionQuery != nil {
+			exclusionQueryJSON, err := json.Marshal(opt.ExclusionQuery)
+			if err != nil {
+				return nil, fmt.Errorf("marshalling exclusion_query: %w", err)
+			}
+			oapiReq.ExclusionQuery = exclusionQueryJSON
+		}
+
+		if err := e.Encode(oapiReq); err != nil {
 			return nil, fmt.Errorf("marshalling query: %w", err)
 		}
 	}

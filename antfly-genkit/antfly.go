@@ -17,7 +17,6 @@ package antfly
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -213,7 +212,7 @@ type RetrieverOptions struct {
 func (ds *Docstore) Retrieve(ctx context.Context, req *ai.RetrieverRequest) (*ai.RetrieverResponse, error) {
 	count := 3 // by default we fetch 3 documents
 	var metadataKeys []string
-	var filterQuery json.RawMessage
+	var filterQuery *query.Query
 	var orderBy map[string]bool
 	if req.Options != nil {
 		ropt, ok := req.Options.(*RetrieverOptions)
@@ -222,13 +221,7 @@ func (ds *Docstore) Retrieve(ctx context.Context, req *ai.RetrieverRequest) (*ai
 		}
 		count = ropt.Count
 		metadataKeys = ropt.MetadataKeys
-		if ropt.FilterQuery != nil {
-			var err error
-			filterQuery, err = json.Marshal(ropt.FilterQuery)
-			if err != nil {
-				return nil, fmt.Errorf("antfly marshal filter query failed: %v", err)
-			}
-		}
+		filterQuery = ropt.FilterQuery
 		orderBy = ropt.OrderBy
 	}
 	var sb strings.Builder

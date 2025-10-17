@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/oapi-codegen/oapi-codegen/HEAD/configuration-schema.json
-package: antfly
-output: client.gen.go
+package: oapi
+output: oapi/client.gen.go
 generate:
   embedded-spec: true
   models: true
