@@ -5,9 +5,9 @@ go 1.25.1
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly-go/antfly v0.0.0-20250925215002-b3122de74993
+	github.com/antflydb/antfly-go/antfly v0.0.0-20251017235752-e79dcb27f4e9
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/firebase/genkit/go v1.0.5
+	github.com/firebase/genkit/go v1.1.0
 	github.com/stretchr/testify v1.11.1
 )
 
@@ -26,7 +26,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.22.1 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.1 // indirect
 	github.com/goccy/go-yaml v1.18.0 // indirect
-	github.com/google/dotprompt/go v0.0.0-20250923103342-a8a91d1dff59 // indirect
+	github.com/google/dotprompt/go v0.0.0-20251016195250-f9183f819725 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
