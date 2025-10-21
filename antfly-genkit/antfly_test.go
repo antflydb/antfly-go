@@ -44,8 +44,8 @@ func TestGenkit(t *testing.T) {
 	modelConfig, err := antfly.NewModelConfig(antfly.OllamaConfig{Model: "all-minilm"})
 	require.NoError(t, err)
 	idxConfig, err := antfly.NewIndexConfig(*testIndex, antfly.EmbeddingIndexConfig{
-		Field:          textKey,
-		EmbedderConfig: *modelConfig,
+		Field:    textKey,
+		Embedder: *modelConfig,
 	})
 	require.NoError(t, err)
 	err = af.client.CreateTable(ctx, *testTable, antfly.CreateTableRequest{

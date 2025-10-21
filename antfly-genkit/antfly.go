@@ -148,8 +148,8 @@ func (w *Antfly) newDocstore(ctx context.Context, cfg *IndexConfig) (*Docstore, 
 				return nil, fmt.Errorf("antfly model config failed: %v", err)
 			}
 			indexConfig, err := antfly.NewIndexConfig(cfg.IndexName, antfly.EmbeddingIndexConfig{
-				Field:          textKey,
-				EmbedderConfig: *modelConfig,
+				Field:    textKey,
+				Embedder: *modelConfig,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("antfly index config failed: %v", err)
@@ -169,8 +169,8 @@ func (w *Antfly) newDocstore(ctx context.Context, cfg *IndexConfig) (*Docstore, 
 			return nil, fmt.Errorf("antfly model config failed: %v", err)
 		}
 		indexConfig, err := antfly.NewIndexConfig(cfg.IndexName, antfly.EmbeddingIndexConfig{
-			Field:          textKey,
-			EmbedderConfig: *modelConfig,
+			Field:    textKey,
+			Embedder: *modelConfig,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("antfly index config failed: %v", err)
