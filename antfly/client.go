@@ -642,7 +642,13 @@ func (c *AntflyClient) RAG(ctx context.Context, queryReq QueryRequest, summarize
 		return "", fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "text/event-stream")
+
+	// When citations are enabled, expect JSON response instead of streaming
+	if opt.WithCitations {
+		req.Header.Set("Accept", "application/json")
+	} else {
+		req.Header.Set("Accept", "text/event-stream")
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -653,6 +659,15 @@ func (c *AntflyClient) RAG(ctx context.Context, queryReq QueryRequest, summarize
 	if resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)
 		return "", fmt.Errorf("RAG request failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// If citations enabled, read JSON response directly
+	if opt.WithCitations {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", fmt.Errorf("reading response body: %w", err)
+		}
+		return string(respBody), nil
 	}
 
 	// Use callback if provided, otherwise accumulate in a buffer
