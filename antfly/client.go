@@ -553,6 +553,146 @@ func (c *AntflyClient) LookupKey(ctx context.Context, tableName, key string) (ma
 	return document, nil
 }
 
+// RAGOptions contains optional parameters for RAG requests
+type RAGOptions struct {
+	// SystemPrompt is an optional system prompt to guide the summarization
+	SystemPrompt string
+	// Callback is called for each chunk of the streaming response
+	// If not provided, chunks are written to a default buffer
+	Callback func(chunk string) error
+
+	// DocumentRenderer Optional Go template string for rendering document content to the prompt
+	DocumentRenderer string `json:"document_renderer,omitempty,omitzero"`
+	// WithCitations Enable citations in the summary output
+	WithCitations bool `json:"with_citations,omitempty,omitzero"`
+}
+
+// RAG performs a RAG (Retrieval-Augmented Generation) query and streams the response
+// The callback function is called for each chunk of the streaming response
+func (c *AntflyClient) RAG(ctx context.Context, queryReq QueryRequest, summarizer ModelConfig, opts ...RAGOptions) (string, error) {
+	ragURL, _ := url.JoinPath(c.baseURL, "rag")
+
+	// Merge options
+	var opt RAGOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	// Convert SDK QueryRequest to oapi.QueryRequest
+	oapiQueryReq := oapi.QueryRequest{
+		Table:          queryReq.Table,
+		Analyses:       queryReq.Analyses,
+		Count:          queryReq.Count,
+		DistanceOver:   queryReq.DistanceOver,
+		DistanceUnder:  queryReq.DistanceUnder,
+		Embeddings:     queryReq.Embeddings,
+		Facets:         queryReq.Facets,
+		Fields:         queryReq.Fields,
+		FilterPrefix:   queryReq.FilterPrefix,
+		Indexes:        queryReq.Indexes,
+		Limit:          queryReq.Limit,
+		MergeStrategy:  queryReq.MergeStrategy,
+		Offset:         queryReq.Offset,
+		OrderBy:        queryReq.OrderBy,
+		Reranker:       queryReq.Reranker,
+		SemanticSearch: queryReq.SemanticSearch,
+	}
+
+	// Marshal query fields to json.RawMessage
+	if queryReq.FilterQuery != nil {
+		filterQueryJSON, err := json.Marshal(queryReq.FilterQuery)
+		if err != nil {
+			return "", fmt.Errorf("marshalling filter_query: %w", err)
+		}
+		oapiQueryReq.FilterQuery = filterQueryJSON
+	}
+	if queryReq.FullTextSearch != nil {
+		fullTextSearchJSON, err := json.Marshal(queryReq.FullTextSearch)
+		if err != nil {
+			return "", fmt.Errorf("marshalling full_text_search: %w", err)
+		}
+		oapiQueryReq.FullTextSearch = fullTextSearchJSON
+	}
+	if queryReq.ExclusionQuery != nil {
+		exclusionQueryJSON, err := json.Marshal(queryReq.ExclusionQuery)
+		if err != nil {
+			return "", fmt.Errorf("marshalling exclusion_query: %w", err)
+		}
+		oapiQueryReq.ExclusionQuery = exclusionQueryJSON
+	}
+
+	// Create RAG request
+	ragReq := oapi.RAGRequest{
+		Query:            oapiQueryReq,
+		Summarizer:       summarizer,
+		WithCitations:    opt.WithCitations,
+		DocumentRenderer: opt.DocumentRenderer,
+	}
+	if opt.SystemPrompt != "" {
+		ragReq.SystemPrompt = opt.SystemPrompt
+	}
+
+	ragBody, err := sonic.Marshal(ragReq)
+	if err != nil {
+		return "", fmt.Errorf("marshalling RAG request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ragURL, bytes.NewBuffer(ragBody))
+	if err != nil {
+		return "", fmt.Errorf("creating request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("sending RAG request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("RAG request failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// Use callback if provided, otherwise accumulate in a buffer
+	var result strings.Builder
+	callback := opt.Callback
+	if callback == nil {
+		callback = func(chunk string) error {
+			result.WriteString(chunk)
+			return nil
+		}
+	}
+
+	// Read the SSE stream
+	buf := make([]byte, 4096)
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			chunk := string(buf[:n])
+			// Parse SSE format: "data: <content>\n\n"
+			lines := strings.Split(chunk, "\n")
+			for _, line := range lines {
+				if strings.HasPrefix(line, "data: ") {
+					data := strings.TrimPrefix(line, "data: ")
+					if err := callback(data); err != nil {
+						return "", fmt.Errorf("callback error: %w", err)
+					}
+				}
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", fmt.Errorf("reading stream: %w", err)
+		}
+	}
+
+	return result.String(), nil
+}
+
 func NewModelConfig(config any) (*ModelConfig, error) {
 	var provider Provider
 	modelConfig := &ModelConfig{}
