@@ -172,6 +172,9 @@ type QueryRequest struct {
 
 	// SemanticSearch text to use for semantic similarity search
 	SemanticSearch string `json:"semantic_search,omitempty"`
+
+	// DocumentRenderer optional Go template string for rendering document content to the prompt
+	DocumentRenderer string `json:"document_renderer,omitempty"`
 }
 
 // AntflyClient is a client for interacting with the Antfly API
@@ -568,8 +571,9 @@ type RAGOptions struct {
 }
 
 // RAG performs a RAG (Retrieval-Augmented Generation) query and streams the response
+// Accepts one or more QueryRequest for single-table or multi-table RAG queries
 // The callback function is called for each chunk of the streaming response
-func (c *AntflyClient) RAG(ctx context.Context, queryReq QueryRequest, summarizer ModelConfig, opts ...RAGOptions) (string, error) {
+func (c *AntflyClient) RAG(ctx context.Context, summarizer ModelConfig, queryReqs []QueryRequest, opts ...RAGOptions) (string, error) {
 	ragURL, _ := url.JoinPath(c.baseURL, "rag")
 
 	// Merge options
@@ -578,55 +582,60 @@ func (c *AntflyClient) RAG(ctx context.Context, queryReq QueryRequest, summarize
 		opt = opts[0]
 	}
 
-	// Convert SDK QueryRequest to oapi.QueryRequest
-	oapiQueryReq := oapi.QueryRequest{
-		Table:          queryReq.Table,
-		Analyses:       queryReq.Analyses,
-		Count:          queryReq.Count,
-		DistanceOver:   queryReq.DistanceOver,
-		DistanceUnder:  queryReq.DistanceUnder,
-		Embeddings:     queryReq.Embeddings,
-		Facets:         queryReq.Facets,
-		Fields:         queryReq.Fields,
-		FilterPrefix:   queryReq.FilterPrefix,
-		Indexes:        queryReq.Indexes,
-		Limit:          queryReq.Limit,
-		MergeStrategy:  queryReq.MergeStrategy,
-		Offset:         queryReq.Offset,
-		OrderBy:        queryReq.OrderBy,
-		Reranker:       queryReq.Reranker,
-		SemanticSearch: queryReq.SemanticSearch,
+	// Convert SDK QueryRequests to oapi.QueryRequests
+	oapiQueries := make([]oapi.QueryRequest, len(queryReqs))
+	for i, queryReq := range queryReqs {
+		oapiQueryReq := oapi.QueryRequest{
+			Table:            queryReq.Table,
+			Analyses:         queryReq.Analyses,
+			Count:            queryReq.Count,
+			DistanceOver:     queryReq.DistanceOver,
+			DistanceUnder:    queryReq.DistanceUnder,
+			Embeddings:       queryReq.Embeddings,
+			Facets:           queryReq.Facets,
+			Fields:           queryReq.Fields,
+			FilterPrefix:     queryReq.FilterPrefix,
+			Indexes:          queryReq.Indexes,
+			Limit:            queryReq.Limit,
+			MergeStrategy:    queryReq.MergeStrategy,
+			Offset:           queryReq.Offset,
+			OrderBy:          queryReq.OrderBy,
+			Reranker:         queryReq.Reranker,
+			SemanticSearch:   queryReq.SemanticSearch,
+			DocumentRenderer: queryReq.DocumentRenderer,
+		}
+
+		// Marshal query fields to json.RawMessage
+		if queryReq.FilterQuery != nil {
+			filterQueryJSON, err := json.Marshal(queryReq.FilterQuery)
+			if err != nil {
+				return "", fmt.Errorf("marshalling filter_query for query %d: %w", i, err)
+			}
+			oapiQueryReq.FilterQuery = filterQueryJSON
+		}
+		if queryReq.FullTextSearch != nil {
+			fullTextSearchJSON, err := json.Marshal(queryReq.FullTextSearch)
+			if err != nil {
+				return "", fmt.Errorf("marshalling full_text_search for query %d: %w", i, err)
+			}
+			oapiQueryReq.FullTextSearch = fullTextSearchJSON
+		}
+		if queryReq.ExclusionQuery != nil {
+			exclusionQueryJSON, err := json.Marshal(queryReq.ExclusionQuery)
+			if err != nil {
+				return "", fmt.Errorf("marshalling exclusion_query for query %d: %w", i, err)
+			}
+			oapiQueryReq.ExclusionQuery = exclusionQueryJSON
+		}
+
+		oapiQueries[i] = oapiQueryReq
 	}
 
-	// Marshal query fields to json.RawMessage
-	if queryReq.FilterQuery != nil {
-		filterQueryJSON, err := json.Marshal(queryReq.FilterQuery)
-		if err != nil {
-			return "", fmt.Errorf("marshalling filter_query: %w", err)
-		}
-		oapiQueryReq.FilterQuery = filterQueryJSON
-	}
-	if queryReq.FullTextSearch != nil {
-		fullTextSearchJSON, err := json.Marshal(queryReq.FullTextSearch)
-		if err != nil {
-			return "", fmt.Errorf("marshalling full_text_search: %w", err)
-		}
-		oapiQueryReq.FullTextSearch = fullTextSearchJSON
-	}
-	if queryReq.ExclusionQuery != nil {
-		exclusionQueryJSON, err := json.Marshal(queryReq.ExclusionQuery)
-		if err != nil {
-			return "", fmt.Errorf("marshalling exclusion_query: %w", err)
-		}
-		oapiQueryReq.ExclusionQuery = exclusionQueryJSON
-	}
-
-	// Create RAG request
+	// Create RAG request with queries array
 	ragReq := oapi.RAGRequest{
-		Query:            oapiQueryReq,
-		Summarizer:       summarizer,
-		WithCitations:    opt.WithCitations,
-		DocumentRenderer: opt.DocumentRenderer,
+		Queries:       oapiQueries,
+		Summarizer:    summarizer,
+		WithCitations: opt.WithCitations,
 	}
 	if opt.SystemPrompt != "" {
 		ragReq.SystemPrompt = opt.SystemPrompt
