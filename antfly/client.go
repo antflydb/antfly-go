@@ -68,6 +68,7 @@ type (
 	Hit            = oapi.QueryHit
 	FacetOption    = oapi.FacetOption
 	FacetResult    = oapi.FacetResult
+	RAGRequest     = oapi.RAGRequest
 
 	// Other types
 	AntflyType     = oapi.AntflyType
