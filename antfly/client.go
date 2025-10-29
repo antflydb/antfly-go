@@ -68,7 +68,6 @@ type (
 	Hit            = oapi.QueryHit
 	FacetOption    = oapi.FacetOption
 	FacetResult    = oapi.FacetResult
-	RAGRequest     = oapi.RAGRequest
 
 	// Other types
 	AntflyType     = oapi.AntflyType
@@ -176,6 +175,22 @@ type QueryRequest struct {
 
 	// DocumentRenderer optional Go template string for rendering document content to the prompt
 	DocumentRenderer string `json:"document_renderer,omitempty"`
+}
+
+// RAGRequest represents a RAG request with strongly-typed query fields.
+// This is the SDK-friendly version of oapi.RAGRequest with QueryRequest types instead of oapi.QueryRequest.
+type RAGRequest struct {
+	// Queries to execute for retrieval
+	Queries []QueryRequest `json:"-"`
+
+	// Summarizer model configuration for generation
+	Summarizer ModelConfig `json:"summarizer"`
+
+	// SystemPrompt optional system prompt to guide the summarization
+	SystemPrompt string `json:"system_prompt,omitempty"`
+
+	// WithCitations enable citations in the summary output
+	WithCitations bool `json:"with_citations,omitempty"`
 }
 
 // AntflyClient is a client for interacting with the Antfly API
@@ -559,22 +574,15 @@ func (c *AntflyClient) LookupKey(ctx context.Context, tableName, key string) (ma
 
 // RAGOptions contains optional parameters for RAG requests
 type RAGOptions struct {
-	// SystemPrompt is an optional system prompt to guide the summarization
-	SystemPrompt string
 	// Callback is called for each chunk of the streaming response
 	// If not provided, chunks are written to a default buffer
 	Callback func(chunk string) error
-
-	// DocumentRenderer Optional Go template string for rendering document content to the prompt
-	DocumentRenderer string `json:"document_renderer,omitempty,omitzero"`
-	// WithCitations Enable citations in the summary output
-	WithCitations bool `json:"with_citations,omitempty,omitzero"`
 }
 
 // RAG performs a RAG (Retrieval-Augmented Generation) query and streams the response
-// Accepts one or more QueryRequest for single-table or multi-table RAG queries
+// Accepts a RAGRequest with one or more QueryRequests for single-table or multi-table RAG queries
 // The callback function is called for each chunk of the streaming response
-func (c *AntflyClient) RAG(ctx context.Context, summarizer ModelConfig, queryReqs []QueryRequest, opts ...RAGOptions) (string, error) {
+func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOptions) (string, error) {
 	ragURL, _ := url.JoinPath(c.baseURL, "rag")
 
 	// Merge options
@@ -584,8 +592,8 @@ func (c *AntflyClient) RAG(ctx context.Context, summarizer ModelConfig, queryReq
 	}
 
 	// Convert SDK QueryRequests to oapi.QueryRequests
-	oapiQueries := make([]oapi.QueryRequest, len(queryReqs))
-	for i, queryReq := range queryReqs {
+	oapiQueries := make([]oapi.QueryRequest, len(ragReq.Queries))
+	for i, queryReq := range ragReq.Queries {
 		oapiQueryReq := oapi.QueryRequest{
 			Table:            queryReq.Table,
 			Analyses:         queryReq.Analyses,
@@ -633,16 +641,16 @@ func (c *AntflyClient) RAG(ctx context.Context, summarizer ModelConfig, queryReq
 	}
 
 	// Create RAG request with queries array
-	ragReq := oapi.RAGRequest{
+	oapiRAGReq := oapi.RAGRequest{
 		Queries:       oapiQueries,
-		Summarizer:    summarizer,
-		WithCitations: opt.WithCitations,
+		Summarizer:    ragReq.Summarizer,
+		WithCitations: ragReq.WithCitations,
 	}
-	if opt.SystemPrompt != "" {
-		ragReq.SystemPrompt = opt.SystemPrompt
+	if ragReq.SystemPrompt != "" {
+		oapiRAGReq.SystemPrompt = ragReq.SystemPrompt
 	}
 
-	ragBody, err := sonic.Marshal(ragReq)
+	ragBody, err := sonic.Marshal(oapiRAGReq)
 	if err != nil {
 		return "", fmt.Errorf("marshalling RAG request: %w", err)
 	}
@@ -654,7 +662,7 @@ func (c *AntflyClient) RAG(ctx context.Context, summarizer ModelConfig, queryReq
 	req.Header.Set("Content-Type", "application/json")
 
 	// When citations are enabled, expect JSON response instead of streaming
-	if opt.WithCitations {
+	if ragReq.WithCitations {
 		req.Header.Set("Accept", "application/json")
 	} else {
 		req.Header.Set("Accept", "text/event-stream")
@@ -672,7 +680,7 @@ func (c *AntflyClient) RAG(ctx context.Context, summarizer ModelConfig, queryReq
 	}
 
 	// If citations enabled, read JSON response directly
-	if opt.WithCitations {
+	if ragReq.WithCitations {
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", fmt.Errorf("reading response body: %w", err)
