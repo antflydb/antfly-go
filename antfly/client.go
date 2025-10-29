@@ -191,6 +191,9 @@ type RAGRequest struct {
 
 	// WithCitations enable citations in the summary output
 	WithCitations bool `json:"with_citations,omitempty"`
+
+	// WithStreaming Enable SSE streaming of results instead of JSON response
+	WithStreaming bool `json:"with_streaming,omitempty,omitzero"`
 }
 
 // AntflyClient is a client for interacting with the Antfly API
@@ -645,6 +648,7 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 		Queries:       oapiQueries,
 		Summarizer:    ragReq.Summarizer,
 		WithCitations: ragReq.WithCitations,
+		WithStreaming: ragReq.WithStreaming,
 	}
 	if ragReq.SystemPrompt != "" {
 		oapiRAGReq.SystemPrompt = ragReq.SystemPrompt
@@ -705,10 +709,10 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 		if n > 0 {
 			chunk := string(buf[:n])
 			// Parse SSE format: "data: <content>\n\n"
-			lines := strings.Split(chunk, "\n")
-			for _, line := range lines {
-				if strings.HasPrefix(line, "data: ") {
-					data := strings.TrimPrefix(line, "data: ")
+			lines := strings.SplitSeq(chunk, "\n")
+			for line := range lines {
+				if after, ok := strings.CutPrefix(line, "data: "); ok {
+					data := after
 					if err := callback(data); err != nil {
 						return "", fmt.Errorf("callback error: %w", err)
 					}
