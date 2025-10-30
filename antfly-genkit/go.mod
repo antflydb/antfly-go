@@ -5,7 +5,7 @@ go 1.25.1
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly-go/antfly v0.0.0-20251029220945-df97a1a8b245
+	github.com/antflydb/antfly-go/antfly v0.0.0-20251030201154-109a8f73bd3a
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/firebase/genkit/go v1.1.0
 	github.com/stretchr/testify v1.11.1
