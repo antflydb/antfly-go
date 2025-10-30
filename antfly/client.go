@@ -58,9 +58,6 @@ type (
 	BedrockConfig  = oapi.BedrockConfig
 	RerankerConfig = oapi.RerankerConfig
 
-	// Batch types
-	BatchRequest = oapi.BatchRequest
-
 	// Query response types
 	QueryResponses = oapi.QueryResponses
 	QueryResult    = oapi.QueryResult
@@ -73,7 +70,23 @@ type (
 	AntflyType     = oapi.AntflyType
 	MergeStrategy  = oapi.MergeStrategy
 	DocumentSchema = oapi.DocumentSchema
+
+	// Validation types
+	ValidationError  = oapi.ValidationError
+	ValidationResult = oapi.ValidationResult
 )
+
+// BatchRequest represents a batch operation request with flexible insert types.
+// Unlike the oapi.BatchRequest, this version allows Inserts to accept any type
+// (including structs) which will be automatically marshaled.
+type BatchRequest struct {
+	// Deletes List of keys to delete.
+	Deletes []string `json:"deletes,omitempty"`
+
+	// Inserts Map of key to document. Documents can be any type (map, struct, etc.)
+	// and will be automatically marshaled to JSON.
+	Inserts map[string]any `json:"inserts,omitempty"`
+}
 
 // Constants from oapi
 const (

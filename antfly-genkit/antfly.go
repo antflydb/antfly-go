@@ -300,7 +300,7 @@ func Index(ctx context.Context, docs []*ai.Document, ds *Docstore) error {
 		return nil
 	}
 
-	inserts := make(map[string]map[string]any, len(docs))
+	inserts := make(map[string]any, len(docs))
 	for _, doc := range docs {
 		var sb strings.Builder
 		for _, p := range doc.Content {
