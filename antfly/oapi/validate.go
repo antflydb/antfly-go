@@ -89,24 +89,13 @@ func (d *DocumentSchema) Validate(document any) (*ValidationResult, error) {
 		return nil, fmt.Errorf("compiling schema: %w", err)
 	}
 
-	// Convert document to map for validation
-	var docMap map[string]any
-	switch v := document.(type) {
-	case map[string]any:
-		docMap = v
-	default:
-		// If not already a map, marshal and unmarshal to convert
-		docBytes, err := sonic.Marshal(document)
-		if err != nil {
-			return nil, fmt.Errorf("marshalling document: %w", err)
-		}
-		if err := sonic.Unmarshal(docBytes, &docMap); err != nil {
-			return nil, fmt.Errorf("unmarshalling document to map: %w", err)
-		}
+	docBytes, err := sonic.Marshal(document)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling document: %w", err)
 	}
 
 	// Validate the document
-	result := compiledSchema.ValidateMap(docMap)
+	result := compiledSchema.ValidateJSON(docBytes)
 
 	// Build validation result
 	validationResult := &ValidationResult{
