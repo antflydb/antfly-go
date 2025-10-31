@@ -199,7 +199,7 @@ type RAGRequest struct {
 	Queries []QueryRequest `json:"-"`
 
 	// Summarizer model configuration for generation
-	Summarizer ModelConfig `json:"summarizer"`
+	Summarizer GeneratorConfig `json:"summarizer"`
 
 	// SystemPrompt optional system prompt to guide the summarization
 	SystemPrompt string `json:"system_prompt,omitempty"`
