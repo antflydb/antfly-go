@@ -202,9 +202,6 @@ type RAGRequest struct {
 	// SystemPrompt optional system prompt to guide the summarization
 	SystemPrompt string `json:"system_prompt,omitempty"`
 
-	// WithCitations enable citations in the summary output
-	WithCitations bool `json:"with_citations,omitempty"`
-
 	// WithStreaming Enable SSE streaming of results instead of JSON response
 	WithStreaming bool `json:"with_streaming,omitempty,omitzero"`
 }
@@ -660,7 +657,6 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 	oapiRAGReq := oapi.RAGRequest{
 		Queries:       oapiQueries,
 		Summarizer:    ragReq.Summarizer,
-		WithCitations: ragReq.WithCitations,
 		WithStreaming: ragReq.WithStreaming,
 	}
 	if ragReq.SystemPrompt != "" {
@@ -678,11 +674,11 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// When citations are enabled, expect JSON response instead of streaming
-	if ragReq.WithCitations {
-		req.Header.Set("Accept", "application/json")
-	} else {
+	// When streaming is enabled, expect SSE response instead of JSON
+	if ragReq.WithStreaming {
 		req.Header.Set("Accept", "text/event-stream")
+	} else {
+		req.Header.Set("Accept", "application/json")
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -696,8 +692,8 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 		return "", fmt.Errorf("RAG request failed with status %d: %s", resp.StatusCode, string(respBody))
 	}
 
-	// If citations enabled, read JSON response directly
-	if ragReq.WithCitations {
+	// If streaming is disabled, read JSON response directly
+	if !ragReq.WithStreaming {
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return "", fmt.Errorf("reading response body: %w", err)
