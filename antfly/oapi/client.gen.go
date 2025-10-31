@@ -27,17 +27,17 @@ const (
 
 // Defines values for AntflyType.
 const (
-	Blob            AntflyType = "blob"
-	Boolean         AntflyType = "boolean"
-	Datetime        AntflyType = "datetime"
-	Embedding       AntflyType = "embedding"
-	Geopoint        AntflyType = "geopoint"
-	Geoshape        AntflyType = "geoshape"
-	Keyword         AntflyType = "keyword"
-	Link            AntflyType = "link"
-	Numeric         AntflyType = "numeric"
-	SearchAsYouType AntflyType = "search_as_you_type"
-	Text            AntflyType = "text"
+	AntflyTypeBlob            AntflyType = "blob"
+	AntflyTypeBoolean         AntflyType = "boolean"
+	AntflyTypeDatetime        AntflyType = "datetime"
+	AntflyTypeEmbedding       AntflyType = "embedding"
+	AntflyTypeGeopoint        AntflyType = "geopoint"
+	AntflyTypeGeoshape        AntflyType = "geoshape"
+	AntflyTypeKeyword         AntflyType = "keyword"
+	AntflyTypeLink            AntflyType = "link"
+	AntflyTypeNumeric         AntflyType = "numeric"
+	AntflyTypeSearchAsYouType AntflyType = "search_as_you_type"
+	AntflyTypeText            AntflyType = "text"
 )
 
 // Defines values for ClusterHealth.
@@ -51,30 +51,30 @@ const (
 
 // Defines values for IndexType.
 const (
-	BleveV2  IndexType = "bleve_v2"
-	VectorV2 IndexType = "vector_v2"
+	IndexTypeBleveV2  IndexType = "bleve_v2"
+	IndexTypeVectorV2 IndexType = "vector_v2"
 )
 
 // Defines values for MergeStrategy.
 const (
-	Failover MergeStrategy = "failover"
-	Rrf      MergeStrategy = "rrf"
+	MergeStrategyFailover MergeStrategy = "failover"
+	MergeStrategyRrf      MergeStrategy = "rrf"
 )
 
 // Defines values for PermissionType.
 const (
-	Admin PermissionType = "admin"
-	Read  PermissionType = "read"
-	Write PermissionType = "write"
+	PermissionTypeAdmin PermissionType = "admin"
+	PermissionTypeRead  PermissionType = "read"
+	PermissionTypeWrite PermissionType = "write"
 )
 
 // Defines values for Provider.
 const (
-	Bedrock Provider = "bedrock"
-	Gemini  Provider = "gemini"
-	Mock    Provider = "mock"
-	Ollama  Provider = "ollama"
-	Openai  Provider = "openai"
+	ProviderBedrock Provider = "bedrock"
+	ProviderGemini  Provider = "gemini"
+	ProviderMock    Provider = "mock"
+	ProviderOllama  Provider = "ollama"
+	ProviderOpenai  Provider = "openai"
 )
 
 // Defines values for ResourceType.
@@ -82,6 +82,16 @@ const (
 	ResourceTypeAsterisk ResourceType = "*"
 	ResourceTypeTable    ResourceType = "table"
 	ResourceTypeUser     ResourceType = "user"
+)
+
+// Defines values for SchemasProvider.
+const (
+	SchemasProviderAnthropic SchemasProvider = "anthropic"
+	SchemasProviderBedrock   SchemasProvider = "bedrock"
+	SchemasProviderGemini    SchemasProvider = "gemini"
+	SchemasProviderMock      SchemasProvider = "mock"
+	SchemasProviderOllama    SchemasProvider = "ollama"
+	SchemasProviderOpenai    SchemasProvider = "openai"
 )
 
 // Analyses defines model for Analyses.
@@ -98,6 +108,30 @@ type AnalysesResult struct {
 
 // AntflyType defines model for AntflyType.
 type AntflyType string
+
+// AnthropicGeneratorConfig Configuration for the Anthropic generative AI provider.
+type AnthropicGeneratorConfig struct {
+	// ApiKey The Anthropic API key.
+	ApiKey string `json:"api_key,omitempty,omitzero"`
+
+	// MaxTokens Maximum number of tokens to generate.
+	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
+
+	// Model The name of the Anthropic model to use (e.g., 'claude-3-5-sonnet-20241022').
+	Model string `json:"model"`
+
+	// Temperature Controls randomness in generation (0.0-1.0).
+	Temperature float32 `json:"temperature,omitempty,omitzero"`
+
+	// TopK Top-k sampling parameter.
+	TopK int `json:"top_k,omitempty,omitzero"`
+
+	// TopP Nucleus sampling parameter.
+	TopP float32 `json:"top_p,omitempty,omitzero"`
+
+	// Url The URL of the Anthropic API endpoint.
+	Url string `json:"url,omitempty,omitzero"`
+}
 
 // BackupRequest defines model for BackupRequest.
 type BackupRequest struct {
@@ -127,6 +161,27 @@ type BedrockConfig struct {
 
 	// StripNewLines Whether to strip new lines from the input text.
 	StripNewLines bool `json:"strip_new_lines,omitempty,omitzero"`
+}
+
+// BedrockGeneratorConfig Configuration for the AWS Bedrock generative AI provider.
+type BedrockGeneratorConfig struct {
+	// MaxTokens Maximum number of tokens to generate.
+	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
+
+	// Model The name of the Bedrock model to use.
+	Model string `json:"model"`
+
+	// Region The AWS region for the Bedrock service.
+	Region string `json:"region,omitempty,omitzero"`
+
+	// Temperature Controls randomness in generation (0.0-1.0).
+	Temperature float32 `json:"temperature,omitempty,omitzero"`
+
+	// TopK Top-k sampling parameter.
+	TopK int `json:"top_k,omitempty,omitzero"`
+
+	// TopP Nucleus sampling parameter.
+	TopP float32 `json:"top_p,omitempty,omitzero"`
 }
 
 // BleveIndexV2Config defines model for BleveIndexV2Config.
@@ -213,13 +268,20 @@ type DocumentSchema struct {
 	Schema map[string]interface{} `json:"schema,omitempty,omitzero"`
 }
 
+// EmbedderConfig defines model for EmbedderConfig.
+type EmbedderConfig struct {
+	// Provider The embedding provider to use.
+	Provider Provider `json:"provider"`
+	union    json.RawMessage
+}
+
 // EmbeddingIndexConfig defines model for EmbeddingIndexConfig.
 type EmbeddingIndexConfig struct {
 	// Dimension Vector dimension
 	Dimension int `json:"dimension"`
 
 	// Embedder A unified configuration for an embedding provider.
-	Embedder ModelConfig `json:"embedder,omitempty,omitzero"`
+	Embedder EmbedderConfig `json:"embedder,omitempty,omitzero"`
 
 	// Field Field to extract embeddings from
 	Field string `json:"field,omitempty,omitzero"`
@@ -227,8 +289,8 @@ type EmbeddingIndexConfig struct {
 	// MemOnly Whether to use in-memory only storage
 	MemOnly bool `json:"mem_only,omitempty,omitzero"`
 
-	// Summarizer A unified configuration for an embedding provider.
-	Summarizer ModelConfig `json:"summarizer,omitempty,omitzero"`
+	// Summarizer A unified configuration for a generative AI provider.
+	Summarizer GeneratorConfig `json:"summarizer,omitempty,omitzero"`
 
 	// Template Go string template for generating prompts. See https://pkg.go.dev/text/template for more information.
 	Template string `json:"template,omitempty,omitzero"`
@@ -272,6 +334,13 @@ type FacetResult struct {
 	Total         int                  `json:"total,omitempty,omitzero"`
 }
 
+// GeneratorConfig defines model for GeneratorConfig.
+type GeneratorConfig struct {
+	// Provider The generative AI provider to use.
+	Provider SchemasProvider `json:"provider"`
+	union    json.RawMessage
+}
+
 // GoogleConfig Configuration for the Google embedding provider.
 type GoogleConfig struct {
 	// ApiKey The Google API key.
@@ -288,6 +357,36 @@ type GoogleConfig struct {
 
 	// ProjectId The Google Cloud project ID.
 	ProjectId string `json:"project_id,omitempty,omitzero"`
+
+	// Url The URL of the Google API endpoint.
+	Url string `json:"url,omitempty,omitzero"`
+}
+
+// GoogleGeneratorConfig Configuration for the Google generative AI provider (Gemini).
+type GoogleGeneratorConfig struct {
+	// ApiKey The Google API key.
+	ApiKey string `json:"api_key,omitempty,omitzero"`
+
+	// Location The Google Cloud location (e.g., 'us-central1').
+	Location string `json:"location,omitempty,omitzero"`
+
+	// MaxTokens Maximum number of tokens to generate.
+	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
+
+	// Model The name of the generative model to use (e.g., 'gemini-2.0-flash-exp', 'gemini-1.5-pro').
+	Model string `json:"model"`
+
+	// ProjectId The Google Cloud project ID.
+	ProjectId string `json:"project_id,omitempty,omitzero"`
+
+	// Temperature Controls randomness in generation (0.0-2.0).
+	Temperature float32 `json:"temperature,omitempty,omitzero"`
+
+	// TopK Top-k sampling parameter.
+	TopK int `json:"top_k,omitempty,omitzero"`
+
+	// TopP Nucleus sampling parameter.
+	TopP float32 `json:"top_p,omitempty,omitzero"`
 
 	// Url The URL of the Google API endpoint.
 	Url string `json:"url,omitempty,omitzero"`
@@ -326,13 +425,6 @@ type IndexType string
 // failover: Use full_text_search if embedding generation fails
 type MergeStrategy string
 
-// ModelConfig defines model for ModelConfig.
-type ModelConfig struct {
-	// Provider The embedding provider to use.
-	Provider Provider `json:"provider"`
-	union    json.RawMessage
-}
-
 // NumericRange defines model for NumericRange.
 type NumericRange struct {
 	From *float64 `json:"from,omitempty"`
@@ -357,6 +449,27 @@ type OllamaConfig struct {
 	Url string `json:"url,omitempty,omitzero"`
 }
 
+// OllamaGeneratorConfig Configuration for the Ollama generative AI provider.
+type OllamaGeneratorConfig struct {
+	// MaxTokens Maximum number of tokens to generate.
+	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
+
+	// Model The name of the Ollama model to use (e.g., 'llama3.2', 'llava').
+	Model string `json:"model"`
+
+	// Temperature Controls randomness in generation (0.0-2.0).
+	Temperature float32 `json:"temperature,omitempty,omitzero"`
+
+	// TopK Top-k sampling parameter.
+	TopK int `json:"top_k,omitempty,omitzero"`
+
+	// TopP Nucleus sampling parameter.
+	TopP float32 `json:"top_p,omitempty,omitzero"`
+
+	// Url The URL of the Ollama API endpoint.
+	Url string `json:"url,omitempty,omitzero"`
+}
+
 // OpenAIConfig Configuration for the OpenAI embedding provider.
 type OpenAIConfig struct {
 	// ApiKey The OpenAI API key.
@@ -364,6 +477,33 @@ type OpenAIConfig struct {
 
 	// Model The name of the OpenAI model to use.
 	Model string `json:"model"`
+
+	// Url The URL of the OpenAI API endpoint.
+	Url string `json:"url,omitempty,omitzero"`
+}
+
+// OpenAIGeneratorConfig Configuration for the OpenAI generative AI provider.
+type OpenAIGeneratorConfig struct {
+	// ApiKey The OpenAI API key.
+	ApiKey string `json:"api_key,omitempty,omitzero"`
+
+	// FrequencyPenalty Penalty for token frequency (-2.0 to 2.0).
+	FrequencyPenalty float32 `json:"frequency_penalty,omitempty,omitzero"`
+
+	// MaxTokens Maximum number of tokens to generate.
+	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
+
+	// Model The name of the OpenAI model to use (e.g., 'gpt-4o', 'gpt-4-turbo').
+	Model string `json:"model"`
+
+	// PresencePenalty Penalty for token presence (-2.0 to 2.0).
+	PresencePenalty float32 `json:"presence_penalty,omitempty,omitzero"`
+
+	// Temperature Controls randomness in generation (0.0-2.0).
+	Temperature float32 `json:"temperature,omitempty,omitzero"`
+
+	// TopP Nucleus sampling parameter.
+	TopP float32 `json:"top_p,omitempty,omitzero"`
 
 	// Url The URL of the OpenAI API endpoint.
 	Url string `json:"url,omitempty,omitzero"`
@@ -498,7 +638,7 @@ type RAGRequest struct {
 	Queries []QueryRequest `json:"queries"`
 
 	// Summarizer A unified configuration for an embedding provider.
-	Summarizer ModelConfig `json:"summarizer"`
+	Summarizer EmbedderConfig `json:"summarizer"`
 
 	// SystemPrompt Optional system prompt to guide the summarization
 	SystemPrompt string `json:"system_prompt,omitempty,omitzero"`
@@ -623,6 +763,9 @@ type User struct {
 	PasswordHash []byte `json:"password_hash"`
 	Username     string `json:"username"`
 }
+
+// SchemasProvider The generative AI provider to use.
+type SchemasProvider string
 
 // UserNamePathParameter defines model for UserNamePathParameter.
 type UserNamePathParameter = string
@@ -767,6 +910,326 @@ func (a ClusterStatus) MarshalJSON() ([]byte, error) {
 		}
 	}
 	return json.Marshal(object)
+}
+
+// AsGoogleConfig returns the union data inside the EmbedderConfig as a GoogleConfig
+func (t EmbedderConfig) AsGoogleConfig() (GoogleConfig, error) {
+	var body GoogleConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGoogleConfig overwrites any union data inside the EmbedderConfig as the provided GoogleConfig
+func (t *EmbedderConfig) FromGoogleConfig(v GoogleConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGoogleConfig performs a merge with any union data inside the EmbedderConfig, using the provided GoogleConfig
+func (t *EmbedderConfig) MergeGoogleConfig(v GoogleConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOllamaConfig returns the union data inside the EmbedderConfig as a OllamaConfig
+func (t EmbedderConfig) AsOllamaConfig() (OllamaConfig, error) {
+	var body OllamaConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOllamaConfig overwrites any union data inside the EmbedderConfig as the provided OllamaConfig
+func (t *EmbedderConfig) FromOllamaConfig(v OllamaConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOllamaConfig performs a merge with any union data inside the EmbedderConfig, using the provided OllamaConfig
+func (t *EmbedderConfig) MergeOllamaConfig(v OllamaConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpenAIConfig returns the union data inside the EmbedderConfig as a OpenAIConfig
+func (t EmbedderConfig) AsOpenAIConfig() (OpenAIConfig, error) {
+	var body OpenAIConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpenAIConfig overwrites any union data inside the EmbedderConfig as the provided OpenAIConfig
+func (t *EmbedderConfig) FromOpenAIConfig(v OpenAIConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpenAIConfig performs a merge with any union data inside the EmbedderConfig, using the provided OpenAIConfig
+func (t *EmbedderConfig) MergeOpenAIConfig(v OpenAIConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBedrockConfig returns the union data inside the EmbedderConfig as a BedrockConfig
+func (t EmbedderConfig) AsBedrockConfig() (BedrockConfig, error) {
+	var body BedrockConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBedrockConfig overwrites any union data inside the EmbedderConfig as the provided BedrockConfig
+func (t *EmbedderConfig) FromBedrockConfig(v BedrockConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBedrockConfig performs a merge with any union data inside the EmbedderConfig, using the provided BedrockConfig
+func (t *EmbedderConfig) MergeBedrockConfig(v BedrockConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t EmbedderConfig) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["provider"], err = json.Marshal(t.Provider)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'provider': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *EmbedderConfig) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["provider"]; found {
+		err = json.Unmarshal(raw, &t.Provider)
+		if err != nil {
+			return fmt.Errorf("error reading 'provider': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsGoogleGeneratorConfig returns the union data inside the GeneratorConfig as a GoogleGeneratorConfig
+func (t GeneratorConfig) AsGoogleGeneratorConfig() (GoogleGeneratorConfig, error) {
+	var body GoogleGeneratorConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromGoogleGeneratorConfig overwrites any union data inside the GeneratorConfig as the provided GoogleGeneratorConfig
+func (t *GeneratorConfig) FromGoogleGeneratorConfig(v GoogleGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeGoogleGeneratorConfig performs a merge with any union data inside the GeneratorConfig, using the provided GoogleGeneratorConfig
+func (t *GeneratorConfig) MergeGoogleGeneratorConfig(v GoogleGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOllamaGeneratorConfig returns the union data inside the GeneratorConfig as a OllamaGeneratorConfig
+func (t GeneratorConfig) AsOllamaGeneratorConfig() (OllamaGeneratorConfig, error) {
+	var body OllamaGeneratorConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOllamaGeneratorConfig overwrites any union data inside the GeneratorConfig as the provided OllamaGeneratorConfig
+func (t *GeneratorConfig) FromOllamaGeneratorConfig(v OllamaGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOllamaGeneratorConfig performs a merge with any union data inside the GeneratorConfig, using the provided OllamaGeneratorConfig
+func (t *GeneratorConfig) MergeOllamaGeneratorConfig(v OllamaGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsOpenAIGeneratorConfig returns the union data inside the GeneratorConfig as a OpenAIGeneratorConfig
+func (t GeneratorConfig) AsOpenAIGeneratorConfig() (OpenAIGeneratorConfig, error) {
+	var body OpenAIGeneratorConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromOpenAIGeneratorConfig overwrites any union data inside the GeneratorConfig as the provided OpenAIGeneratorConfig
+func (t *GeneratorConfig) FromOpenAIGeneratorConfig(v OpenAIGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeOpenAIGeneratorConfig performs a merge with any union data inside the GeneratorConfig, using the provided OpenAIGeneratorConfig
+func (t *GeneratorConfig) MergeOpenAIGeneratorConfig(v OpenAIGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBedrockGeneratorConfig returns the union data inside the GeneratorConfig as a BedrockGeneratorConfig
+func (t GeneratorConfig) AsBedrockGeneratorConfig() (BedrockGeneratorConfig, error) {
+	var body BedrockGeneratorConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBedrockGeneratorConfig overwrites any union data inside the GeneratorConfig as the provided BedrockGeneratorConfig
+func (t *GeneratorConfig) FromBedrockGeneratorConfig(v BedrockGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBedrockGeneratorConfig performs a merge with any union data inside the GeneratorConfig, using the provided BedrockGeneratorConfig
+func (t *GeneratorConfig) MergeBedrockGeneratorConfig(v BedrockGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAnthropicGeneratorConfig returns the union data inside the GeneratorConfig as a AnthropicGeneratorConfig
+func (t GeneratorConfig) AsAnthropicGeneratorConfig() (AnthropicGeneratorConfig, error) {
+	var body AnthropicGeneratorConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnthropicGeneratorConfig overwrites any union data inside the GeneratorConfig as the provided AnthropicGeneratorConfig
+func (t *GeneratorConfig) FromAnthropicGeneratorConfig(v AnthropicGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnthropicGeneratorConfig performs a merge with any union data inside the GeneratorConfig, using the provided AnthropicGeneratorConfig
+func (t *GeneratorConfig) MergeAnthropicGeneratorConfig(v AnthropicGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t GeneratorConfig) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["provider"], err = json.Marshal(t.Provider)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'provider': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *GeneratorConfig) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["provider"]; found {
+		err = json.Unmarshal(raw, &t.Provider)
+		if err != nil {
+			return fmt.Errorf("error reading 'provider': %w", err)
+		}
+	}
+
+	return err
 }
 
 // AsBleveIndexV2Config returns the union data inside the IndexConfig as a BleveIndexV2Config
@@ -935,153 +1398,6 @@ func (t IndexStats) MarshalJSON() ([]byte, error) {
 
 func (t *IndexStats) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsGoogleConfig returns the union data inside the ModelConfig as a GoogleConfig
-func (t ModelConfig) AsGoogleConfig() (GoogleConfig, error) {
-	var body GoogleConfig
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromGoogleConfig overwrites any union data inside the ModelConfig as the provided GoogleConfig
-func (t *ModelConfig) FromGoogleConfig(v GoogleConfig) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeGoogleConfig performs a merge with any union data inside the ModelConfig, using the provided GoogleConfig
-func (t *ModelConfig) MergeGoogleConfig(v GoogleConfig) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsOllamaConfig returns the union data inside the ModelConfig as a OllamaConfig
-func (t ModelConfig) AsOllamaConfig() (OllamaConfig, error) {
-	var body OllamaConfig
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromOllamaConfig overwrites any union data inside the ModelConfig as the provided OllamaConfig
-func (t *ModelConfig) FromOllamaConfig(v OllamaConfig) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeOllamaConfig performs a merge with any union data inside the ModelConfig, using the provided OllamaConfig
-func (t *ModelConfig) MergeOllamaConfig(v OllamaConfig) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsOpenAIConfig returns the union data inside the ModelConfig as a OpenAIConfig
-func (t ModelConfig) AsOpenAIConfig() (OpenAIConfig, error) {
-	var body OpenAIConfig
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromOpenAIConfig overwrites any union data inside the ModelConfig as the provided OpenAIConfig
-func (t *ModelConfig) FromOpenAIConfig(v OpenAIConfig) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeOpenAIConfig performs a merge with any union data inside the ModelConfig, using the provided OpenAIConfig
-func (t *ModelConfig) MergeOpenAIConfig(v OpenAIConfig) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsBedrockConfig returns the union data inside the ModelConfig as a BedrockConfig
-func (t ModelConfig) AsBedrockConfig() (BedrockConfig, error) {
-	var body BedrockConfig
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromBedrockConfig overwrites any union data inside the ModelConfig as the provided BedrockConfig
-func (t *ModelConfig) FromBedrockConfig(v BedrockConfig) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeBedrockConfig performs a merge with any union data inside the ModelConfig, using the provided BedrockConfig
-func (t *ModelConfig) MergeBedrockConfig(v BedrockConfig) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ModelConfig) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	object["provider"], err = json.Marshal(t.Provider)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'provider': %w", err)
-	}
-
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *ModelConfig) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["provider"]; found {
-		err = json.Unmarshal(raw, &t.Provider)
-		if err != nil {
-			return fmt.Errorf("error reading 'provider': %w", err)
-		}
-	}
-
 	return err
 }
 
@@ -5299,130 +5615,139 @@ func ParseAddPermissionToUserResponse(rsp *http.Response) (*AddPermissionToUserR
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"H4sIAAAAAAAC/+x9a3PbOLbgX8FytyrJlCQ/ku6Z8afrzsPtmU7itZ3btRunVBB5JKFFAmwAtK126b/f",
+	"wosESVCibMud9ORLIpMgcACc9zk4uItiluWMApUiOrqLcsxxBhK4/uuTAP4BZ3CG5fzMvVEvEhAxJ7kk",
+	"jEZH0eUcUCGAU5zBKBpERD3MsZxHg0g9i46iwvYUDSIOvxeEQxIdSV7AIBLxHDKseoVbnOWpav4bm9OE",
+	"qdZymasHQnJCZ9FqtVIdiJxRARrEn3ByDr8XIKT6K2ZUAtU/cZ6nJMYKxL3fhILzzhvq/3CYRkfR/96r",
+	"pr9n3oq9t5wzboaqz/MnnCBuB1sNolMq1ZzTC+DXwM1XO4fBDYqEHhWBaTiIPjD5jhU02T0I5yBYwWNA",
+	"lEk01WOqRvY71e0xxenSblDOWQ5cEvtXrMe1uzphLAVMFfhSUAi9WZUowCa/QSyjQXQ7nLGhejgUC5IP",
+	"mYYLp8OcEarxc4pTAatBCcY5iCKVncAQCZn+e8p4hmV0FE1ThmWFfLTIJsD9kV2bH19FFYCYc7z05/LI",
+	"HT9sKeQ0XV7qz+8ioEUWHX2OBGAez8dYjJesGOvOB9ECljeMJwpKuFWD0CIDTuJoECVYgiSait0GDaKU",
+	"0EU0iGbA9Kjmp5hj3RlkE0gSRbqDaJKySfSlRdIauDlnOYlPgALHkvHXjE7JrM1pzPOCa3xGU8aRnAMq",
+	"v0cz0wG5BnR8inLOrkkCXPGk+s7jnIwXsAyzsqq747NTtIDlKAoAneHbsWQLoKLdy3t8S7IiQ2Z/EZsi",
+	"0xJJ5kAEr1O1VzPQVJyxBNIwWIqT6q5qIOoPVL+FAPQcRrPRAD2LU1wkMHw5/GEoGKUgh4f7h68O9g8P",
+	"n70ITkZCliuoCg7BRZecpQJxTBOWURACEVquNaPo+f5of3gw2tedt5A9M6sRHR0MooxQ83u/SQQKCpaP",
+	"F4HJs3y4QELJBkJnqBRR4RVUneTtTj4UcQqF6Ojm/jAXvGO7Pp3/0t4thVBAE00otXELTgLCzheWny1u",
+	"fGlygdUg+gnHiyL35GAd2yf69ZgkHoOt9j5lRjy0p/GLfVMSmunIodmUpHC0t7enJP2eZHvm7QCJl0d7",
+	"e5MiXoDU715snFkFoAdOeKIynnvzLDUGBXoKUs33s1Y2jv7+j39GA/OTpckYxzErqFS9EiqAG3VHvz44",
+	"fKl5wgyio5f7imdhklol5L/sCKOYZZU28y82p+iN0U/wTI8ZF0KyTDPznENGiiz6srLjv/rhx3KAwx+8",
+	"ATCFjgEwBXSREa1CtYb4ooVyfY/L6bc2kQipEHEBS81/TEOtpjnx1GYHDYHmrRhOEmKEzFljfH/Qf8Ny",
+	"eI3TAlCOCRcagUwnhFGPbqudbTxYhTYfEs7ixXaywX6ESkG0RipMFHaNBfkDwiSt3yP1XndfdWmVQvEg",
+	"nu4g9Tm66rDSinGG/2B0JInEdKhHHyoRPbw+CPF0DrMgVWsR9+sFMu9bC6X0ShJDUEyoX/mYws04JTS0",
+	"77/OQc6BK+h1W0ThBum2aMpZpgciNC8kUoB7Y/j6Xk+eZ+C9r8rw60U5475Kw58q8Xtgh5Myo27xP7w+",
+	"PNp/ImT5rlPcD+b+FJDCNZzSBG7/+7DC/gbOQjZmNF2uJVWlOmaQMb4cqrZISMaVsGpRZw+DQ9n0Ye7t",
+	"QXshsQwYhwkRi3EhtJxsgnuhuK6lBaJ6UegyWSqR56tRhCrTqbWHfQEfRODM+Prw2hhGGQgFHSJTJNQU",
+	"UMyKNNF28AQQB8kJXEPSoob+w3OYFCTVBlP3jlVLIFBccA5UpkvkfXrvjVOoLnE61t1DEkJ5x98SFhcZ",
+	"UKnptgTpMTcjiEVLCeeYzjrsa4UQHcbaqWl8qGmv+qOp6rxOCyGB/ww4lfP2/D9eA8dpiub6vcaCQji8",
+	"jM23iitbA7ugC8pu1PqbD5ZKJaXV7wRmHCcaYwzihcxjC9KFHqtbBzPetDpFzctprPP01OeslsvgeWD6",
+	"dqdKSjDSUvG+BCQmqUB4wpR4n0N9jTbaABbUEKN7zQFLuMSTFDptnBqcnWB7j92mSdVtXZLqkbSsU+o7",
+	"SrDEIaQyRLJWK1636poXWr4dQnVaZGMxxzypo3hhfCxtIdXPq6fndmGaBinMLPYnAbxzrQklkuB0nLOU",
+	"xEH9v1zw1Fof9hOUA8+IEIRRUSoTapFr9sg6+M/KDswapamakMP+JjXnWAjtzKp5l8XLmL+UZ/8lxM1H",
+	"7egqF7dsH9hu5+Fuz/aTfVPOSGm9elbodOoUysTxSWUSD5CcE4GmBNIExZgq8cEyIiUkSMmZQkiUaWvD",
+	"fVHXLfp4yuvkVc4sRGBvsMdV63ut1Pa2jbiF59EtWVs/ZA/otzE7PcjamVU+YJymH6fR0ef1eFYtyWrQ",
+	"XBPjSaiAL4mwAVXpcWiA9UUBZsXnRUm1W/Cz4xAjcwIZqdHqSHJsGZlt8QD9pNNpalDZKpNY1CE6fYOe",
+	"uy7DDsiKea0Tbs1VuMYpSdC/Lj5+QGYdUQJTQpU48sd/JpQ1WsTKFBld0UtFekQoSDXEhE6BG/VFG/NF",
+	"CmJ0RaN7uNs79Za32lcAnpVaoSGj0AMhTxibpVDKi/WNP6YpznDfxjnQ49OejetOGIXKraiKNaA3cnLX",
+	"rsWq3Isvqy/tPS8omRJIUNyy6zHt8PJ4XkJrbevQxrBsPdzff2XMfQt5xHKgmGjQ3rpWvsAO2C4ZUBGk",
+	"1v+GWDKOqhae+XcQkuRgkWVjhK6OVKtBpKmwDcE7R5xwKzmOZbVOxi/zAIbQ28AkdGhsTPQ4NuYgEkWW",
+	"YU7+2LxQTSeR9U6kWAak+YnxXSkeYtto7HKuCYNbWS7FCF0AoLmUuTja28sXs9GMjRK43lPItVf7OGNc",
+	"rYDRM6wLtGLPP0OasgG6uyNTBL+j0QelS1xpL/NVtFqp/7GcY3p3B1r23d3pJuoH0GS1+l/o/7ECYQ7o",
+	"7m50PIPVCi0Bc4FYmozuvbcNqqzQ90snf3NE8t2+f7B5fa2Zxu6MawcKZUlIgb9ULz1vpm72pJZ+mU9R",
+	"x6Fy/zzthposCLd9G3XhpqldDfoOxyA/llpXA32xhDFXOqGoeR/6qpEt66Tk1i11yIbctx3tg/msc0AX",
+	"2gjoreGl6MqceNBS2E63WhBt8xmnWFtePsJqdcMkgWf9+7wEnvkrF+pQkVbfXQiEN+6nOLZFYB8Ncuuv",
+	"tCq57VcdoZxNn3WmjTxEK7X/Dx9fO10TZ/IVVC/IdLj/6h9lgCia5XL4igXV1EawZX/0dwV1zWLoGRcz",
+	"3/SKlq7NobH9rEugaWjMU6w5zcH+4atBoMOytVMSShDDIZvurAYPvNcpKxLkmpbpM4UYxkAlx+lBR76M",
+	"F7SzcIctivUxvWqVg1k87R47oMk5U/zCJnhsmK1tjE7fBPvqk8/ibe4OklnC/Go7/A2TGnp+AsryevH4",
+	"yLxjdNt15Nkh8Uyvz/BwtD+cpljMh3Cbb0Rjb7GDeBzq9Fn1/GD0wzDn7Alw+zEi0ocbI9KH/6FZbrvl",
+	"Cg3nyyZegGlppfTTkgLB9E36R9AxpJSCOmsJxww+eATkIO3Iw+oRRtKJvUGnuO2kc0lLU71hjkssiZAk",
+	"Fg9fTjPEdqtpv1kLdhFwMcQlhmwRetNRtrHYEF/t0aWbaRvoqvO+nbRiCRrasqcG1J0L5VK+26Sr2tcw",
+	"cOQFridq/8bXh9EgMp4I9TsUnH4PfAYXUkmZ2bIuTDiftmSHbo6Eba9xK2bZxPjsubaZvFQxARmmksRj",
+	"k6iOME3QtEjTsVKN7MPRFeV8eoTOISY5ZzFO0TmmC/SuUNriFZ1ikrJr4Efok4DW14hMPTXMY/bqM6GD",
+	"AG5JzHRcd8HFqNnfnaG0e50GeLyI226H7xuYCxjfvWNzDTfHLsJztQBKT93TfNPLduqZ9Gd7bOb83Utp",
+	"t33tSDyH3QXbLdw3kYcZ2JJS0dWvXo4On5nf13iHpy2+66F/EqL7wdK++K2/ebhTxfaz9lRSTyw2PT0O",
+	"Y6mg2tl635exGNAe5VRYj8Wf6nMANF6Oc6A4lYGezswLA6HiTKj8CD1XRK12YzvaHh4GCOXP5ZFt7Kqc",
+	"AdqL+cz9GsqCT7ptfxBAY9hmOd03j7qaXw/D/tp47U5p38v1aynT3B5CboNYHU9WKGnxTmd56ifqN5+B",
+	"LE+sDxDj6Nnfnpkof8omNkepCjAyngAXY91H+PCEGXHcx1534BmTvZ+NXy1E0NAv16IJyhrjv9Fle6Ot",
+	"dVglbPrmIQecRIPohhOdb42TjOi8gGrNbIvWWp15cZg2arVFpH/UxQ5u/IbRIGJa0qsfLgwyMZEkhebq",
+	"v5CN9n8L4MufiQxl1QlCZymg31UTa42iOZEtQRH0Rp6+cVTBIWa8O/PCnvE7faPAMbkAYxEzDmK7/LcL",
+	"/Y0id6m/gARNljZ54mYOFBVqPuj8/B2ypnJXSpuFSH9qetWgaaBCBJbCNVY8Vjdws54TGWQ4QfPSjmhG",
+	"6Dz/Pq5ofN2yrJuT7aFJMuasqZ1hiD4cmogQnrisZoMoc2JO/jVS7+23vcLGJVI248VqMixTfeRK/mkb",
+	"2z37AzirrH4l8Ts2zAn82nZZZ0v/LQuUJ3CR7PW5I2olEL7GJHWp9r0SR5pTDJY/6Lc2enk709mxV61i",
+	"fbzZtlsNWj4Gr5JFQoRU1DHWbqL2ZhiZi1wzLXacowsJkpEUcyKXHs32359NrqEStoIGebDDlD8HOJuu",
+	"O+agoAvBV54rOGFVdp7N1lOgmi/1cRSXe2xroSg5onPpde5eTbzf3Y0kkSmsVkfo7m40YclytQrJripr",
+	"cp2XuG/Vj0BqSIPP4hs/UdMq0vUd0dsAAj1Xc9NHvDGHyqULtc/UY8WyCIgXwUPYcBun2m061pxtO3H0",
+	"rkhTk4utnf8WNjfgumzq6Cj6TTA6Osc3720Kl7KmcAzy3v54P5Mr5JDXqUZrjsub9yY9PE6LBFzym8c3",
+	"+x+gn5JUAh/nHKbktteJNfvF17APDZf5nwuNd+iq//KnJAspfG1D2EUgJEMcZMEp0oZlvqiR3bilTvk2",
+	"MvAZjIUXEVmHpvXwyWoQselUgFyXGerBqBiqhizHM0K1sTkw6dWluNWvW1EPu/zhGWhzZzxZriO9QAGn",
+	"JoVx4JguNmdcndt2Xjyuvs7hLTbHvu4CxmVYlzv3q4a1LEbzykSesiKVJC/tAJZbOz6g5NVKkfXX9LqS",
+	"A9cBbyMkLciVjcKmCDehRVggTJHu2UcbTBOEkdZfAh4wTxW6D9dtVNxqiTTznogSmpQsAJ29PtZgyeHF",
+	"h7fK4rRGTCX8wtKqZyq3E3tLHdSDJOy7e7i0ae1qBaozBvrYAKIeL65P7ufLyzN36jhmSanNNza/ppgR",
+	"Kl8ehr33joiaJzdIPLcuE31O0ZrCsT7jGDovoo0BFogmvHEu2RqchKKMpCkREDOaiCa0G1LJo6NIkgxG",
+	"ru+WcadBKdcwZN2dH590mgNONLXtvoqU9EEAnDo+ao7WQFxIGKG32DLYpTnHKXKIyXSJsF1RhekxpuVz",
+	"ZR2xG4q0kNJvW4rw6Iqe+7FxnFZDK30vZjTGEiiW+kTbzBy8ea64E8T6yAqUQD0TZqQXoyv6Tgk14/PQ",
+	"sB2hz3dXBiuuoiN0FeU4By6uogG6anJl02A0Gpm3uk/17GB/9cX0POEMJzEWstUtyfAMROPDHwZoNBqt",
+	"BqgBAmdJEcuO1naojNxC8kjQNwGYMLawnTTlqGpwZ4D2QVNQ9T3PXDNNV35xgoNA/n7vE0/to2FiKSRk",
+	"Y2v/dFtWpp21k3RIoCCJMSnc8IbqfBPKnT/CaA5pPi1SdHyKsBDajJQjdOEA1/1MWZqyG4WWVh1x0kDh",
+	"MRGQhsMrN0TOlWIFOAvWx3hLNX1dXLxFZStf8hEqJOBEPdIKqRPem6sQVdqqtwOdfKVDVB+fOD6qJqJE",
+	"HLkmSWG5yLImoM0wy5Z81i3HtmWXOmCZREXyI/R6DvHCPDEf6yOxWoqo4czxGWvyaIURk7TgIEZbonHX",
+	"mQc7Hwv5ps5KbHEdhkRqQ22sJY808m46T5Vsf1S1fnBww5H78qRAG/xv/dTvox/MtZtUlq4dbH1UdwtP",
+	"Uy0G0xn6sNa+bjlAXhxpoGNHOm5k4kXo+bO/mRimi1G4WJFqGA2iv9WDI52RpHMQknG/ykm/jKh6AUid",
+	"wXQxxzzpOq08WbrzW5tQvyq40yraWPURYoUX5oBvV6LmurOgb4hYoMKo7/YQaC+vsXbR5XK5vnSS0cLm",
+	"WKm1MZBrSHSFl45idO15FXEMQryvSuQ0K26VL6oN/1haZWqJU1B6mjAdKZ1iGQySBoau88W15mBNWHuW",
+	"AbosJfkSEc3uM6wLj2CBMswXiVJGrYhKCfXKOHCYAgcag7Chpc8Ji8ckQVfF/v7LmCT6f/iiCKP56sC8",
+	"G5QPDl1jA0DbFnUyMBgodHkKpajUBQW1YeGmYPrdOBNtgTpoExYf1MBXDwbq38MvGwPZDuAQNVw6S+sv",
+	"X7WoK/n0HuWJbI7zvWH1WWCwxGggW96OWK1T5252V27RCdBlMkCDt5m3Jvva+eZdvnNp+Km39RokW580",
+	"L/vy6rLfZxEbhWraLh2U4VyjpZqRWkVhYy2kqjiDfhOMItvlQ2qrKAk7ZS7BYX0FUtsSyTmWXrk6r7gS",
+	"o6WgL6s01croKFhPp8iEFr0+KLNdKC6I6dJM/oakKZoAwnEMueJNk0Lqpva8f23i29e76ExNsxi3TQ2e",
+	"K/pJgLLTyBRRhszo2iFBYrQALRl0LR1TkIpMtc9BLwlSJGINQpzpqJMZ2UyvYkgmxn7vSgkyHSfOwxOe",
+	"ttMx8VQCRzfaa1XtkZjr4g1wmxMOAzTBQs3FBHFU53a1SAZC4ixvrY5AJ6waw0oTl8Z2+Gr+bICe/T1R",
+	"/x78+I/5sxfN6R++mj9w+h3VXKpyS0pZxlW9o2ouSgpcXv5iJm+T0PzpWS6kKfUqGpcfXkXaYeotvUIE",
+	"ixgWoau1I5oQmvOOdQG5ZIwfUmfqGnhXMR3unwI2LGWEPqnN1ZVWyMx56zVcNaUx5Aa9d42KLewNIy+q",
+	"80W9dHqjMrSPN9jKOeN+R4rqanhLZan3FT4L0axpcNT7wIWpnrDZUtatBp0HMgbRpzzBEs5sDbtO1y2F",
+	"m3G45B+Fm4t7VP1r6gh+/0E4BQRqlrhPxnMsAjVFf8ICfnyFgMZMCSDXWpko8xF6e5szYSjclC3DSEBc",
+	"6CwMTsSirgT+6+Td8v8f/rN4n41GNZupK87sVzXcvqpg+fWgMcnQ4rRKK6zT7JtHt++ZBlgWxe5OCdQB",
+	"R7OgWsdx9woJEh8XpniqhlwLbfW0WpW5lLm5IYfQKXM37+BYVuc+7c0rkc2njVy5qBmR82Iyilm2h3WL",
+	"ZGJ/BFSss1PD2zDFM8fsTb86U4eTSaHUjUVZdV97EYwn0XhYgc4I1cuXkhioAB/CNEXnZDaXAp2DvlYo",
+	"aYFrQBsRtpfCDKeatIlMqwmis2KSmhsuIo99R9cHOM3n+EAHltX+5CQ6il6O9kcvNdLIuV7uvTLRIWci",
+	"YNm+NdEVUcY5ccyZEFor4SYfURqjyDpQtRpfF/rmQ+tgUord+7OP55fHHy6PkBGppmCp0QmV+WRURaCJ",
+	"MSIxonCj38dzzHGslI6rK2ojPu13GV4qbTDnEENikjMxijHnBM/A5RdcXfER+nUOFAmgtcsEjBZNRJlZ",
+	"rSfx2oA/1E6qOWBFG1bTmQASoF32/qVPt0Oa6DwKQyBGOJ4m0VF0on1X2nNrr+UCIX9iyfLRrpCqBzdW",
+	"gygEWL274H1f/oVhzQvADvf3Hxte13vg7ivdwnPdKLR+9YgQrLn3yxS7dLGCMmD0w9OMHrx1zGOdWp3x",
+	"mOZn7SMufTjRGXAlixB2LtPfLd65201wTmyG/RfV7x7Hs23YgaJ5HfQRpe9r2Uh1tU4rrTaWGm0V0DGe",
+	"MYdbWu/VHRrPmLnkbXihTKm319rAeH5x8faFTTvE6VAp0ajQiopoE9s5nu2S0ryA9hPTTBXy0ioy3Mo9",
+	"UOszNKtX76iRwN5eU/OR2rjSj+c2M54XdCFq/rzKjRe+KbAdgfu9Qb8DL1RYYg2vxwfNkDGRxq7QuFYL",
+	"2T05EzCxxG+VBSjon5+7HIrhcTFTBjsk6KQ8MvViI3uorJ8ZBD3hSroaF4i9IsHVozeswtXtVwqE1pZq",
+	"eoPN9awK+jckJ8gLV4ZhZ4RVL/sf2BHbwE2mLE9Zjyxo3DzYPX58oriQc6ZYaYKGSP0BVNpBUMmPKnQN",
+	"jVIu5l7ocs1tkO0EpNs+7wYCD5nc3hp0KjOhLDbV9/sXIqQ2xx+84f2KCHrugnaOYMAD686jGAXYY0fr",
+	"19i7O/WptkWnV2tXolvOLgLXv/fu9H+62m11y1l7g95wll/aoGpjf14FzEwdKUk4y/MgtXydS6fm6JLI",
+	"OtZtEEbfE5Adi/N43KqGs20ctUtu7ggxq/xq85KVd9puS/myNlzXYvmXHX9eV6DJrXngYuMSP9febNzU",
+	"Tb4MSsW2vlXeVSc70hQDl6k8scZoHZtdSGL9xw+nyy1wxiyKsfDXUliQM9mbL5v3Z29GKWWr22+fArlM",
+	"lsgukauRh9IHr7ZTTUIXmzYud6ls8x5JFaFLvvUdpzlnsTnJTyR5HHzcmuk9kWCxM8b3QnxpzmdsiffK",
+	"aDa3aZYY+kQUoODdFe57d9PuHPWNJtTzhjYfdZH7MpQ+ZQ5IrDkVp997R2KMbWzyRytxW2q5HbXb1x3Y",
+	"MAcViXA5qMEclo6oqB/s1lF/O59e2VXhS2/vtcTlp4MeRb5DLKhGGWF347fPd5w/wDACe8ewOQBhLjNG",
+	"jN6LK5lSleuMuVOb3PMU1pxfr3Ira86d4HVHd6UNCH+l21madj7c4e0zG/Qnq+BrcGfvTv/Xy+w8tXVR",
+	"Q7y96UFL4PYbNTtt/Vd7/GjDpnYZoR1L9XiWRY3UQi5MvQH3NkKf0HVFaqB+fdQz6FPPODBaSVePaS5X",
+	"ePX4Wl0t37W3UhfCO5wk3xDZHydJRfWSbaD5Ll6qRPo9zQPz8c7tg+ZOWSXEHYssNUp9K6c9F167+nhS",
+	"pIsROi6TMMsvFmAPgE6gTKWsiXKXqVkL8rcjhwYml4YrHoDn/Wso7SxW/xCT57tx8jUYJ2885Dcd/XU9",
+	"I6eWB1FA7hI/n/Y72eJ682QBy727BSxX3SYKY4si/zcsH6osbUPx7Xi5LmOHpm7J/zLbapYXYZPoTjcG",
+	"Vb4iNevfsKxXGVRCJNXzCY+7gOVjmEVVet7WDm4Xyd+9d08n2OzSvf0flc/27dO5mRxG5cGW7Xm1y0Lb",
+	"Xn8ts42eRHH1EuKqNCftPqtP/mtLlEP6ocnV0UlX9VyrtjZsApffk+m+J9PtKJnuvqzsW8q+62QP2/FG",
+	"U6zgflqB/Vhr0U+iHNjSCrtUDxrVG3rxjsMHGMTeBni1JTiZzYD3MyxDSr/ZFxf/Lrv7ZjxXbgau3pZ2",
+	"WZdZFv3R21v1PzVPqAggszkPZ49k7waZayfxv5IEIQOO1R3+wn4Hs70Og58Je8x1DfoWAvjenfo3ELRq",
+	"ViAwwVWP96vv2qqWafjJVLDZnFX5SVedgEBxk6eS6D/hBNm9dQe13QFFpKsYGgR+4W38jnOi1ZJQJisf",
+	"ytMqCwb/0D2CfnobEUa2fpFDO40MXoivlXSvM9CF87baEPAGPDsBqfr9aVmyxx3xFQ19iK2UyOqFG74j",
+	"7beGtCf2UpdA2LTE24YoD0FaNdEIo5DyDMv5mXscdVvhJhwpbB6phkWbO/qWZHKtr+SwW6vsHndkWpcv",
+	"sDtOkdIbkMQLEO7oKI2hTTVmrJI77ypRWA1QU2gDyKIzdgmj3sI/bhzoPkRdQfYViSNibU5C80JWhL5X",
+	"nvnPiNB1ZSy5/3P3UL5mdJqSuMZ8EE454GSJ4JYIKV58Q0yglskdll4BfWnPrxrxaDyiCLCIT9bvpWsO",
+	"uV3vJSbNl2q4s6pexS4IP1xsI7BbH+CmmkN/2n88PGrU4guA6GaxyWZ4ck5A/bXTVQs9uf9d6G9rKmmu",
+	"5ddx6UHytdvluqylc8jYdd1aqj5EvHAOBqMqVwUneO0WOl3dfpkHxLjpv7qN7R1nmRXqa90OzTsXy/Fc",
+	"iokHpWRoolqokXT1e+2fcMEJ66CoXSLX5Z/oeydeO3DZvHH80eC9NBfddcPc/zI+hVmb7dwzb/sNiF8N",
+	"U9Fw0Zn171b4Uyke/qp9RQwHMY7OWQreE4cXRm8usfPb4UyGsn281oyioZN4d1z2sKtxmnodbmdfVyM9",
+	"Td67N7Meae/fbfC/lg2e17CtA9t3a40fJ4kzxevCZSPFHCeJdz8q26GR7RNJQHutwHYeNQV+kjyphd1D",
+	"y67gXJvl/LXY298pertE8Dr5rJNgpmc1VEhpfY8J1ZdFmyZllbk9nJO96wNNy7bbdjHsMquXQ2ovuikr",
+	"fLRKu1R6ol/rYxDdDhMi8hQbX3NZQyVqK6zhAcuyFV7vTgdu9l0V8OzTMymPpHldu5MUza7NiYe+XasN",
+	"8zq27KzZp3Gk9eyyzt5txx4mtLv3Od0X9Vri2QlnRW52u1YtsV5MMFS1ZVBb+dqpmDt/nug9pngGOu+6",
+	"3ptdhRr2fln9TwAAAP//q9GrRxC7AAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

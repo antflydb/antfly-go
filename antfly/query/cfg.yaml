@@ -5,6 +5,8 @@ generate:
   embedded-spec: true
   models: true
   client: true
+compatibility:
+  always-prefix-enum-values: true
 output-options:
   # to make sure that all types are generated
   skip-prune: true

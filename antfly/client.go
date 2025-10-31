@@ -49,14 +49,16 @@ type (
 	BleveIndexV2Config   = oapi.BleveIndexV2Config
 	BleveIndexV2Stats    = oapi.BleveIndexV2Stats
 
-	// Model config types
-	ModelConfig    = oapi.ModelConfig
-	Provider       = oapi.Provider
-	OllamaConfig   = oapi.OllamaConfig
-	OpenAIConfig   = oapi.OpenAIConfig
-	GoogleConfig   = oapi.GoogleConfig
-	BedrockConfig  = oapi.BedrockConfig
-	RerankerConfig = oapi.RerankerConfig
+	// Model config types (deprecated, use EmbedderConfig)
+	ModelConfig     = oapi.EmbedderConfig
+	EmbedderConfig  = oapi.EmbedderConfig
+	GeneratorConfig = oapi.GeneratorConfig
+	Provider        = oapi.Provider
+	OllamaConfig    = oapi.OllamaConfig
+	OpenAIConfig    = oapi.OpenAIConfig
+	GoogleConfig    = oapi.GoogleConfig
+	BedrockConfig   = oapi.BedrockConfig
+	RerankerConfig  = oapi.RerankerConfig
 
 	// Query response types
 	QueryResponses = oapi.QueryResponses
@@ -91,19 +93,19 @@ type BatchRequest struct {
 // Constants from oapi
 const (
 	// IndexType values
-	BleveV2  = oapi.BleveV2
-	VectorV2 = oapi.VectorV2
+	IndexTypeBleveV2  = oapi.IndexTypeBleveV2
+	IndexTypeVectorV2 = oapi.IndexTypeVectorV2
 
 	// Provider values
-	Ollama  = oapi.Ollama
-	Openai  = oapi.Openai
-	Gemini  = oapi.Gemini
-	Bedrock = oapi.Bedrock
-	Mock    = oapi.Mock
+	ProviderOllama  = oapi.ProviderOllama
+	ProviderOpenai  = oapi.ProviderOpenai
+	ProviderGemini  = oapi.ProviderGemini
+	ProviderBedrock = oapi.ProviderBedrock
+	ProviderMock    = oapi.ProviderMock
 
 	// MergeStrategy values
-	Rrf      = oapi.Rrf
-	Failover = oapi.Failover
+	MergeStrategyRrf      = oapi.MergeStrategyRrf
+	MergeStrategyFailover = oapi.MergeStrategyFailover
 )
 
 // BatchResult represents the result of a batch operation with detailed failure information
@@ -744,16 +746,16 @@ func NewModelConfig(config any) (*ModelConfig, error) {
 	modelConfig := &ModelConfig{}
 	switch v := config.(type) {
 	case OllamaConfig:
-		provider = Ollama
+		provider = ProviderOllama
 		modelConfig.FromOllamaConfig(v)
 	case OpenAIConfig:
-		provider = Openai
+		provider = ProviderOpenai
 		modelConfig.FromOpenAIConfig(v)
 	case GoogleConfig:
-		provider = Gemini
+		provider = ProviderGemini
 		modelConfig.FromGoogleConfig(v)
 	case BedrockConfig:
-		provider = Bedrock
+		provider = ProviderBedrock
 		modelConfig.FromBedrockConfig(v)
 	default:
 		return nil, fmt.Errorf("unknown model config type: %T", v)
@@ -770,10 +772,10 @@ func NewIndexConfig(name string, config any) (*IndexConfig, error) {
 	}
 	switch v := config.(type) {
 	case EmbeddingIndexConfig:
-		t = VectorV2
+		t = IndexTypeVectorV2
 		idxConfig.FromEmbeddingIndexConfig(v)
 	case BleveIndexV2Config:
-		t = BleveV2
+		t = IndexTypeBleveV2
 		idxConfig.FromBleveIndexV2Config(v)
 	default:
 		return nil, fmt.Errorf("unsupported index config type: %T", config)

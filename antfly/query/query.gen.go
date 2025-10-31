@@ -22,20 +22,20 @@ import (
 
 // Defines values for Fuzziness1.
 const (
-	Auto Fuzziness1 = "auto"
+	Fuzziness1Auto Fuzziness1 = "auto"
 )
 
 // Defines values for GeoShapeGeometryRelation.
 const (
-	Contains   GeoShapeGeometryRelation = "contains"
-	Intersects GeoShapeGeometryRelation = "intersects"
-	Within     GeoShapeGeometryRelation = "within"
+	GeoShapeGeometryRelationContains   GeoShapeGeometryRelation = "contains"
+	GeoShapeGeometryRelationIntersects GeoShapeGeometryRelation = "intersects"
+	GeoShapeGeometryRelationWithin     GeoShapeGeometryRelation = "within"
 )
 
 // Defines values for MatchQueryOperator.
 const (
-	And MatchQueryOperator = "and"
-	Or  MatchQueryOperator = "or"
+	MatchQueryOperatorAnd MatchQueryOperator = "and"
+	MatchQueryOperatorOr  MatchQueryOperator = "or"
 )
 
 // BoolFieldQuery defines model for BoolFieldQuery.
