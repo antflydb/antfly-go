@@ -49,16 +49,19 @@ type (
 	BleveIndexV2Config   = oapi.BleveIndexV2Config
 	BleveIndexV2Stats    = oapi.BleveIndexV2Stats
 
-	// Model config types (deprecated, use EmbedderConfig)
-	ModelConfig     = oapi.EmbedderConfig
-	EmbedderConfig  = oapi.EmbedderConfig
-	GeneratorConfig = oapi.GeneratorConfig
-	Provider        = oapi.Provider
-	OllamaConfig    = oapi.OllamaConfig
-	OpenAIConfig    = oapi.OpenAIConfig
-	GoogleConfig    = oapi.GoogleConfig
-	BedrockConfig   = oapi.BedrockConfig
-	RerankerConfig  = oapi.RerankerConfig
+	EmbedderProvider       = oapi.EmbedderProvider
+	GeneratorProvider      = oapi.GeneratorProvider
+	EmbedderConfig         = oapi.EmbedderConfig
+	GeneratorConfig        = oapi.GeneratorConfig
+	OllamaEmbedderConfig   = oapi.OllamaEmbedderConfig
+	OpenAIEmbedderConfig   = oapi.OpenAIEmbedderConfig
+	GoogleEmbedderConfig   = oapi.GoogleEmbedderConfig
+	BedrockEmbedderConfig  = oapi.BedrockEmbedderConfig
+	OllamaGeneratorConfig  = oapi.OllamaGeneratorConfig
+	OpenAIGeneratorConfig  = oapi.OpenAIGeneratorConfig
+	GoogleGeneratorConfig  = oapi.GoogleGeneratorConfig
+	BedrockGeneratorConfig = oapi.BedrockGeneratorConfig
+	RerankerConfig         = oapi.RerankerConfig
 
 	// Query response types
 	QueryResponses = oapi.QueryResponses
@@ -100,15 +103,20 @@ type BatchRequest struct {
 // Constants from oapi
 const (
 	// IndexType values
-	IndexTypeBleveV2  = oapi.IndexTypeBleveV2
-	IndexTypeVectorV2 = oapi.IndexTypeVectorV2
+	IndexTypeFullTextV0 = oapi.IndexTypeFullTextV0
+	IndexTypeAknnV0     = oapi.IndexTypeAknnV0
 
 	// Provider values
-	ProviderOllama  = oapi.ProviderOllama
-	ProviderOpenai  = oapi.ProviderOpenai
-	ProviderGemini  = oapi.ProviderGemini
-	ProviderBedrock = oapi.ProviderBedrock
-	ProviderMock    = oapi.ProviderMock
+	EmbedderProviderOllama   = oapi.EmbedderProviderOllama
+	EmbedderProviderOpenai   = oapi.EmbedderProviderOpenai
+	EmbedderProviderGemini   = oapi.EmbedderProviderGemini
+	EmbedderProviderBedrock  = oapi.EmbedderProviderBedrock
+	EmbedderProviderMock     = oapi.EmbedderProviderMock
+	GeneratorProviderOllama  = oapi.GeneratorProviderOllama
+	GeneratorProviderOpenai  = oapi.GeneratorProviderOpenai
+	GeneratorProviderGemini  = oapi.GeneratorProviderGemini
+	GeneratorProviderBedrock = oapi.GeneratorProviderBedrock
+	GeneratorProviderMock    = oapi.GeneratorProviderMock
 
 	// MergeStrategy values
 	MergeStrategyRrf      = oapi.MergeStrategyRrf
@@ -202,6 +210,106 @@ type QueryRequest struct {
 
 	// DocumentRenderer optional Go template string for rendering document content to the prompt
 	DocumentRenderer string `json:"document_renderer,omitempty"`
+}
+
+// MarshalJSON implements custom JSON marshalling for QueryRequest.
+// It converts the strongly-typed *query.Query fields to json.RawMessage
+// for compatibility with the OAPI layer.
+func (q QueryRequest) MarshalJSON() ([]byte, error) {
+	// Convert SDK QueryRequest to oapi.QueryRequest
+	oapiReq := oapi.QueryRequest{
+		Table:            q.Table,
+		Analyses:         q.Analyses,
+		Count:            q.Count,
+		DistanceOver:     q.DistanceOver,
+		DistanceUnder:    q.DistanceUnder,
+		Embeddings:       q.Embeddings,
+		Facets:           q.Facets,
+		Fields:           q.Fields,
+		FilterPrefix:     q.FilterPrefix,
+		Indexes:          q.Indexes,
+		Limit:            q.Limit,
+		MergeStrategy:    q.MergeStrategy,
+		Offset:           q.Offset,
+		OrderBy:          q.OrderBy,
+		Reranker:         q.Reranker,
+		SemanticSearch:   q.SemanticSearch,
+		DocumentRenderer: q.DocumentRenderer,
+	}
+
+	// Marshal query fields to json.RawMessage
+	var err error
+	if q.FilterQuery != nil {
+		oapiReq.FilterQuery, err = json.Marshal(q.FilterQuery)
+		if err != nil {
+			return nil, fmt.Errorf("marshalling filter_query: %w", err)
+		}
+	}
+	if q.FullTextSearch != nil {
+		oapiReq.FullTextSearch, err = json.Marshal(q.FullTextSearch)
+		if err != nil {
+			return nil, fmt.Errorf("marshalling full_text_search: %w", err)
+		}
+	}
+	if q.ExclusionQuery != nil {
+		oapiReq.ExclusionQuery, err = json.Marshal(q.ExclusionQuery)
+		if err != nil {
+			return nil, fmt.Errorf("marshalling exclusion_query: %w", err)
+		}
+	}
+
+	return json.Marshal(oapiReq)
+}
+
+// UnmarshalJSON implements custom JSON unmarshalling for QueryRequest.
+// It converts json.RawMessage fields back to strongly-typed *query.Query.
+func (q *QueryRequest) UnmarshalJSON(data []byte) error {
+	// Unmarshal into oapi.QueryRequest
+	var oapiReq oapi.QueryRequest
+	if err := json.Unmarshal(data, &oapiReq); err != nil {
+		return err
+	}
+
+	// Copy simple fields
+	q.Table = oapiReq.Table
+	q.Analyses = oapiReq.Analyses
+	q.Count = oapiReq.Count
+	q.DistanceOver = oapiReq.DistanceOver
+	q.DistanceUnder = oapiReq.DistanceUnder
+	q.Embeddings = oapiReq.Embeddings
+	q.Facets = oapiReq.Facets
+	q.Fields = oapiReq.Fields
+	q.FilterPrefix = oapiReq.FilterPrefix
+	q.Indexes = oapiReq.Indexes
+	q.Limit = oapiReq.Limit
+	q.MergeStrategy = oapiReq.MergeStrategy
+	q.Offset = oapiReq.Offset
+	q.OrderBy = oapiReq.OrderBy
+	q.Reranker = oapiReq.Reranker
+	q.SemanticSearch = oapiReq.SemanticSearch
+	q.DocumentRenderer = oapiReq.DocumentRenderer
+
+	// Unmarshal query fields (only if not null and not empty)
+	if len(oapiReq.FilterQuery) > 0 && !bytes.Equal(oapiReq.FilterQuery, []byte("null")) {
+		q.FilterQuery = new(query.Query)
+		if err := json.Unmarshal(oapiReq.FilterQuery, q.FilterQuery); err != nil {
+			return fmt.Errorf("unmarshalling filter_query: %w", err)
+		}
+	}
+	if len(oapiReq.FullTextSearch) > 0 && !bytes.Equal(oapiReq.FullTextSearch, []byte("null")) {
+		q.FullTextSearch = new(query.Query)
+		if err := json.Unmarshal(oapiReq.FullTextSearch, q.FullTextSearch); err != nil {
+			return fmt.Errorf("unmarshalling full_text_search: %w", err)
+		}
+	}
+	if len(oapiReq.ExclusionQuery) > 0 && !bytes.Equal(oapiReq.ExclusionQuery, []byte("null")) {
+		q.ExclusionQuery = new(query.Query)
+		if err := json.Unmarshal(oapiReq.ExclusionQuery, q.ExclusionQuery); err != nil {
+			return fmt.Errorf("unmarshalling exclusion_query: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // RAGRequest represents a RAG request with strongly-typed query fields.
@@ -474,50 +582,8 @@ func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryR
 			return nil, errors.New("offset not available when indexes are specified")
 		}
 
-		// Convert SDK QueryRequest to oapi.QueryRequest
-		oapiReq := oapi.QueryRequest{
-			Table:          opt.Table,
-			Analyses:       opt.Analyses,
-			Count:          opt.Count,
-			DistanceOver:   opt.DistanceOver,
-			DistanceUnder:  opt.DistanceUnder,
-			Embeddings:     opt.Embeddings,
-			Facets:         opt.Facets,
-			Fields:         opt.Fields,
-			FilterPrefix:   opt.FilterPrefix,
-			Indexes:        opt.Indexes,
-			Limit:          opt.Limit,
-			MergeStrategy:  opt.MergeStrategy,
-			Offset:         opt.Offset,
-			OrderBy:        opt.OrderBy,
-			Reranker:       opt.Reranker,
-			SemanticSearch: opt.SemanticSearch,
-		}
-
-		// Marshal query fields to json.RawMessage
-		if opt.FilterQuery != nil {
-			filterQueryJSON, err := json.Marshal(opt.FilterQuery)
-			if err != nil {
-				return nil, fmt.Errorf("marshalling filter_query: %w", err)
-			}
-			oapiReq.FilterQuery = filterQueryJSON
-		}
-		if opt.FullTextSearch != nil {
-			fullTextSearchJSON, err := json.Marshal(opt.FullTextSearch)
-			if err != nil {
-				return nil, fmt.Errorf("marshalling full_text_search: %w", err)
-			}
-			oapiReq.FullTextSearch = fullTextSearchJSON
-		}
-		if opt.ExclusionQuery != nil {
-			exclusionQueryJSON, err := json.Marshal(opt.ExclusionQuery)
-			if err != nil {
-				return nil, fmt.Errorf("marshalling exclusion_query: %w", err)
-			}
-			oapiReq.ExclusionQuery = exclusionQueryJSON
-		}
-
-		if err := e.Encode(oapiReq); err != nil {
+		// MarshalJSON now handles the conversion to oapi.QueryRequest automatically
+		if err := e.Encode(opt); err != nil {
 			return nil, fmt.Errorf("marshalling query: %w", err)
 		}
 	}
@@ -654,66 +720,8 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 		opt = opts[0]
 	}
 
-	// Convert SDK QueryRequests to oapi.QueryRequests
-	oapiQueries := make([]oapi.QueryRequest, len(ragReq.Queries))
-	for i, queryReq := range ragReq.Queries {
-		oapiQueryReq := oapi.QueryRequest{
-			Table:            queryReq.Table,
-			Analyses:         queryReq.Analyses,
-			Count:            queryReq.Count,
-			DistanceOver:     queryReq.DistanceOver,
-			DistanceUnder:    queryReq.DistanceUnder,
-			Embeddings:       queryReq.Embeddings,
-			Facets:           queryReq.Facets,
-			Fields:           queryReq.Fields,
-			FilterPrefix:     queryReq.FilterPrefix,
-			Indexes:          queryReq.Indexes,
-			Limit:            queryReq.Limit,
-			MergeStrategy:    queryReq.MergeStrategy,
-			Offset:           queryReq.Offset,
-			OrderBy:          queryReq.OrderBy,
-			Reranker:         queryReq.Reranker,
-			SemanticSearch:   queryReq.SemanticSearch,
-			DocumentRenderer: queryReq.DocumentRenderer,
-		}
-
-		// Marshal query fields to json.RawMessage
-		if queryReq.FilterQuery != nil {
-			filterQueryJSON, err := json.Marshal(queryReq.FilterQuery)
-			if err != nil {
-				return "", fmt.Errorf("marshalling filter_query for query %d: %w", i, err)
-			}
-			oapiQueryReq.FilterQuery = filterQueryJSON
-		}
-		if queryReq.FullTextSearch != nil {
-			fullTextSearchJSON, err := json.Marshal(queryReq.FullTextSearch)
-			if err != nil {
-				return "", fmt.Errorf("marshalling full_text_search for query %d: %w", i, err)
-			}
-			oapiQueryReq.FullTextSearch = fullTextSearchJSON
-		}
-		if queryReq.ExclusionQuery != nil {
-			exclusionQueryJSON, err := json.Marshal(queryReq.ExclusionQuery)
-			if err != nil {
-				return "", fmt.Errorf("marshalling exclusion_query for query %d: %w", i, err)
-			}
-			oapiQueryReq.ExclusionQuery = exclusionQueryJSON
-		}
-
-		oapiQueries[i] = oapiQueryReq
-	}
-
-	// Create RAG request with queries array
-	oapiRAGReq := oapi.RAGRequest{
-		Queries:       oapiQueries,
-		Summarizer:    ragReq.Summarizer,
-		WithStreaming: ragReq.WithStreaming,
-	}
-	if ragReq.SystemPrompt != "" {
-		oapiRAGReq.SystemPrompt = ragReq.SystemPrompt
-	}
-
-	ragBody, err := sonic.Marshal(oapiRAGReq)
+	// Marshal RAGRequest - QueryRequest.MarshalJSON handles the conversion automatically
+	ragBody, err := sonic.Marshal(ragReq)
 	if err != nil {
 		return "", fmt.Errorf("marshalling RAG request: %w", err)
 	}
@@ -789,22 +797,45 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 	return result.String(), nil
 }
 
-func NewModelConfig(config any) (*ModelConfig, error) {
-	var provider Provider
-	modelConfig := &ModelConfig{}
+func NewEmbedderConfig(config any) (*EmbedderConfig, error) {
+	var provider EmbedderProvider
+	modelConfig := &EmbedderConfig{}
 	switch v := config.(type) {
-	case OllamaConfig:
-		provider = ProviderOllama
-		modelConfig.FromOllamaConfig(v)
-	case OpenAIConfig:
-		provider = ProviderOpenai
-		modelConfig.FromOpenAIConfig(v)
-	case GoogleConfig:
-		provider = ProviderGemini
-		modelConfig.FromGoogleConfig(v)
-	case BedrockConfig:
-		provider = ProviderBedrock
-		modelConfig.FromBedrockConfig(v)
+	case OllamaEmbedderConfig:
+		provider = EmbedderProviderOllama
+		modelConfig.FromOllamaEmbedderConfig(v)
+	case OpenAIEmbedderConfig:
+		provider = EmbedderProviderOpenai
+		modelConfig.FromOpenAIEmbedderConfig(v)
+	case GoogleEmbedderConfig:
+		provider = EmbedderProviderGemini
+		modelConfig.FromGoogleEmbedderConfig(v)
+	case BedrockEmbedderConfig:
+		provider = EmbedderProviderBedrock
+		modelConfig.FromBedrockEmbedderConfig(v)
+	default:
+		return nil, fmt.Errorf("unknown model config type: %T", v)
+	}
+
+	modelConfig.Provider = provider
+	return modelConfig, nil
+}
+func NewGeneratorConfig(config any) (*GeneratorConfig, error) {
+	var provider GeneratorProvider
+	modelConfig := &GeneratorConfig{}
+	switch v := config.(type) {
+	case oapi.OllamaGeneratorConfig:
+		provider = oapi.GeneratorProviderOllama
+		modelConfig.FromOllamaGeneratorConfig(v)
+	case oapi.OpenAIGeneratorConfig:
+		provider = oapi.GeneratorProviderOpenai
+		modelConfig.FromOpenAIGeneratorConfig(v)
+	case oapi.GoogleGeneratorConfig:
+		provider = oapi.GeneratorProviderGemini
+		modelConfig.FromGoogleGeneratorConfig(v)
+	case oapi.BedrockGeneratorConfig:
+		provider = oapi.GeneratorProviderBedrock
+		modelConfig.FromBedrockGeneratorConfig(v)
 	default:
 		return nil, fmt.Errorf("unknown model config type: %T", v)
 	}
@@ -820,10 +851,10 @@ func NewIndexConfig(name string, config any) (*IndexConfig, error) {
 	}
 	switch v := config.(type) {
 	case EmbeddingIndexConfig:
-		t = IndexTypeVectorV2
+		t = IndexTypeAknnV0
 		idxConfig.FromEmbeddingIndexConfig(v)
 	case BleveIndexV2Config:
-		t = IndexTypeBleveV2
+		t = IndexTypeFullTextV0
 		idxConfig.FromBleveIndexV2Config(v)
 	default:
 		return nil, fmt.Errorf("unsupported index config type: %T", config)

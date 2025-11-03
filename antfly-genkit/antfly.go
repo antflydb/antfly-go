@@ -143,7 +143,7 @@ func (w *Antfly) newDocstore(ctx context.Context, cfg *IndexConfig) (*Docstore, 
 		if !strings.Contains(err.Error(), "not found") {
 			return nil, fmt.Errorf("antfly get table %q failed: %v", cfg.TableName, err)
 		} else {
-			modelConfig, err := antfly.NewModelConfig(antfly.OllamaConfig{Model: "all-minilm"})
+			modelConfig, err := antfly.NewEmbedderConfig(antfly.OllamaEmbedderConfig{Model: "all-minilm"})
 			if err != nil {
 				return nil, fmt.Errorf("antfly model config failed: %v", err)
 			}
@@ -164,7 +164,7 @@ func (w *Antfly) newDocstore(ctx context.Context, cfg *IndexConfig) (*Docstore, 
 			}
 		}
 	} else if tableStatus.Indexes == nil || tableStatus.Indexes[cfg.IndexName].Type == "" {
-		modelConfig, err := antfly.NewModelConfig(antfly.OllamaConfig{Model: "all-minilm"})
+		modelConfig, err := antfly.NewEmbedderConfig(antfly.OllamaEmbedderConfig{Model: "all-minilm"})
 		if err != nil {
 			return nil, fmt.Errorf("antfly model config failed: %v", err)
 		}
