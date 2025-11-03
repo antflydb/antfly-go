@@ -76,6 +76,13 @@ type (
 	// Validation types
 	ValidationError  = oapi.ValidationError
 	ValidationResult = oapi.ValidationResult
+
+	// LinearMerge types
+	LinearMergePageStatus = oapi.LinearMergePageStatus
+	LinearMergeRequest    = oapi.LinearMergeRequest
+	LinearMergeResult     = oapi.LinearMergeResult
+	FailedOperation       = oapi.FailedOperation
+	KeyRange              = oapi.KeyRange
 )
 
 // BatchRequest represents a batch operation request with flexible insert types.
@@ -106,6 +113,11 @@ const (
 	// MergeStrategy values
 	MergeStrategyRrf      = oapi.MergeStrategyRrf
 	MergeStrategyFailover = oapi.MergeStrategyFailover
+
+	// LinearMergePageStatus values
+	LinearMergePageStatusSuccess = oapi.LinearMergePageStatusSuccess
+	LinearMergePageStatusPartial = oapi.LinearMergePageStatusPartial
+	LinearMergePageStatusError   = oapi.LinearMergePageStatusError
 )
 
 // BatchResult represents the result of a batch operation with detailed failure information
@@ -561,6 +573,42 @@ func (c *AntflyClient) Batch(ctx context.Context, tableName string, request Batc
 		result = BatchResult{
 			Inserted: len(request.Inserts),
 			Deleted:  len(request.Deletes),
+		}
+	}
+
+	return &result, nil
+}
+
+// LinearMerge performs a stateless linear merge of sorted records from an external source.
+// Records are upserted, and any Antfly records in the key range that are absent from the
+// input are deleted. Supports progressive pagination for large datasets.
+//
+// WARNING: Not safe for concurrent merge operations with overlapping ranges.
+// Designed as a sync/import API for single-client use.
+func (c *AntflyClient) LinearMerge(ctx context.Context, tableName string, request LinearMergeRequest) (*LinearMergeResult, error) {
+	tableSpecificURL, err := url.JoinPath(c.baseURL, "table", tableName)
+	if err != nil {
+		return nil, fmt.Errorf("creating table specific URL: %w", err)
+	}
+	mergeURL, err := url.JoinPath(tableSpecificURL, "merge")
+	if err != nil {
+		return nil, fmt.Errorf("creating merge URL: %w", err)
+	}
+
+	mergeBody, err := sonic.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling linear merge request: %w", err)
+	}
+
+	respBody, err := c.sendRequest(ctx, http.MethodPost, mergeURL, "application/json", bytes.NewBuffer(mergeBody))
+	if err != nil {
+		return nil, fmt.Errorf("linear merge operation failed: %w", err)
+	}
+
+	var result LinearMergeResult
+	if len(respBody) > 0 {
+		if err := sonic.Unmarshal(respBody, &result); err != nil {
+			return nil, fmt.Errorf("parsing linear merge result: %w", err)
 		}
 	}
 
