@@ -316,7 +316,7 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 // This is the SDK-friendly version of oapi.RAGRequest with QueryRequest types instead of oapi.QueryRequest.
 type RAGRequest struct {
 	// Queries to execute for retrieval
-	Queries []QueryRequest `json:"-"`
+	Queries []QueryRequest `json:"queries"`
 
 	// Summarizer model configuration for generation
 	Summarizer GeneratorConfig `json:"summarizer"`
