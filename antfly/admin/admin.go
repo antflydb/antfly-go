@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -77,13 +78,68 @@ func (c *InternalClient) RemoveMetadataPeer(nodeID uint64) error {
 // MetadataStatus represents the status of the metadata raft cluster
 type MetadataStatus struct {
 	Leader  uint64
-	Members map[uint64]string // nodeID -> raft URL
+	Members map[uint64]string // nodeID -> raft URL (empty URL if not available)
+}
+
+// RaftStatus represents raft cluster status
+type RaftStatus struct {
+	Lead   uint64            `json:"leader_id,omitempty"`
+	Voters map[uint64]string `json:"voters,omitempty"`
+}
+
+// ShardInfo contains metadata shard information
+type ShardInfo struct {
+	Peers      map[uint64]string `json:"peers,omitempty"`
+	RaftStatus *RaftStatus       `json:"raft_status,omitempty"`
 }
 
 // GetMetadataStatus retrieves the current status of the metadata raft cluster
-// TODO: This needs an actual endpoint on the server side to return raft status
 func (c *InternalClient) GetMetadataStatus() (*MetadataStatus, error) {
-	// This is a placeholder - we'll need to implement an endpoint on the server
-	// that returns raft cluster status (leader, members, etc.)
-	return nil, fmt.Errorf("not yet implemented - requires server-side endpoint")
+	// Make GET request to the internal status endpoint
+	url := fmt.Sprintf("%s/_internal/v1/status", c.baseURL)
+	resp, err := c.httpClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get metadata status: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to get metadata status: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var shardInfo ShardInfo
+	if err := json.NewDecoder(resp.Body).Decode(&shardInfo); err != nil {
+		return nil, fmt.Errorf("failed to decode status response: %w", err)
+	}
+
+	if shardInfo.RaftStatus == nil {
+		return nil, fmt.Errorf("no metadata raft status available")
+	}
+
+	status := &MetadataStatus{
+		Leader:  shardInfo.RaftStatus.Lead,
+		Members: make(map[uint64]string),
+	}
+
+	// Populate members from voters (these are the raft cluster members)
+	if shardInfo.RaftStatus.Voters != nil {
+		for nodeID, url := range shardInfo.RaftStatus.Voters {
+			status.Members[nodeID] = url
+		}
+	}
+
+	// Also include peers if available (may have URLs)
+	if shardInfo.Peers != nil {
+		for nodeID, url := range shardInfo.Peers {
+			if _, exists := status.Members[nodeID]; !exists {
+				status.Members[nodeID] = url
+			} else if status.Members[nodeID] == "" && url != "" {
+				// Update with actual URL if we have it from peers
+				status.Members[nodeID] = url
+			}
+		}
+	}
+
+	return status, nil
 }
