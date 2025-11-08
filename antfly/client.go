@@ -86,6 +86,9 @@ type (
 	LinearMergeResult     = oapi.LinearMergeResult
 	FailedOperation       = oapi.FailedOperation
 	KeyRange              = oapi.KeyRange
+
+	// Batch types
+	BatchRequestSyncLevel = oapi.BatchRequestSyncLevel
 )
 
 // BatchRequest represents a batch operation request with flexible insert types.
@@ -98,6 +101,12 @@ type BatchRequest struct {
 	// Inserts Map of key to document. Documents can be any type (map, struct, etc.)
 	// and will be automatically marshaled to JSON.
 	Inserts map[string]any `json:"inserts,omitempty"`
+
+	// SyncLevel Synchronization level for the batch operation:
+	// - "propose": Wait for Raft proposal acceptance (fastest, default)
+	// - "write": Wait for Pebble KV write
+	// - "full_text": Wait for full-text index WAL write (slowest, most durable)
+	SyncLevel BatchRequestSyncLevel `json:"sync_level,omitempty"`
 }
 
 // Constants from oapi
@@ -126,6 +135,11 @@ const (
 	LinearMergePageStatusSuccess = oapi.LinearMergePageStatusSuccess
 	LinearMergePageStatusPartial = oapi.LinearMergePageStatusPartial
 	LinearMergePageStatusError   = oapi.LinearMergePageStatusError
+
+	// BatchRequestSyncLevel values
+	BatchRequestSyncLevelPropose  = oapi.BatchRequestSyncLevelPropose
+	BatchRequestSyncLevelWrite    = oapi.BatchRequestSyncLevelWrite
+	BatchRequestSyncLevelFullText = oapi.BatchRequestSyncLevelFullText
 )
 
 // BatchResult represents the result of a batch operation with detailed failure information
