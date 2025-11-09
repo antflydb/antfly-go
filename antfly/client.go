@@ -53,15 +53,18 @@ type (
 	GeneratorProvider      = oapi.GeneratorProvider
 	EmbedderConfig         = oapi.EmbedderConfig
 	GeneratorConfig        = oapi.GeneratorConfig
-	OllamaEmbedderConfig   = oapi.OllamaEmbedderConfig
-	OpenAIEmbedderConfig   = oapi.OpenAIEmbedderConfig
-	GoogleEmbedderConfig   = oapi.GoogleEmbedderConfig
-	BedrockEmbedderConfig  = oapi.BedrockEmbedderConfig
-	OllamaGeneratorConfig  = oapi.OllamaGeneratorConfig
-	OpenAIGeneratorConfig  = oapi.OpenAIGeneratorConfig
-	GoogleGeneratorConfig  = oapi.GoogleGeneratorConfig
-	BedrockGeneratorConfig = oapi.BedrockGeneratorConfig
-	RerankerConfig         = oapi.RerankerConfig
+	OllamaEmbedderConfig    = oapi.OllamaEmbedderConfig
+	OpenAIEmbedderConfig    = oapi.OpenAIEmbedderConfig
+	GoogleEmbedderConfig    = oapi.GoogleEmbedderConfig
+	BedrockEmbedderConfig   = oapi.BedrockEmbedderConfig
+	VertexEmbedderConfig    = oapi.VertexEmbedderConfig
+	OllamaGeneratorConfig   = oapi.OllamaGeneratorConfig
+	OpenAIGeneratorConfig   = oapi.OpenAIGeneratorConfig
+	GoogleGeneratorConfig   = oapi.GoogleGeneratorConfig
+	BedrockGeneratorConfig  = oapi.BedrockGeneratorConfig
+	VertexGeneratorConfig   = oapi.VertexGeneratorConfig
+	AnthropicGeneratorConfig = oapi.AnthropicGeneratorConfig
+	RerankerConfig          = oapi.RerankerConfig
 
 	// Query response types
 	QueryResponses = oapi.QueryResponses
@@ -89,6 +92,10 @@ type (
 
 	// Batch types
 	BatchRequestSyncLevel = oapi.BatchRequestSyncLevel
+
+	// AI Agent types
+	AnswerAgentResult               = oapi.AnswerAgentResult
+	AnswerAgentResultClassification = oapi.AnswerAgentResultClassification
 )
 
 // BatchRequest represents a batch operation request with flexible insert types.
@@ -120,11 +127,14 @@ const (
 	EmbedderProviderOpenai   = oapi.EmbedderProviderOpenai
 	EmbedderProviderGemini   = oapi.EmbedderProviderGemini
 	EmbedderProviderBedrock  = oapi.EmbedderProviderBedrock
+	EmbedderProviderVertex   = oapi.EmbedderProviderVertex
 	EmbedderProviderMock     = oapi.EmbedderProviderMock
 	GeneratorProviderOllama  = oapi.GeneratorProviderOllama
 	GeneratorProviderOpenai  = oapi.GeneratorProviderOpenai
 	GeneratorProviderGemini  = oapi.GeneratorProviderGemini
 	GeneratorProviderBedrock = oapi.GeneratorProviderBedrock
+	GeneratorProviderVertex  = oapi.GeneratorProviderVertex
+	GeneratorProviderAnthropic = oapi.GeneratorProviderAnthropic
 	GeneratorProviderMock    = oapi.GeneratorProviderMock
 
 	// MergeStrategy values
@@ -340,6 +350,34 @@ type RAGRequest struct {
 
 	// WithStreaming Enable SSE streaming of results instead of JSON response
 	WithStreaming bool `json:"with_streaming,omitempty,omitzero"`
+}
+
+// AnswerAgentRequest represents an answer agent request.
+// The answer agent classifies queries, generates appropriate searches, executes them, and generates answers.
+type AnswerAgentRequest struct {
+	// Query is the user's natural language query (required)
+	Query string `json:"query"`
+
+	// Summarizer is the model configuration for LLM generation (required)
+	Summarizer GeneratorConfig `json:"summarizer"`
+
+	// Tables is the list of table names to search (optional, empty = all tables)
+	Tables []string `json:"tables,omitempty"`
+
+	// Indexes is the list of indexes to use for each table (optional, empty = all indexes)
+	Indexes []string `json:"indexes,omitempty"`
+
+	// SystemPrompt is an optional custom system prompt to guide the agent
+	SystemPrompt string `json:"system_prompt,omitempty"`
+
+	// WithStreaming enables SSE streaming of results instead of JSON response (default: true)
+	WithStreaming bool `json:"with_streaming,omitempty"`
+
+	// WithReasoning includes LLM reasoning process in the response (default: false)
+	WithReasoning bool `json:"with_reasoning,omitempty"`
+
+	// WithFollowup includes follow-up questions in the response (default: false)
+	WithFollowup bool `json:"with_followup,omitempty"`
 }
 
 // AntflyClient is a client for interacting with the Antfly API
@@ -722,6 +760,30 @@ type RAGOptions struct {
 	Callback func(chunk string) error
 }
 
+// AnswerAgentOptions contains optional parameters for answer agent requests
+type AnswerAgentOptions struct {
+	// OnClassification is called when the query classification is received
+	OnClassification func(classification, confidence string) error
+
+	// OnKeywords is called when keywords are extracted from the query
+	OnKeywords func(keywords []string) error
+
+	// OnQueryGenerated is called for each generated query
+	OnQueryGenerated func(query string) error
+
+	// OnHit is called for each search result hit
+	OnHit func(hit string) error
+
+	// OnReasoning is called when LLM reasoning is received (if WithReasoning is enabled)
+	OnReasoning func(reasoning string) error
+
+	// OnAnswer is called for each chunk of the answer text
+	OnAnswer func(chunk string) error
+
+	// OnFollowupQuestion is called for each follow-up question (if WithFollowup is enabled)
+	OnFollowupQuestion func(question string) error
+}
+
 // RAG performs a RAG (Retrieval-Augmented Generation) query and streams the response
 // Accepts a RAGRequest with one or more QueryRequests for single-table or multi-table RAG queries
 // The callback function is called for each chunk of the streaming response
@@ -811,6 +873,180 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 	return result.String(), nil
 }
 
+// AnswerAgent performs an answer agent query with classification, query generation, and answer generation.
+// The agent classifies the query, generates appropriate searches, executes them, and generates answers.
+// Supports streaming responses with granular callbacks for different event types.
+func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, opts ...AnswerAgentOptions) (*AnswerAgentResult, error) {
+	answerURL, _ := url.JoinPath(c.baseURL, "agents", "answer")
+
+	// Merge options
+	var opt AnswerAgentOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	// Marshal request
+	reqBody, err := sonic.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling answer agent request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, answerURL, bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, fmt.Errorf("creating request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	// When streaming is enabled, expect SSE response instead of JSON
+	if req.WithStreaming {
+		httpReq.Header.Set("Accept", "text/event-stream")
+	} else {
+		httpReq.Header.Set("Accept", "application/json")
+	}
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("sending answer agent request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("answer agent request failed with status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	// If streaming is disabled, read JSON response directly
+	if !req.WithStreaming {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("reading response body: %w", err)
+		}
+		var result AnswerAgentResult
+		if err := sonic.Unmarshal(respBody, &result); err != nil {
+			return nil, fmt.Errorf("parsing answer agent result: %w", err)
+		}
+		return &result, nil
+	}
+
+	// Build result from streaming events
+	result := &AnswerAgentResult{}
+	var answerBuilder strings.Builder
+
+	// Read the SSE stream
+	buf := make([]byte, 4096)
+	var currentEvent string
+	for {
+		n, err := resp.Body.Read(buf)
+		if n > 0 {
+			chunk := string(buf[:n])
+			lines := strings.SplitSeq(chunk, "\n")
+			for line := range lines {
+				// Parse SSE event type
+				if after, ok := strings.CutPrefix(line, "event: "); ok {
+					currentEvent = strings.TrimSpace(after)
+					continue
+				}
+
+				// Parse SSE data
+				if after, ok := strings.CutPrefix(line, "data: "); ok {
+					data := after
+
+					switch currentEvent {
+					case "classification":
+						// Parse classification JSON
+						var classData struct {
+							RouteType  string  `json:"route_type"`
+							Confidence float64 `json:"confidence"`
+						}
+						if err := sonic.UnmarshalString(data, &classData); err == nil {
+							result.Classification = AnswerAgentResultClassification(classData.RouteType)
+							if opt.OnClassification != nil {
+								if err := opt.OnClassification(classData.RouteType, fmt.Sprintf("%.2f", classData.Confidence)); err != nil {
+									return nil, fmt.Errorf("classification callback error: %w", err)
+								}
+							}
+						}
+
+					case "keywords":
+						// Parse keywords JSON array
+						var keywords []string
+						if err := sonic.UnmarshalString(data, &keywords); err == nil {
+							result.Keywords = keywords
+							if opt.OnKeywords != nil {
+								if err := opt.OnKeywords(keywords); err != nil {
+									return nil, fmt.Errorf("keywords callback error: %w", err)
+								}
+							}
+						}
+
+					case "query_generated":
+						if opt.OnQueryGenerated != nil {
+							if err := opt.OnQueryGenerated(data); err != nil {
+								return nil, fmt.Errorf("query generated callback error: %w", err)
+							}
+						}
+
+					case "hit":
+						if opt.OnHit != nil {
+							if err := opt.OnHit(data); err != nil {
+								return nil, fmt.Errorf("hit callback error: %w", err)
+							}
+						}
+
+					case "reasoning":
+						if result.Reasoning == "" {
+							result.Reasoning = data
+						} else {
+							result.Reasoning += data
+						}
+						if opt.OnReasoning != nil {
+							if err := opt.OnReasoning(data); err != nil {
+								return nil, fmt.Errorf("reasoning callback error: %w", err)
+							}
+						}
+
+					case "answer":
+						answerBuilder.WriteString(data)
+						if opt.OnAnswer != nil {
+							if err := opt.OnAnswer(data); err != nil {
+								return nil, fmt.Errorf("answer callback error: %w", err)
+							}
+						}
+
+					case "followup_question":
+						result.FollowupQuestions = append(result.FollowupQuestions, data)
+						if opt.OnFollowupQuestion != nil {
+							if err := opt.OnFollowupQuestion(data); err != nil {
+								return nil, fmt.Errorf("followup question callback error: %w", err)
+							}
+						}
+
+					case "done":
+						// Stream complete
+						break
+
+					case "error":
+						return nil, fmt.Errorf("answer agent error: %s", data)
+					}
+				}
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("reading stream: %w", err)
+		}
+	}
+
+	// Set the accumulated answer
+	if answerBuilder.Len() > 0 {
+		result.Answer = answerBuilder.String()
+	}
+
+	return result, nil
+}
+
 func NewEmbedderConfig(config any) (*EmbedderConfig, error) {
 	var provider EmbedderProvider
 	modelConfig := &EmbedderConfig{}
@@ -827,6 +1063,9 @@ func NewEmbedderConfig(config any) (*EmbedderConfig, error) {
 	case BedrockEmbedderConfig:
 		provider = EmbedderProviderBedrock
 		modelConfig.FromBedrockEmbedderConfig(v)
+	case VertexEmbedderConfig:
+		provider = EmbedderProviderVertex
+		modelConfig.FromVertexEmbedderConfig(v)
 	default:
 		return nil, fmt.Errorf("unknown model config type: %T", v)
 	}
@@ -850,6 +1089,12 @@ func NewGeneratorConfig(config any) (*GeneratorConfig, error) {
 	case oapi.BedrockGeneratorConfig:
 		provider = oapi.GeneratorProviderBedrock
 		modelConfig.FromBedrockGeneratorConfig(v)
+	case oapi.VertexGeneratorConfig:
+		provider = oapi.GeneratorProviderVertex
+		modelConfig.FromVertexGeneratorConfig(v)
+	case oapi.AnthropicGeneratorConfig:
+		provider = oapi.GeneratorProviderAnthropic
+		modelConfig.FromAnthropicGeneratorConfig(v)
 	default:
 		return nil, fmt.Errorf("unknown model config type: %T", v)
 	}
