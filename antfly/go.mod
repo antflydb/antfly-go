@@ -1,6 +1,6 @@
 module github.com/antflydb/antfly-go/antfly
 
-go 1.25.1
+go 1.25.4
 
 require (
 	github.com/bytedance/sonic v1.14.2

@@ -1,6 +1,6 @@
 module github.com/antflydb/antfly-go/antfly-genkit
 
-go 1.25.1
+go 1.25.4
 
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
