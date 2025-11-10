@@ -94,8 +94,9 @@ type (
 	BatchRequestSyncLevel = oapi.BatchRequestSyncLevel
 
 	// AI Agent types
-	AnswerAgentResult               = oapi.AnswerAgentResult
-	AnswerAgentResultClassification = oapi.AnswerAgentResultClassification
+	AnswerAgentResult                  = oapi.AnswerAgentResult
+	ClassificationTransformationResult = oapi.ClassificationTransformationResult
+	RouteType                          = oapi.RouteType
 )
 
 // BatchRequest represents a batch operation request with flexible insert types.
@@ -353,7 +354,7 @@ type RAGRequest struct {
 }
 
 // AnswerAgentRequest represents an answer agent request.
-// The answer agent classifies queries, generates appropriate searches, executes them, and generates answers.
+// The answer agent classifies queries, transforms them for optimal semantic search, executes provided queries, and generates answers.
 type AnswerAgentRequest struct {
 	// Query is the user's natural language query (required)
 	Query string `json:"query"`
@@ -361,11 +362,9 @@ type AnswerAgentRequest struct {
 	// Summarizer is the model configuration for LLM generation (required)
 	Summarizer GeneratorConfig `json:"summarizer"`
 
-	// Tables is the list of table names to search (optional, empty = all tables)
-	Tables []string `json:"tables,omitempty"`
-
-	// Indexes is the list of indexes to use for each table (optional, empty = all indexes)
-	Indexes []string `json:"indexes,omitempty"`
+	// Queries is the array of query requests to execute with the transformed query (required)
+	// The transformed semantic search query will be applied to each QueryRequest
+	Queries []QueryRequest `json:"queries"`
 
 	// SystemPrompt is an optional custom system prompt to guide the agent
 	SystemPrompt string `json:"system_prompt,omitempty"`
@@ -765,11 +764,8 @@ type AnswerAgentOptions struct {
 	// OnClassification is called when the query classification is received
 	OnClassification func(classification, confidence string) error
 
-	// OnKeywords is called when keywords are extracted from the query
-	OnKeywords func(keywords []string) error
-
-	// OnQueryGenerated is called for each generated query
-	OnQueryGenerated func(query string) error
+	// OnTransformation is called when the transformed semantic search query is received
+	OnTransformation func(transformation string) error
 
 	// OnHit is called for each search result hit
 	OnHit func(hit string) error
@@ -953,36 +949,14 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 
 					switch currentEvent {
 					case "classification":
-						// Parse classification JSON
-						var classData struct {
-							RouteType  string  `json:"route_type"`
-							Confidence float64 `json:"confidence"`
-						}
+						// Parse classification and transformation JSON
+						var classData ClassificationTransformationResult
 						if err := sonic.UnmarshalString(data, &classData); err == nil {
-							result.Classification = AnswerAgentResultClassification(classData.RouteType)
+							result.ClassificationTransformation = classData
 							if opt.OnClassification != nil {
-								if err := opt.OnClassification(classData.RouteType, fmt.Sprintf("%.2f", classData.Confidence)); err != nil {
+								if err := opt.OnClassification(string(classData.RouteType), fmt.Sprintf("%.2f", classData.Confidence)); err != nil {
 									return nil, fmt.Errorf("classification callback error: %w", err)
 								}
-							}
-						}
-
-					case "keywords":
-						// Parse keywords JSON array
-						var keywords []string
-						if err := sonic.UnmarshalString(data, &keywords); err == nil {
-							result.Keywords = keywords
-							if opt.OnKeywords != nil {
-								if err := opt.OnKeywords(keywords); err != nil {
-									return nil, fmt.Errorf("keywords callback error: %w", err)
-								}
-							}
-						}
-
-					case "query_generated":
-						if opt.OnQueryGenerated != nil {
-							if err := opt.OnQueryGenerated(data); err != nil {
-								return nil, fmt.Errorf("query generated callback error: %w", err)
 							}
 						}
 
