@@ -5,7 +5,7 @@ go 1.25.4
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly-go/antfly v0.0.0-20251107193110-81528f3a69dd
+	github.com/antflydb/antfly-go/antfly v0.0.0-20251110032525-6f714bfa5bf0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/firebase/genkit/go v1.1.0
 	github.com/stretchr/testify v1.11.1
@@ -55,8 +55,8 @@ require (
 	go.opentelemetry.io/otel/metric v1.38.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.38.0 // indirect
 	go.opentelemetry.io/otel/trace v1.38.0 // indirect
-	golang.org/x/arch v0.22.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/arch v0.23.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
