@@ -1,6 +1,10 @@
 //go:generate go tool oapi-codegen --config=cfg.yaml ../../../bleve-query-openapi.yaml
 package query
 
+import "time"
+
+// Builder helpers for creating Bleve queries with convenience functions
+
 // FuzzinessInt creates a Fuzziness from an int32. Panics on error.
 func FuzzinessInt(v int32) Fuzziness {
 	var f Fuzziness
@@ -242,4 +246,198 @@ func (v GeoShapeQuery) ToQuery() Query {
 		panic(err)
 	}
 	return q
+}
+
+// Convenience builder functions for common query types
+
+// NewQueryString creates a QueryStringQuery.
+//
+// Example:
+//
+//	q := query.NewQueryString("body:computer AND category:technology")
+func NewQueryString(queryStr string) Query {
+	return QueryStringQuery{Query: queryStr}.ToQuery()
+}
+
+// NewQueryStringBoost creates a QueryStringQuery with boost.
+//
+// Example:
+//
+//	q := query.NewQueryStringBoost("body:computer", 1.5)
+func NewQueryStringBoost(queryStr string, boost float64) Query {
+	return QueryStringQuery{Query: queryStr, Boost: Boost(boost)}.ToQuery()
+}
+
+// NewTerm creates a TermQuery.
+//
+// Example:
+//
+//	q := query.NewTerm("published", "status")
+func NewTerm(term string, field string) Query {
+	return TermQuery{Term: term, Field: field}.ToQuery()
+}
+
+// NewMatch creates a MatchQuery.
+//
+// Example:
+//
+//	q := query.NewMatch("golang tutorial", "body")
+func NewMatch(match string, field string) Query {
+	return MatchQuery{Match: match, Field: field}.ToQuery()
+}
+
+// NewMatchPhrase creates a MatchPhraseQuery.
+//
+// Example:
+//
+//	q := query.NewMatchPhrase("distributed systems", "body")
+func NewMatchPhrase(phrase string, field string) Query {
+	return MatchPhraseQuery{MatchPhrase: phrase, Field: field}.ToQuery()
+}
+
+// NewPrefix creates a PrefixQuery.
+//
+// Example:
+//
+//	q := query.NewPrefix("comp", "title")
+func NewPrefix(prefix string, field string) Query {
+	return PrefixQuery{Prefix: prefix, Field: field}.ToQuery()
+}
+
+// NewNumericRange creates a NumericRangeQuery.
+//
+// Example:
+//
+//	q := query.NewNumericRange(0, 1000, "price")
+func NewNumericRange(min float64, max float64, field string) Query {
+	return NumericRangeQuery{Min: min, Max: max, Field: field}.ToQuery()
+}
+
+// NewDateRange creates a DateRangeStringQuery.
+//
+// Example:
+//
+//	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+//	end := time.Date(2024, 12, 31, 23, 59, 59, 0, time.UTC)
+//	q := query.NewDateRange(start, end, "created_at")
+func NewDateRange(start time.Time, end time.Time, field string) Query {
+	return DateRangeStringQuery{Start: start, End: end, Field: field}.ToQuery()
+}
+
+// NewMatchAll creates a MatchAllQuery.
+//
+// Example:
+//
+//	q := query.NewMatchAll()
+func NewMatchAll() Query {
+	return MatchAllQuery{}.ToQuery()
+}
+
+// NewMatchNone creates a MatchNoneQuery.
+//
+// Example:
+//
+//	q := query.NewMatchNone()
+func NewMatchNone() Query {
+	return MatchNoneQuery{}.ToQuery()
+}
+
+// NewBoolean creates a BooleanQuery.
+//
+// Example:
+//
+//	must := query.NewConjunction([]query.Query{query.NewTerm("published", "status")})
+//	mustNot := query.NewDisjunction([]query.Query{query.NewTerm("archived", "status")}, 0)
+//	q := query.NewBoolean(must, DisjunctionQuery{}, mustNot)
+func NewBoolean(must ConjunctionQuery, should DisjunctionQuery, mustNot DisjunctionQuery) Query {
+	return BooleanQuery{
+		Must:    must,
+		Should:  should,
+		MustNot: mustNot,
+	}.ToQuery()
+}
+
+// NewConjunction creates a ConjunctionQuery (AND).
+//
+// Example:
+//
+//	q := query.NewConjunction([]query.Query{
+//	    query.NewTerm("published", "status"),
+//	    query.NewMatch("golang", "title"),
+//	})
+func NewConjunction(queries []Query) ConjunctionQuery {
+	return ConjunctionQuery{Conjuncts: queries}
+}
+
+// NewDisjunction creates a DisjunctionQuery (OR).
+//
+// Example:
+//
+//	q := query.NewDisjunction([]query.Query{
+//	    query.NewTerm("draft", "status"),
+//	    query.NewTerm("pending", "status"),
+//	}, 0)
+func NewDisjunction(queries []Query, min float64) DisjunctionQuery {
+	return DisjunctionQuery{Disjuncts: queries, Min: min}
+}
+
+// NewDocIds creates a DocIdQuery.
+//
+// Example:
+//
+//	q := query.NewDocIds([]string{"doc1", "doc2", "doc3"})
+func NewDocIds(ids []string) Query {
+	return DocIdQuery{Ids: ids}.ToQuery()
+}
+
+// NewGeoDistance creates a GeoDistanceQuery.
+//
+// Example:
+//
+//	q := query.NewGeoDistance(-122.4, 37.8, "5km", "location")
+func NewGeoDistance(lon float64, lat float64, distance string, field string) Query {
+	return GeoDistanceQuery{
+		Location: []float64{lon, lat},
+		Distance: distance,
+		Field:    field,
+	}.ToQuery()
+}
+
+// NewGeoBoundingBox creates a GeoBoundingBoxQuery.
+//
+// Example:
+//
+//	q := query.NewGeoBoundingBox(
+//	    -122.5, 37.9,  // top left lon, lat
+//	    -122.3, 37.7,  // bottom right lon, lat
+//	    "location",
+//	)
+func NewGeoBoundingBox(topLeftLon float64, topLeftLat float64, bottomRightLon float64, bottomRightLat float64, field string) Query {
+	return GeoBoundingBoxQuery{
+		TopLeft:     []float64{topLeftLon, topLeftLat},
+		BottomRight: []float64{bottomRightLon, bottomRightLat},
+		Field:       field,
+	}.ToQuery()
+}
+
+// Helper functions for creating pointers
+
+// PtrString creates a pointer to a string value.
+func PtrString(v string) *string {
+	return &v
+}
+
+// PtrFloat creates a pointer to a float64 value.
+func PtrFloat(v float64) *float64 {
+	return &v
+}
+
+// PtrInt creates a pointer to an int value.
+func PtrInt(v int) *int {
+	return &v
+}
+
+// PtrBool creates a pointer to a bool value.
+func PtrBool(v bool) *bool {
+	return &v
 }

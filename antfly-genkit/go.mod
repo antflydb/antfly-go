@@ -5,7 +5,7 @@ go 1.25.4
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly-go/antfly v0.0.0-20251113074040-971693996566
+	github.com/antflydb/antfly-go/antfly v0.0.0-20251113192550-9450d9ceff4e
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/firebase/genkit/go v1.1.0
 	github.com/stretchr/testify v1.11.1
@@ -24,15 +24,16 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-openapi/jsonpointer v0.22.1 // indirect
-	github.com/go-openapi/swag/jsonname v0.25.1 // indirect
+	github.com/go-openapi/jsonpointer v0.22.3 // indirect
+	github.com/go-openapi/swag/jsonname v0.25.3 // indirect
 	github.com/goccy/go-yaml v1.18.0 // indirect
-	github.com/google/dotprompt/go v0.0.0-20251105222245-c1c33196b7a4 // indirect
+	github.com/google/dotprompt/go v0.0.0-20251117234142-ee0822113b36 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kaptinlin/go-i18n v0.2.0 // indirect
-	github.com/kaptinlin/jsonschema v0.5.2 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.6 // indirect
+	github.com/kaptinlin/jsonschema v0.6.1 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
