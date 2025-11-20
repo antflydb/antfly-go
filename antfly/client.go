@@ -485,7 +485,7 @@ func (c *AntflyClient) GetTable(ctx context.Context, tableName string) (*TableSt
 
 // ListTables lists all tables
 func (c *AntflyClient) ListTables(ctx context.Context) ([]TableStatus, error) {
-	resp, err := c.client.ListTables(ctx)
+	resp, err := c.client.ListTables(ctx, &oapi.ListTablesParams{})
 	if err != nil {
 		return nil, fmt.Errorf("listing tables: %w", err)
 	}
