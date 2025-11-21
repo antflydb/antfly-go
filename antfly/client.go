@@ -87,11 +87,9 @@ type (
 	LinearMergePageStatus = oapi.LinearMergePageStatus
 	LinearMergeRequest    = oapi.LinearMergeRequest
 	LinearMergeResult     = oapi.LinearMergeResult
-	FailedOperation       = oapi.FailedOperation
-	KeyRange              = oapi.KeyRange
-
-	// Batch types
-	BatchRequestSyncLevel = oapi.BatchRequestSyncLevel
+	FailedOperation = oapi.FailedOperation
+	KeyRange        = oapi.KeyRange
+	SyncLevel       = oapi.SyncLevel
 
 	// AI Agent types
 	AnswerAgentResult                  = oapi.AnswerAgentResult
@@ -114,7 +112,8 @@ type BatchRequest struct {
 	// - "propose": Wait for Raft proposal acceptance (fastest, default)
 	// - "write": Wait for Pebble KV write
 	// - "full_text": Wait for full-text index WAL write (slowest, most durable)
-	SyncLevel BatchRequestSyncLevel `json:"sync_level,omitempty"`
+	// - "aknn": Wait for vector index write with best-effort synchronous embedding (falls back to async on timeout)
+	SyncLevel SyncLevel `json:"sync_level,omitempty"`
 }
 
 // Constants from oapi
@@ -147,10 +146,11 @@ const (
 	LinearMergePageStatusPartial = oapi.LinearMergePageStatusPartial
 	LinearMergePageStatusError   = oapi.LinearMergePageStatusError
 
-	// BatchRequestSyncLevel values
-	BatchRequestSyncLevelPropose  = oapi.BatchRequestSyncLevelPropose
-	BatchRequestSyncLevelWrite    = oapi.BatchRequestSyncLevelWrite
-	BatchRequestSyncLevelFullText = oapi.BatchRequestSyncLevelFullText
+	// SyncLevel values
+	SyncLevelPropose  = oapi.SyncLevelPropose
+	SyncLevelWrite    = oapi.SyncLevelWrite
+	SyncLevelFullText = oapi.SyncLevelFullText
+	SyncLevelAknn     = oapi.SyncLevelAknn
 )
 
 // BatchResult represents the result of a batch operation with detailed failure information
@@ -399,32 +399,6 @@ func NewAntflyClient(baseURL string, httpClient *http.Client) (*AntflyClient, er
 	}, err
 }
 
-// sendRequest sends an HTTP request to the specified endpoint with the given content type.
-func (c *AntflyClient) sendRequest(ctx context.Context, method, url, contentType string, body io.Reader) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("sending request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("reading http response: %w", err)
-	}
-
-	if resp.StatusCode >= 300 {
-		return respBody, fmt.Errorf("received non-OK status %d from %s: %s", resp.StatusCode, url, string(respBody))
-	}
-	return respBody, nil
-}
 
 // CreateTable creates a new table
 func (c *AntflyClient) CreateTable(ctx context.Context, tableName string, req CreateTableRequest) error {
@@ -571,22 +545,21 @@ func (c *AntflyClient) Backup(ctx context.Context, tableName, backupID, location
 	if tableName == "" {
 		return fmt.Errorf("empty table name")
 	}
-	backupURL, _ := url.JoinPath(c.baseURL, "tables", tableName, "backup")
-	requestBody := map[string]string{
-		"backup_id": backupID,
-		"location":  location,
-	}
-	bodyBytes, err := sonic.Marshal(requestBody)
-	if err != nil {
-		return fmt.Errorf("marshalling backup request: %w", err)
+
+	req := oapi.BackupRequest{
+		BackupId: backupID,
+		Location: location,
 	}
 
-	_, err = c.sendRequest(ctx, http.MethodPost, backupURL, "application/json", bytes.NewBuffer(bodyBytes))
+	resp, err := c.client.BackupTable(ctx, tableName, req)
 	if err != nil {
-		// API might return 201 Created or similar success codes as well.
-		if !strings.Contains(err.Error(), "received non-OK status 201") && !strings.Contains(err.Error(), "received non-OK status 202") {
-			return fmt.Errorf("backup request failed: %w", err)
-		}
+		return fmt.Errorf("backup request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// API might return 201 Created or 202 Accepted
+	if resp.StatusCode >= 300 && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("backup failed: %w", readErrorResponse(resp))
 	}
 
 	return nil
@@ -597,22 +570,21 @@ func (c *AntflyClient) Restore(ctx context.Context, tableName, backupID, locatio
 	if tableName == "" {
 		return fmt.Errorf("empty table name")
 	}
-	restoreURL, _ := url.JoinPath(c.baseURL, "tables", tableName, "restore")
-	requestBody := map[string]string{
-		"backup_id": backupID,
-		"location":  location,
-	}
-	bodyBytes, err := sonic.Marshal(requestBody)
-	if err != nil {
-		return fmt.Errorf("marshalling restore request: %w", err)
+
+	req := oapi.RestoreRequest{
+		BackupId: backupID,
+		Location: location,
 	}
 
-	_, err = c.sendRequest(ctx, http.MethodPost, restoreURL, "application/json", bytes.NewBuffer(bodyBytes))
+	resp, err := c.client.RestoreTable(ctx, tableName, req)
 	if err != nil {
-		// Restore API might return 202 Accepted.
-		if !strings.Contains(err.Error(), "received non-OK status 202") {
-			return fmt.Errorf("restoring failed: %w", err)
-		}
+		return fmt.Errorf("restore request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Restore API might return 202 Accepted
+	if resp.StatusCode >= 300 && resp.StatusCode != http.StatusAccepted {
+		return fmt.Errorf("restore failed: %w", readErrorResponse(resp))
 	}
 
 	return nil
@@ -620,8 +592,6 @@ func (c *AntflyClient) Restore(ctx context.Context, tableName, backupID, locatio
 
 // Query executes queries against a table
 func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryResponses, error) {
-	queryURL, _ := url.JoinPath(c.baseURL, "query")
-
 	request := bytes.NewBuffer(nil)
 	e := encoder.NewStreamEncoder(request)
 	for _, opt := range opts {
@@ -638,14 +608,20 @@ func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryR
 			return nil, fmt.Errorf("marshalling query: %w", err)
 		}
 	}
-	// c.client.GlobalQueryWithBody(ctx, "application/json", request)
 
-	// Log the the request we're running as a cURL command
-	// log.Printf("curl -XPOST %s -H \"Content-type: application/json\" -d '%s'", queryURL, request)
-
-	respBody, err := c.sendRequest(ctx, http.MethodPost, queryURL, "application/json", request)
+	resp, err := c.client.GlobalQueryWithBody(ctx, "application/json", request)
 	if err != nil {
-		return nil, fmt.Errorf("sending request: %w", err)
+		return nil, fmt.Errorf("sending query request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("query failed: %w", readErrorResponse(resp))
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 
 	var result QueryResponses
@@ -658,23 +634,24 @@ func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryR
 
 // Batch performs a batch operation on a table
 func (c *AntflyClient) Batch(ctx context.Context, tableName string, request BatchRequest) (*BatchResult, error) {
-	tableSpecificURL, err := url.JoinPath(c.baseURL, "tables", tableName)
-	if err != nil {
-		return nil, fmt.Errorf("creating table specific URL: %w", err)
-	}
-	batchURL, err := url.JoinPath(tableSpecificURL, "batch")
-	if err != nil {
-		return nil, fmt.Errorf("creating batch URL: %w", err)
-	}
-
 	batchBody, err := sonic.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling batch request: %w", err)
 	}
 
-	respBody, err := c.sendRequest(ctx, http.MethodPost, batchURL, "application/json", bytes.NewBuffer(batchBody))
+	resp, err := c.client.BatchWithBody(ctx, tableName, "application/json", bytes.NewBuffer(batchBody))
 	if err != nil {
 		return nil, fmt.Errorf("batch operation failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("batch failed: %w", readErrorResponse(resp))
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 
 	var result BatchResult
@@ -704,23 +681,19 @@ func (c *AntflyClient) Batch(ctx context.Context, tableName string, request Batc
 // WARNING: Not safe for concurrent merge operations with overlapping ranges.
 // Designed as a sync/import API for single-client use.
 func (c *AntflyClient) LinearMerge(ctx context.Context, tableName string, request LinearMergeRequest) (*LinearMergeResult, error) {
-	tableSpecificURL, err := url.JoinPath(c.baseURL, "tables", tableName)
-	if err != nil {
-		return nil, fmt.Errorf("creating table specific URL: %w", err)
-	}
-	mergeURL, err := url.JoinPath(tableSpecificURL, "merge")
-	if err != nil {
-		return nil, fmt.Errorf("creating merge URL: %w", err)
-	}
-
-	mergeBody, err := sonic.Marshal(request)
-	if err != nil {
-		return nil, fmt.Errorf("marshalling linear merge request: %w", err)
-	}
-
-	respBody, err := c.sendRequest(ctx, http.MethodPost, mergeURL, "application/json", bytes.NewBuffer(mergeBody))
+	resp, err := c.client.LinearMerge(ctx, tableName, request)
 	if err != nil {
 		return nil, fmt.Errorf("linear merge operation failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("linear merge failed: %w", readErrorResponse(resp))
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
 	}
 
 	var result LinearMergeResult

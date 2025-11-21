@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"strings"
 	"time"
@@ -124,9 +125,7 @@ func (c *InternalClient) GetMetadataStatus() (*MetadataStatus, error) {
 
 	// Populate members from voters (these are the raft cluster members)
 	if shardInfo.RaftStatus.Voters != nil {
-		for nodeID, url := range shardInfo.RaftStatus.Voters {
-			status.Members[nodeID] = url
-		}
+		maps.Copy(status.Members, shardInfo.RaftStatus.Voters)
 	}
 
 	// Also include peers if available (may have URLs)
