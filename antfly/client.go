@@ -49,22 +49,22 @@ type (
 	BleveIndexV2Config   = oapi.BleveIndexV2Config
 	BleveIndexV2Stats    = oapi.BleveIndexV2Stats
 
-	EmbedderProvider       = oapi.EmbedderProvider
-	GeneratorProvider      = oapi.GeneratorProvider
-	EmbedderConfig         = oapi.EmbedderConfig
-	GeneratorConfig        = oapi.GeneratorConfig
-	OllamaEmbedderConfig    = oapi.OllamaEmbedderConfig
-	OpenAIEmbedderConfig    = oapi.OpenAIEmbedderConfig
-	GoogleEmbedderConfig    = oapi.GoogleEmbedderConfig
-	BedrockEmbedderConfig   = oapi.BedrockEmbedderConfig
-	VertexEmbedderConfig    = oapi.VertexEmbedderConfig
-	OllamaGeneratorConfig   = oapi.OllamaGeneratorConfig
-	OpenAIGeneratorConfig   = oapi.OpenAIGeneratorConfig
-	GoogleGeneratorConfig   = oapi.GoogleGeneratorConfig
-	BedrockGeneratorConfig  = oapi.BedrockGeneratorConfig
-	VertexGeneratorConfig   = oapi.VertexGeneratorConfig
+	EmbedderProvider         = oapi.EmbedderProvider
+	GeneratorProvider        = oapi.GeneratorProvider
+	EmbedderConfig           = oapi.EmbedderConfig
+	GeneratorConfig          = oapi.GeneratorConfig
+	OllamaEmbedderConfig     = oapi.OllamaEmbedderConfig
+	OpenAIEmbedderConfig     = oapi.OpenAIEmbedderConfig
+	GoogleEmbedderConfig     = oapi.GoogleEmbedderConfig
+	BedrockEmbedderConfig    = oapi.BedrockEmbedderConfig
+	VertexEmbedderConfig     = oapi.VertexEmbedderConfig
+	OllamaGeneratorConfig    = oapi.OllamaGeneratorConfig
+	OpenAIGeneratorConfig    = oapi.OpenAIGeneratorConfig
+	GoogleGeneratorConfig    = oapi.GoogleGeneratorConfig
+	BedrockGeneratorConfig   = oapi.BedrockGeneratorConfig
+	VertexGeneratorConfig    = oapi.VertexGeneratorConfig
 	AnthropicGeneratorConfig = oapi.AnthropicGeneratorConfig
-	RerankerConfig          = oapi.RerankerConfig
+	RerankerConfig           = oapi.RerankerConfig
 
 	// Query response types
 	QueryResponses = oapi.QueryResponses
@@ -124,19 +124,19 @@ const (
 	IndexTypeAknnV0     = oapi.IndexTypeAknnV0
 
 	// Provider values
-	EmbedderProviderOllama   = oapi.EmbedderProviderOllama
-	EmbedderProviderOpenai   = oapi.EmbedderProviderOpenai
-	EmbedderProviderGemini   = oapi.EmbedderProviderGemini
-	EmbedderProviderBedrock  = oapi.EmbedderProviderBedrock
-	EmbedderProviderVertex   = oapi.EmbedderProviderVertex
-	EmbedderProviderMock     = oapi.EmbedderProviderMock
-	GeneratorProviderOllama  = oapi.GeneratorProviderOllama
-	GeneratorProviderOpenai  = oapi.GeneratorProviderOpenai
-	GeneratorProviderGemini  = oapi.GeneratorProviderGemini
-	GeneratorProviderBedrock = oapi.GeneratorProviderBedrock
-	GeneratorProviderVertex  = oapi.GeneratorProviderVertex
+	EmbedderProviderOllama     = oapi.EmbedderProviderOllama
+	EmbedderProviderOpenai     = oapi.EmbedderProviderOpenai
+	EmbedderProviderGemini     = oapi.EmbedderProviderGemini
+	EmbedderProviderBedrock    = oapi.EmbedderProviderBedrock
+	EmbedderProviderVertex     = oapi.EmbedderProviderVertex
+	EmbedderProviderMock       = oapi.EmbedderProviderMock
+	GeneratorProviderOllama    = oapi.GeneratorProviderOllama
+	GeneratorProviderOpenai    = oapi.GeneratorProviderOpenai
+	GeneratorProviderGemini    = oapi.GeneratorProviderGemini
+	GeneratorProviderBedrock   = oapi.GeneratorProviderBedrock
+	GeneratorProviderVertex    = oapi.GeneratorProviderVertex
 	GeneratorProviderAnthropic = oapi.GeneratorProviderAnthropic
-	GeneratorProviderMock    = oapi.GeneratorProviderMock
+	GeneratorProviderMock      = oapi.GeneratorProviderMock
 
 	// MergeStrategy values
 	MergeStrategyRrf      = oapi.MergeStrategyRrf
@@ -571,7 +571,7 @@ func (c *AntflyClient) Backup(ctx context.Context, tableName, backupID, location
 	if tableName == "" {
 		return fmt.Errorf("empty table name")
 	}
-	backupURL, _ := url.JoinPath(c.baseURL, "table", tableName, "backup")
+	backupURL, _ := url.JoinPath(c.baseURL, "tables", tableName, "backup")
 	requestBody := map[string]string{
 		"backup_id": backupID,
 		"location":  location,
@@ -597,7 +597,7 @@ func (c *AntflyClient) Restore(ctx context.Context, tableName, backupID, locatio
 	if tableName == "" {
 		return fmt.Errorf("empty table name")
 	}
-	restoreURL, _ := url.JoinPath(c.baseURL, "table", tableName, "restore")
+	restoreURL, _ := url.JoinPath(c.baseURL, "tables", tableName, "restore")
 	requestBody := map[string]string{
 		"backup_id": backupID,
 		"location":  location,
@@ -638,6 +638,7 @@ func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryR
 			return nil, fmt.Errorf("marshalling query: %w", err)
 		}
 	}
+	// c.client.GlobalQueryWithBody(ctx, "application/json", request)
 
 	// Log the the request we're running as a cURL command
 	// log.Printf("curl -XPOST %s -H \"Content-type: application/json\" -d '%s'", queryURL, request)
@@ -657,7 +658,7 @@ func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryR
 
 // Batch performs a batch operation on a table
 func (c *AntflyClient) Batch(ctx context.Context, tableName string, request BatchRequest) (*BatchResult, error) {
-	tableSpecificURL, err := url.JoinPath(c.baseURL, "table", tableName)
+	tableSpecificURL, err := url.JoinPath(c.baseURL, "tables", tableName)
 	if err != nil {
 		return nil, fmt.Errorf("creating table specific URL: %w", err)
 	}
@@ -703,7 +704,7 @@ func (c *AntflyClient) Batch(ctx context.Context, tableName string, request Batc
 // WARNING: Not safe for concurrent merge operations with overlapping ranges.
 // Designed as a sync/import API for single-client use.
 func (c *AntflyClient) LinearMerge(ctx context.Context, tableName string, request LinearMergeRequest) (*LinearMergeResult, error) {
-	tableSpecificURL, err := url.JoinPath(c.baseURL, "table", tableName)
+	tableSpecificURL, err := url.JoinPath(c.baseURL, "tables", tableName)
 	if err != nil {
 		return nil, fmt.Errorf("creating table specific URL: %w", err)
 	}
