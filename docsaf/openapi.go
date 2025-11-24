@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
@@ -27,13 +26,25 @@ func (op *OpenAPIProcessor) CanProcess(filePath string) bool {
 
 // ProcessFile processes an OpenAPI specification file and returns document sections.
 // Returns an error if the file is not a valid OpenAPI v3 specification.
-func (op *OpenAPIProcessor) ProcessFile(filePath, baseDir string) ([]DocumentSection, error) {
+func (op *OpenAPIProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]DocumentSection, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	relPath, _ := filepath.Rel(baseDir, filePath)
+	// Convert baseDir to absolute path to ensure correct relative path calculation
+	absBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		absBaseDir = baseDir
+	}
+
+	// Convert filePath to absolute path
+	absFilePath, err := filepath.Abs(filePath)
+	if err != nil {
+		absFilePath = filePath
+	}
+
+	relPath, _ := filepath.Rel(absBaseDir, absFilePath)
 
 	// Try to parse as OpenAPI
 	doc, err := libopenapi.NewDocument(content)
@@ -51,7 +62,7 @@ func (op *OpenAPIProcessor) ProcessFile(filePath, baseDir string) ([]DocumentSec
 	}
 
 	if v3Model != nil {
-		sections = append(sections, op.extractV3Sections(&v3Model.Model, relPath)...)
+		sections = append(sections, op.extractV3Sections(&v3Model.Model, relPath, baseURL)...)
 	}
 
 	return sections, nil
@@ -62,24 +73,31 @@ func (op *OpenAPIProcessor) ProcessFile(filePath, baseDir string) ([]DocumentSec
 // - API info (openapi_info)
 // - Each path operation (openapi_path)
 // - Each component schema (openapi_schema)
-func (op *OpenAPIProcessor) extractV3Sections(model *v3.Document, relPath string) []DocumentSection {
+func (op *OpenAPIProcessor) extractV3Sections(model *v3.Document, relPath, baseURL string) []DocumentSection {
 	var sections []DocumentSection
 
 	// Extract API info as a section
 	if model.Info != nil {
 		infoJSON, _ := json.MarshalIndent(model.Info, "", "  ")
+
+		// Generate URL for info section
+		url := ""
+		if baseURL != "" {
+			url = baseURL + "/" + relPath + "#info"
+		}
+
 		sections = append(sections, DocumentSection{
 			ID:       generateID(relPath, "info"),
 			FilePath: relPath,
 			Title:    fmt.Sprintf("%s (Info)", model.Info.Title),
 			Content:  string(infoJSON),
 			Type:     "openapi_info",
+			URL:      url,
 			Metadata: map[string]any{
 				"openapi_version": model.Version,
 				"api_version":     model.Info.Version,
 				"api_title":       model.Info.Title,
 			},
-			CreatedAt: time.Now(),
 		})
 	}
 
@@ -98,12 +116,21 @@ func (op *OpenAPIProcessor) extractV3Sections(model *v3.Document, relPath string
 					operationID = fmt.Sprintf("%s_%s", method, strings.ReplaceAll(pathKey, "/", "_"))
 				}
 
+				// Generate URL for operation: baseURL/file.yaml#method-/path
+				url := ""
+				if baseURL != "" {
+					// Create slug from method and path: "get-/users/{id}"
+					slug := strings.ToLower(method) + "-" + pathKey
+					url = baseURL + "/" + relPath + "#" + slug
+				}
+
 				sections = append(sections, DocumentSection{
 					ID:       generateID(relPath, fmt.Sprintf("path_%s_%s", method, pathKey)),
 					FilePath: relPath,
 					Title:    fmt.Sprintf("%s %s", strings.ToUpper(method), pathKey),
 					Content:  string(opJSON),
 					Type:     "openapi_path",
+					URL:      url,
 					Metadata: map[string]any{
 						"http_method":  method,
 						"path":         pathKey,
@@ -112,7 +139,6 @@ func (op *OpenAPIProcessor) extractV3Sections(model *v3.Document, relPath string
 						"description":  operation.Description,
 						"tags":         operation.Tags,
 					},
-					CreatedAt: time.Now(),
 				})
 			}
 		}
@@ -127,18 +153,25 @@ func (op *OpenAPIProcessor) extractV3Sections(model *v3.Document, relPath string
 
 			schemaJSON, _ := json.MarshalIndent(schema, "", "  ")
 
+			// Generate URL for schema: baseURL/file.yaml#schema-SchemaName
+			url := ""
+			if baseURL != "" {
+				slug := "schema-" + strings.ToLower(schemaName)
+				url = baseURL + "/" + relPath + "#" + slug
+			}
+
 			sections = append(sections, DocumentSection{
 				ID:       generateID(relPath, fmt.Sprintf("schema_%s", schemaName)),
 				FilePath: relPath,
 				Title:    fmt.Sprintf("Schema: %s", schemaName),
 				Content:  string(schemaJSON),
 				Type:     "openapi_schema",
+				URL:      url,
 				Metadata: map[string]any{
 					"schema_name": schemaName,
 					"schema_type": schema.Type,
 					"description": schema.Description,
 				},
-				CreatedAt: time.Now(),
 			})
 		}
 	}

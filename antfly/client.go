@@ -66,6 +66,12 @@ type (
 	AnthropicGeneratorConfig = oapi.AnthropicGeneratorConfig
 	RerankerConfig           = oapi.RerankerConfig
 
+	// Chunker config types
+	ChunkerProvider      = oapi.ChunkerProvider
+	ChunkerConfig        = oapi.ChunkerConfig
+	ChunkingStrategy     = oapi.ChunkingStrategy
+	TermiteChunkerConfig = oapi.TermiteChunkerConfig
+
 	// Query response types
 	QueryResponses = oapi.QueryResponses
 	QueryResult    = oapi.QueryResult
@@ -95,6 +101,12 @@ type (
 	AnswerAgentResult                  = oapi.AnswerAgentResult
 	ClassificationTransformationResult = oapi.ClassificationTransformationResult
 	RouteType                          = oapi.RouteType
+)
+
+// Re-export chunking strategy constants
+const (
+	ChunkingStrategyFixed = oapi.ChunkingStrategyFixed
+	ChunkingStrategyHugot = oapi.ChunkingStrategyHugot
 )
 
 // BatchRequest represents a batch operation request with flexible insert types.
@@ -513,10 +525,16 @@ func (c *AntflyClient) ListIndexes(ctx context.Context, tableName string) (map[s
 	if resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("listing indexes: %w", readErrorResponse(resp))
 	}
-	// Parse the response
-	var indexes map[string]IndexStatus
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&indexes); err != nil {
+	// Parse the response - API returns an array, we convert to a map keyed by index name
+	var indexList []IndexStatus
+	if err := decoder.NewStreamDecoder(resp.Body).Decode(&indexList); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+
+	// Convert array to map keyed by index name
+	indexes := make(map[string]IndexStatus, len(indexList))
+	for _, idx := range indexList {
+		indexes[idx.Config.Name] = idx
 	}
 	return indexes, nil
 }

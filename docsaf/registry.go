@@ -24,6 +24,18 @@ func DefaultRegistry() ProcessorRegistry {
 	return r
 }
 
+// NewWholeFileRegistry creates a registry with only the WholeFileProcessor.
+// This processor reads entire files without any chunking or sectioning,
+// allowing Antfly's internal chunking (e.g., Termite) to handle document
+// segmentation during the embedding process.
+func NewWholeFileRegistry() ProcessorRegistry {
+	r := &registry{
+		processors: make([]FileProcessor, 0, 1),
+	}
+	r.Register(&WholeFileProcessor{})
+	return r
+}
+
 // Register adds a processor to the registry.
 func (r *registry) Register(processor FileProcessor) {
 	r.processors = append(r.processors, processor)

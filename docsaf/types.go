@@ -1,32 +1,34 @@
 package docsaf
 
-import "time"
-
 // DocumentSection represents a generic document section extracted from a file.
 // It contains the content, metadata, and type information needed to index
 // the section in Antfly.
 type DocumentSection struct {
-	ID        string         // Unique ID for the section (generated from file path + identifier)
-	FilePath  string         // Source file path (relative to base directory)
-	Title     string         // Section title (from heading or frontmatter)
-	Content   string         // Section content (markdown/text)
-	Type      string         // Document type (markdown_section, mdx_section, openapi_path, etc.)
-	Metadata  map[string]any // Additional type-specific metadata
-	CreatedAt time.Time      // Timestamp when section was created
+	ID       string         // Unique ID for the section (generated from file path + identifier)
+	FilePath string         // Source file path (relative to base directory)
+	Title    string         // Section title (from heading or frontmatter)
+	Content  string         // Section content (markdown/text)
+	Type     string         // Document type (markdown_section, mdx_section, openapi_path, etc.)
+	URL      string         // URL to the document section (base URL + file path + anchor)
+	Metadata map[string]any // Additional type-specific metadata
 }
 
 // ToDocument converts a DocumentSection to a document map suitable for
 // storage in Antfly.
 func (ds *DocumentSection) ToDocument() map[string]any {
-	return map[string]any{
-		"id":         ds.ID,
-		"file_path":  ds.FilePath,
-		"title":      ds.Title,
-		"content":    ds.Content,
-		"_type":      ds.Type,
-		"metadata":   ds.Metadata,
-		"created_at": ds.CreatedAt.Format(time.RFC3339),
+	doc := map[string]any{
+		"id":        ds.ID,
+		"file_path": ds.FilePath,
+		"title":     ds.Title,
+		"content":   ds.Content,
+		"_type":     ds.Type,
+		"metadata":  ds.Metadata,
 	}
+	// Only include URL if it's set
+	if ds.URL != "" {
+		doc["url"] = ds.URL
+	}
+	return doc
 }
 
 // FileProcessor is the interface that all file processors must implement.
@@ -38,7 +40,8 @@ type FileProcessor interface {
 
 	// ProcessFile processes a file and returns a slice of DocumentSections.
 	// The baseDir parameter is the base directory used for generating relative paths.
-	ProcessFile(filePath, baseDir string) ([]DocumentSection, error)
+	// The baseURL parameter is the base URL for generating document links (optional, can be empty).
+	ProcessFile(filePath, baseDir, baseURL string) ([]DocumentSection, error)
 }
 
 // ProcessorRegistry manages a collection of FileProcessors.

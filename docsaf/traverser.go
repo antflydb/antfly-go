@@ -15,6 +15,11 @@ type TraverserConfig struct {
 	// BaseDir is the base directory to traverse
 	BaseDir string
 
+	// BaseURL is the base URL for generating document links (optional).
+	// If set, URLs will be generated as: BaseURL + "/" + relPath + "#" + slug
+	// Example: "https://docs.example.com" -> "https://docs.example.com/guide.md#section"
+	BaseURL string
+
 	// IncludePatterns is a list of glob patterns to include.
 	// Files matching any include pattern will be processed.
 	// If empty, all files are included (subject to exclude patterns).
@@ -123,7 +128,7 @@ func (t *Traverser) Traverse() ([]DocumentSection, error) {
 		// Find appropriate processor and process file
 		processor := t.config.Registry.GetProcessor(path)
 		if processor != nil {
-			sections, err := processor.ProcessFile(path, t.config.BaseDir)
+			sections, err := processor.ProcessFile(path, t.config.BaseDir, t.config.BaseURL)
 			if err != nil {
 				log.Printf("Warning: Failed to process %s: %v", path, err)
 				return nil // Continue with other files

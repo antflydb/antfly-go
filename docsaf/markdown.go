@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -28,13 +27,25 @@ func (mp *MarkdownProcessor) CanProcess(filePath string) bool {
 
 // ProcessFile processes a Markdown or MDX file and returns document sections.
 // Files are chunked by headings (h1, h2, etc.), and YAML frontmatter is extracted.
-func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir string) ([]DocumentSection, error) {
+func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]DocumentSection, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 
-	relPath, _ := filepath.Rel(baseDir, filePath)
+	// Convert baseDir to absolute path to ensure correct relative path calculation
+	absBaseDir, err := filepath.Abs(baseDir)
+	if err != nil {
+		absBaseDir = baseDir
+	}
+
+	// Convert filePath to absolute path
+	absFilePath, err := filepath.Abs(filePath)
+	if err != nil {
+		absFilePath = filePath
+	}
+
+	relPath, _ := filepath.Rel(absBaseDir, absFilePath)
 	isMDX := strings.HasSuffix(strings.ToLower(filePath), ".mdx")
 
 	// Extract frontmatter if present
@@ -88,13 +99,21 @@ func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir string) ([]DocumentSe
 					metadata["frontmatter"] = frontmatter
 				}
 
+				// Generate URL if baseURL is provided
+				url := ""
+				if baseURL != "" {
+					slug := generateSlug(headingText)
+					cleanPath := transformURLPath(relPath)
+					url = baseURL + "/" + cleanPath + "#" + slug
+				}
+
 				currentSection = &DocumentSection{
-					ID:        generateID(relPath, headingText),
-					FilePath:  relPath,
-					Title:     sectionTitle,
-					Type:      docType,
-					Metadata:  metadata,
-					CreatedAt: time.Now(),
+					ID:       generateID(relPath, headingText),
+					FilePath: relPath,
+					Title:    sectionTitle,
+					Type:     docType,
+					URL:      url,
+					Metadata: metadata,
 				}
 			}
 
@@ -144,14 +163,21 @@ func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir string) ([]DocumentSe
 			metadata["frontmatter"] = frontmatter
 		}
 
+		// Generate URL if baseURL is provided (no anchor for files without headings)
+		url := ""
+		if baseURL != "" {
+			cleanPath := transformURLPath(relPath)
+			url = baseURL + "/" + cleanPath
+		}
+
 		sections = append(sections, DocumentSection{
-			ID:        generateID(relPath, filepath.Base(filePath)),
-			FilePath:  relPath,
-			Title:     title,
-			Content:   string(contentWithoutFrontmatter),
-			Type:      docType,
-			Metadata:  metadata,
-			CreatedAt: time.Now(),
+			ID:       generateID(relPath, filepath.Base(filePath)),
+			FilePath: relPath,
+			Title:    title,
+			Content:  string(contentWithoutFrontmatter),
+			Type:     docType,
+			URL:      url,
+			Metadata: metadata,
 		})
 	}
 
@@ -210,4 +236,38 @@ func generateID(filePath, identifier string) string {
 	hasher.Write([]byte(filePath + "|" + identifier))
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	return "doc_" + hash[:16]
+}
+
+// generateSlug creates a GitHub-style URL slug from a heading.
+// Example: "Getting Started" -> "getting-started"
+func generateSlug(heading string) string {
+	// Convert to lowercase
+	slug := strings.ToLower(heading)
+
+	// Replace spaces and special characters with hyphens
+	var result strings.Builder
+	for _, ch := range slug {
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+			result.WriteRune(ch)
+		} else if ch == ' ' || ch == '-' || ch == '_' {
+			result.WriteRune('-')
+		}
+		// Skip other special characters
+	}
+
+	// Remove duplicate hyphens and trim
+	slugStr := result.String()
+	slugStr = strings.ReplaceAll(slugStr, "--", "-")
+	slugStr = strings.Trim(slugStr, "-")
+
+	return slugStr
+}
+
+// transformURLPath removes .md/.mdx extensions from the file path for cleaner URLs.
+// Example: "content/docs/downloads.mdx" -> "content/docs/downloads"
+func transformURLPath(relPath string) string {
+	// Remove .mdx or .md extension
+	relPath = strings.TrimSuffix(relPath, ".mdx")
+	relPath = strings.TrimSuffix(relPath, ".md")
+	return relPath
 }
