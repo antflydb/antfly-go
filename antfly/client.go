@@ -65,12 +65,17 @@ type (
 	VertexGeneratorConfig    = oapi.VertexGeneratorConfig
 	AnthropicGeneratorConfig = oapi.AnthropicGeneratorConfig
 	RerankerConfig           = oapi.RerankerConfig
+	OllamaRerankerConfig     = oapi.OllamaRerankerConfig
+	TermiteRerankerConfig    = oapi.TermiteRerankerConfig
+	RerankerProvider         = oapi.RerankerProvider
+	Pruner                   = oapi.Pruner
 
 	// Chunker config types
 	ChunkerProvider      = oapi.ChunkerProvider
 	ChunkerConfig        = oapi.ChunkerConfig
 	ChunkingStrategy     = oapi.ChunkingStrategy
 	TermiteChunkerConfig = oapi.TermiteChunkerConfig
+	AntflyChunkerConfig  = oapi.AntflyChunkerConfig
 
 	// Query response types
 	QueryResponses = oapi.QueryResponses
@@ -93,9 +98,9 @@ type (
 	LinearMergePageStatus = oapi.LinearMergePageStatus
 	LinearMergeRequest    = oapi.LinearMergeRequest
 	LinearMergeResult     = oapi.LinearMergeResult
-	FailedOperation = oapi.FailedOperation
-	KeyRange        = oapi.KeyRange
-	SyncLevel       = oapi.SyncLevel
+	FailedOperation       = oapi.FailedOperation
+	KeyRange              = oapi.KeyRange
+	SyncLevel             = oapi.SyncLevel
 
 	// AI Agent types
 	AnswerAgentResult                  = oapi.AnswerAgentResult
@@ -148,6 +153,8 @@ const (
 	GeneratorProviderVertex    = oapi.GeneratorProviderVertex
 	GeneratorProviderAnthropic = oapi.GeneratorProviderAnthropic
 	GeneratorProviderMock      = oapi.GeneratorProviderMock
+	RerankerProviderOllama     = oapi.RerankerProviderOllama
+	RerankerProviderTermite    = oapi.RerankerProviderTermite
 
 	// MergeStrategy values
 	MergeStrategyRrf      = oapi.MergeStrategyRrf
@@ -242,6 +249,9 @@ type QueryRequest struct {
 	// Reranker configuration for reranking results
 	Reranker *RerankerConfig `json:"reranker,omitempty"`
 
+	// Pruner configuration for pruning search results based on score quality
+	Pruner Pruner `json:"pruner,omitempty,omitzero"`
+
 	// SemanticSearch text to use for semantic similarity search
 	SemanticSearch string `json:"semantic_search,omitempty"`
 
@@ -270,6 +280,7 @@ func (q QueryRequest) MarshalJSON() ([]byte, error) {
 		Offset:           q.Offset,
 		OrderBy:          q.OrderBy,
 		Reranker:         q.Reranker,
+		Pruner:           q.Pruner,
 		SemanticSearch:   q.SemanticSearch,
 		DocumentRenderer: q.DocumentRenderer,
 	}
@@ -323,6 +334,7 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 	q.Offset = oapiReq.Offset
 	q.OrderBy = oapiReq.OrderBy
 	q.Reranker = oapiReq.Reranker
+	q.Pruner = oapiReq.Pruner
 	q.SemanticSearch = oapiReq.SemanticSearch
 	q.DocumentRenderer = oapiReq.DocumentRenderer
 
@@ -410,7 +422,6 @@ func NewAntflyClient(baseURL string, httpClient *http.Client) (*AntflyClient, er
 		baseURL:    baseURL,
 	}, err
 }
-
 
 // CreateTable creates a new table
 func (c *AntflyClient) CreateTable(ctx context.Context, tableName string, req CreateTableRequest) error {
@@ -1067,6 +1078,24 @@ func NewGeneratorConfig(config any) (*GeneratorConfig, error) {
 
 	modelConfig.Provider = provider
 	return modelConfig, nil
+}
+
+func NewRerankerConfig(config any) (*RerankerConfig, error) {
+	var provider RerankerProvider
+	rerankerConfig := &RerankerConfig{}
+	switch v := config.(type) {
+	case OllamaRerankerConfig:
+		provider = RerankerProviderOllama
+		rerankerConfig.FromOllamaRerankerConfig(v)
+	case TermiteRerankerConfig:
+		provider = RerankerProviderTermite
+		rerankerConfig.FromTermiteRerankerConfig(v)
+	default:
+		return nil, fmt.Errorf("unknown reranker config type: %T", v)
+	}
+
+	rerankerConfig.Provider = provider
+	return rerankerConfig, nil
 }
 
 func NewIndexConfig(name string, config any) (*IndexConfig, error) {
