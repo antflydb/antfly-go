@@ -110,8 +110,8 @@ type (
 
 // Re-export chunking strategy constants
 const (
-	ChunkingStrategyFixed = oapi.ChunkingStrategyFixed
-	ChunkingStrategyHugot = oapi.ChunkingStrategyHugot
+	ChunkingStrategyFixed      = oapi.ChunkingStrategyFixed
+	ChunkingStrategyChonkyOnnx = oapi.ChunkingStrategyChonkyOnnx
 )
 
 // BatchRequest represents a batch operation request with flexible insert types.
