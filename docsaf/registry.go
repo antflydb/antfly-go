@@ -14,14 +14,15 @@ func NewRegistry() ProcessorRegistry {
 }
 
 // DefaultRegistry creates a registry with all built-in processors registered.
-// This includes MarkdownProcessor, OpenAPIProcessor, and HTMLProcessor.
+// This includes MarkdownProcessor, OpenAPIProcessor, HTMLProcessor, and PDFProcessor.
 func DefaultRegistry() ProcessorRegistry {
 	r := &registry{
-		processors: make([]FileProcessor, 0, 3),
+		processors: make([]FileProcessor, 0, 4),
 	}
 	r.Register(&MarkdownProcessor{})
 	r.Register(&OpenAPIProcessor{})
 	r.Register(&HTMLProcessor{})
+	r.Register(&PDFProcessor{})
 	return r
 }
 
