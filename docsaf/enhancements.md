@@ -1,0 +1,108 @@
+# Docsaf Enhancements
+
+This document tracks planned enhancements for the docsaf generic content traversal system.
+
+## Implemented
+
+- [x] **Generic Content Source Interface** - Abstracted content sources with `ContentSource` and `ContentItem` types
+- [x] **Filesystem Source** - `FilesystemSource` for traversing local directories
+- [x] **Web Crawler Source** - `WebSource` using go-colly for web scraping
+- [x] **Sitemap Support** - Fetch and parse XML sitemaps (including sitemap indexes) for URL discovery
+- [x] **Content Processors** - `ContentProcessor` interface working on raw bytes instead of files
+- [x] **Unified Processor** - `UnifiedProcessor` that works with any content source
+
+## Planned Enhancements
+
+### Rate Limiting & Politeness
+
+- [ ] **Configurable Rate Limiting** - Add token bucket or leaky bucket rate limiting per domain
+- [ ] **Adaptive Rate Limiting** - Automatically slow down based on server response times or 429 status codes
+- [ ] **Concurrent Domain Limiting** - Limit concurrent requests per domain independently
+
+### Retry & Error Handling
+
+- [ ] **Exponential Backoff Retry** - Automatic retry with exponential backoff for transient failures (5xx, timeouts)
+- [ ] **Circuit Breaker** - Stop hitting failing domains temporarily to avoid wasting resources
+- [ ] **Detailed Error Reporting** - Collect and report errors per-URL for debugging
+
+### robots.txt Support
+
+- [ ] **Full robots.txt Parsing** - Parse and respect robots.txt directives (Disallow, Allow, Crawl-delay)
+- [ ] **User-Agent Specific Rules** - Honor rules for specific user agents
+- [ ] **Caching of robots.txt** - Cache parsed robots.txt per domain
+
+### JavaScript Rendering
+
+- [ ] **Headless Browser Integration** - Add optional headless Chrome/Chromium support via chromedp or rod
+- [ ] **SPA Detection** - Automatically detect SPAs that require JS rendering
+- [ ] **Selective JS Rendering** - Only use headless browser for pages that need it
+
+### Caching
+
+- [ ] **HTTP Caching** - Respect Cache-Control, ETag, and Last-Modified headers
+- [ ] **Local Cache Storage** - Cache fetched content to disk or memory for faster re-crawls
+- [ ] **Incremental Crawling** - Only fetch pages that have changed since last crawl
+- [ ] **Content Deduplication** - Skip pages with identical content hashes
+
+### Link & URL Handling
+
+- [ ] **URL Canonicalization** - Normalize URLs to avoid duplicates (trailing slashes, query param ordering)
+- [ ] **Query Parameter Filtering** - Option to strip or filter query parameters
+- [ ] **Fragment Handling** - Better handling of fragment identifiers for SPAs
+- [ ] **Redirect Following** - Track and report redirect chains
+
+### Content Processing
+
+- [ ] **PDF Content Processor** - Add `PDFContentProcessor` for web-sourced PDFs
+- [ ] **OpenAPI Content Processor** - Add content-based OpenAPI processor
+- [ ] **Content Type Detection** - Better MIME type sniffing for ambiguous content
+- [ ] **Encoding Detection** - Auto-detect and handle various character encodings
+
+### Additional Content Sources
+
+- [ ] **S3 Source** - Traverse AWS S3 buckets
+- [ ] **Git Source** - Clone and traverse Git repositories
+- [ ] **Google Drive Source** - Traverse Google Drive folders
+- [ ] **Confluence Source** - Fetch pages from Atlassian Confluence
+- [ ] **Notion Source** - Fetch pages from Notion workspaces
+
+### Monitoring & Observability
+
+- [ ] **Progress Reporting** - Real-time progress callbacks for UI integration
+- [ ] **Metrics Collection** - Collect crawl metrics (pages/sec, bytes, errors)
+- [ ] **OpenTelemetry Integration** - Add tracing and metrics via OpenTelemetry
+
+### Performance
+
+- [ ] **Connection Pooling** - Reuse HTTP connections per domain
+- [ ] **HTTP/2 Support** - Enable HTTP/2 for supported servers
+- [ ] **Compression** - Request and handle gzip/brotli compressed responses
+- [ ] **Streaming Processing** - Process content as it streams in for large files
+
+### Security
+
+- [ ] **Authentication Support** - Support for Basic Auth, OAuth, API keys, cookies
+- [ ] **Cookie Handling** - Maintain session cookies across requests
+- [ ] **Proxy Support** - Route requests through HTTP/SOCKS proxies
+- [ ] **TLS Configuration** - Custom TLS settings and certificate handling
+
+### Configuration
+
+- [ ] **YAML/JSON Config Files** - Load source configuration from files
+- [ ] **Environment Variable Support** - Configure via environment variables
+- [ ] **Preset Configurations** - Common configurations for popular documentation platforms (ReadTheDocs, Docusaurus, GitBook, etc.)
+
+## Architecture Notes
+
+The current architecture follows these principles:
+
+1. **Single Responsibility** - Sources handle traversal, Processors handle content extraction
+2. **Open/Closed** - New sources can be added without modifying existing processors
+3. **Interface Segregation** - Small, focused interfaces (`ContentSource`, `ContentProcessor`)
+4. **Dependency Inversion** - Depend on interfaces, not concrete implementations
+
+When adding new features, prefer:
+- Composition over inheritance
+- Configuration over code changes
+- Streaming over buffering for large content
+- Fail-safe defaults (respect robots.txt, rate limit by default)

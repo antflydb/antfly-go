@@ -58,3 +58,50 @@ func (r *registry) GetProcessor(filePath string) FileProcessor {
 func (r *registry) Processors() []FileProcessor {
 	return r.processors
 }
+
+// contentRegistry is a simple implementation of ContentProcessorRegistry.
+type contentRegistry struct {
+	processors []ContentProcessor
+}
+
+// NewContentRegistry creates a new empty content processor registry.
+// Use this to build a custom registry with only the processors you need.
+func NewContentRegistry() ContentProcessorRegistry {
+	return &contentRegistry{
+		processors: make([]ContentProcessor, 0),
+	}
+}
+
+// DefaultContentRegistry creates a registry with all built-in content processors registered.
+// This includes MarkdownContentProcessor and HTMLContentProcessor.
+// These processors work with raw content bytes, making them suitable for both
+// filesystem and web sources.
+func DefaultContentRegistry() ContentProcessorRegistry {
+	r := &contentRegistry{
+		processors: make([]ContentProcessor, 0, 2),
+	}
+	r.Register(&MarkdownContentProcessor{})
+	r.Register(&HTMLContentProcessor{})
+	return r
+}
+
+// Register adds a content processor to the registry.
+func (r *contentRegistry) Register(processor ContentProcessor) {
+	r.processors = append(r.processors, processor)
+}
+
+// GetProcessor returns the first content processor that can handle the given content.
+// Returns nil if no processor can handle the content.
+func (r *contentRegistry) GetProcessor(contentType, path string) ContentProcessor {
+	for _, processor := range r.processors {
+		if processor.CanProcess(contentType, path) {
+			return processor
+		}
+	}
+	return nil
+}
+
+// Processors returns all registered content processors.
+func (r *contentRegistry) Processors() []ContentProcessor {
+	return r.processors
+}
