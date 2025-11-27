@@ -5,59 +5,48 @@ import (
 	"log"
 )
 
-// SourceWithBaseURL is an interface for sources that have a base URL.
-type SourceWithBaseURL interface {
-	ContentSource
-	BaseURL() string
-}
-
-// UnifiedProcessor processes content from any source using registered content processors.
+// Processor processes content from any source using registered processors.
 // It abstracts the traversal mechanism, allowing the same processing logic
 // to work with filesystem, web, and other content sources.
-type UnifiedProcessor struct {
+type Processor struct {
 	source   ContentSource
-	registry ContentProcessorRegistry
+	registry ProcessorRegistry
 	baseURL  string
 }
 
-// NewUnifiedProcessor creates a new unified processor.
+// NewProcessor creates a new processor.
 // The source provides content items, and the registry provides processors to handle them.
-func NewUnifiedProcessor(source ContentSource, registry ContentProcessorRegistry) *UnifiedProcessor {
-	baseURL := ""
-	if s, ok := source.(SourceWithBaseURL); ok {
-		baseURL = s.BaseURL()
-	}
-
-	return &UnifiedProcessor{
+func NewProcessor(source ContentSource, registry ProcessorRegistry) *Processor {
+	return &Processor{
 		source:   source,
 		registry: registry,
-		baseURL:  baseURL,
+		baseURL:  source.BaseURL(),
 	}
 }
 
 // SetBaseURL sets the base URL for generated links.
-// This overrides any base URL from the source.
-func (up *UnifiedProcessor) SetBaseURL(baseURL string) {
-	up.baseURL = baseURL
+// This overrides the base URL from the source.
+func (p *Processor) SetBaseURL(baseURL string) {
+	p.baseURL = baseURL
 }
 
 // Process traverses the source and processes all content items.
 // Returns a slice of all extracted DocumentSections.
-func (up *UnifiedProcessor) Process(ctx context.Context) ([]DocumentSection, error) {
+func (p *Processor) Process(ctx context.Context) ([]DocumentSection, error) {
 	var allSections []DocumentSection
 
-	items, errs := up.source.Traverse(ctx)
+	items, errs := p.source.Traverse(ctx)
 
 	for item := range items {
-		processor := up.registry.GetProcessor(item.ContentType, item.Path)
+		processor := p.registry.GetProcessor(item.ContentType, item.Path)
 		if processor == nil {
 			continue
 		}
 
-		sections, err := processor.ProcessContent(
+		sections, err := processor.Process(
 			item.Path,
 			item.SourceURL,
-			up.baseURL,
+			p.baseURL,
 			item.Content,
 		)
 		if err != nil {
@@ -68,7 +57,6 @@ func (up *UnifiedProcessor) Process(ctx context.Context) ([]DocumentSection, err
 		allSections = append(allSections, sections...)
 	}
 
-	// Check for errors from the traversal
 	for err := range errs {
 		if err != nil {
 			return allSections, err
@@ -80,19 +68,19 @@ func (up *UnifiedProcessor) Process(ctx context.Context) ([]DocumentSection, err
 
 // ProcessWithCallback traverses the source and calls the callback for each batch of sections.
 // This is useful for streaming large amounts of content without holding everything in memory.
-func (up *UnifiedProcessor) ProcessWithCallback(ctx context.Context, callback func([]DocumentSection) error) error {
-	items, errs := up.source.Traverse(ctx)
+func (p *Processor) ProcessWithCallback(ctx context.Context, callback func([]DocumentSection) error) error {
+	items, errs := p.source.Traverse(ctx)
 
 	for item := range items {
-		processor := up.registry.GetProcessor(item.ContentType, item.Path)
+		processor := p.registry.GetProcessor(item.ContentType, item.Path)
 		if processor == nil {
 			continue
 		}
 
-		sections, err := processor.ProcessContent(
+		sections, err := processor.Process(
 			item.Path,
 			item.SourceURL,
-			up.baseURL,
+			p.baseURL,
 			item.Content,
 		)
 		if err != nil {
@@ -107,7 +95,6 @@ func (up *UnifiedProcessor) ProcessWithCallback(ctx context.Context, callback fu
 		}
 	}
 
-	// Check for errors from the traversal
 	for err := range errs {
 		if err != nil {
 			return err
@@ -118,6 +105,6 @@ func (up *UnifiedProcessor) ProcessWithCallback(ctx context.Context, callback fu
 }
 
 // SourceType returns the type of the underlying content source.
-func (up *UnifiedProcessor) SourceType() string {
-	return up.source.Type()
+func (p *Processor) SourceType() string {
+	return p.source.Type()
 }

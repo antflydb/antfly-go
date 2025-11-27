@@ -1,27 +1,30 @@
 package docsaf
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 )
 
-// WholeFileProcessor processes files by reading their entire content without
-// any chunking or sectioning. This is useful when you want Antfly's internal
-// chunking (e.g., Termite) to handle document segmentation rather than
-// pre-chunking documents before indexing.
+// WholeFileProcessor processes content by returning it as a single section
+// without any chunking. This is useful when you want Antfly's internal
+// chunking (e.g., Termite) to handle document segmentation.
 type WholeFileProcessor struct{}
 
 // CanProcess returns true for common text-based file types.
-// Supports: .md, .mdx, .txt, .yaml, .yml, .json, .rst, .adoc
-func (wfp *WholeFileProcessor) CanProcess(filePath string) bool {
-	lower := strings.ToLower(filePath)
+func (wfp *WholeFileProcessor) CanProcess(contentType, path string) bool {
+	// Check common text MIME types
+	if strings.HasPrefix(contentType, "text/") ||
+		strings.Contains(contentType, "application/json") ||
+		strings.Contains(contentType, "application/yaml") ||
+		strings.Contains(contentType, "application/x-yaml") {
+		return true
+	}
+
+	// Fall back to extension
+	lower := strings.ToLower(path)
 	supportedExtensions := []string{
 		".md", ".mdx", ".txt", ".yaml", ".yml",
-		".json", ".rst", ".adoc",
+		".json", ".rst", ".adoc", ".html", ".htm",
 	}
 	for _, ext := range supportedExtensions {
 		if strings.HasSuffix(lower, ext) {
@@ -31,51 +34,28 @@ func (wfp *WholeFileProcessor) CanProcess(filePath string) bool {
 	return false
 }
 
-// ProcessFile reads an entire file and returns a single DocumentSection
-// containing the complete file content without any processing or chunking.
-func (wfp *WholeFileProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]DocumentSection, error) {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
+// Process returns the entire content as a single DocumentSection.
+func (wfp *WholeFileProcessor) Process(path, sourceURL, baseURL string, content []byte) ([]DocumentSection, error) {
+	title := filepath.Base(path)
 
-	// Convert paths to absolute for correct relative path calculation
-	absBaseDir, err := filepath.Abs(baseDir)
-	if err != nil {
-		absBaseDir = baseDir
-	}
-
-	absFilePath, err := filepath.Abs(filePath)
-	if err != nil {
-		absFilePath = filePath
-	}
-
-	relPath, _ := filepath.Rel(absBaseDir, absFilePath)
-
-	// Use filename as title
-	title := filepath.Base(filePath)
-
-	// Generate URL if baseURL is provided
 	url := ""
 	if baseURL != "" {
-		// Remove file extension for cleaner URLs
-		cleanPath := strings.TrimSuffix(relPath, filepath.Ext(relPath))
+		cleanPath := strings.TrimSuffix(path, filepath.Ext(path))
 		url = baseURL + "/" + cleanPath
 	}
 
-	// Create metadata with file extension info
-	ext := strings.TrimPrefix(filepath.Ext(filePath), ".")
+	ext := strings.TrimPrefix(filepath.Ext(path), ".")
 	metadata := map[string]any{
 		"file_extension": ext,
 		"whole_file":     true,
 	}
-
-	// Generate unique ID based on file path
-	docID := wfpGenerateID(relPath)
+	if sourceURL != "" {
+		metadata["source_url"] = sourceURL
+	}
 
 	section := DocumentSection{
-		ID:       docID,
-		FilePath: relPath,
+		ID:       generateID(path, "whole"),
+		FilePath: path,
 		Title:    title,
 		Content:  string(content),
 		Type:     "file",
@@ -84,13 +64,4 @@ func (wfp *WholeFileProcessor) ProcessFile(filePath, baseDir, baseURL string) ([
 	}
 
 	return []DocumentSection{section}, nil
-}
-
-// wfpGenerateID creates a unique ID for a file using SHA-256 hash.
-// The ID format is: doc_<hash(filePath)[:16]>
-func wfpGenerateID(filePath string) string {
-	hasher := sha256.New()
-	hasher.Write([]byte(filePath))
-	hash := hex.EncodeToString(hasher.Sum(nil))
-	return "doc_" + hash[:16]
 }

@@ -1,15 +1,19 @@
 package docsaf
 
-// DocumentSection represents a generic document section extracted from a file.
+import (
+	"context"
+)
+
+// DocumentSection represents a generic document section extracted from content.
 // It contains the content, metadata, and type information needed to index
 // the section in Antfly.
 type DocumentSection struct {
-	ID       string         // Unique ID for the section (generated from file path + identifier)
-	FilePath string         // Source file path (relative to base directory)
+	ID       string         // Unique ID for the section (generated from path + identifier)
+	FilePath string         // Source path (relative path or URL path)
 	Title    string         // Section title (from heading or frontmatter)
 	Content  string         // Section content (markdown/text)
 	Type     string         // Document type (markdown_section, mdx_section, openapi_path, etc.)
-	URL      string         // URL to the document section (base URL + file path + anchor)
+	URL      string         // URL to the document section (base URL + path + anchor)
 	Metadata map[string]any // Additional type-specific metadata
 }
 
@@ -24,37 +28,70 @@ func (ds *DocumentSection) ToDocument() map[string]any {
 		"_type":     ds.Type,
 		"metadata":  ds.Metadata,
 	}
-	// Only include URL if it's set
 	if ds.URL != "" {
 		doc["url"] = ds.URL
 	}
 	return doc
 }
 
-// FileProcessor is the interface that all file processors must implement.
-// A FileProcessor is responsible for determining if it can process a file
-// and extracting DocumentSections from it.
-type FileProcessor interface {
-	// CanProcess returns true if this processor can handle the given file path.
-	CanProcess(filePath string) bool
+// ContentItem represents a single piece of content from any source (filesystem, web, etc.)
+type ContentItem struct {
+	// Path is the relative path or URL path for the content
+	Path string
 
-	// ProcessFile processes a file and returns a slice of DocumentSections.
-	// The baseDir parameter is the base directory used for generating relative paths.
-	// The baseURL parameter is the base URL for generating document links (optional, can be empty).
-	ProcessFile(filePath, baseDir, baseURL string) ([]DocumentSection, error)
+	// SourceURL is the full URL for web sources (empty for filesystem sources)
+	SourceURL string
+
+	// Content is the raw content bytes
+	Content []byte
+
+	// ContentType is the MIME type (e.g., "text/html", "application/pdf")
+	ContentType string
+
+	// Metadata contains source-specific metadata (HTTP headers, file info, etc.)
+	Metadata map[string]any
 }
 
-// ProcessorRegistry manages a collection of FileProcessors.
-// It allows registering processors and finding the appropriate processor
-// for a given file.
+// ContentSource represents a source of documents that can be traversed.
+// Implementations include filesystem directories and web crawlers.
+type ContentSource interface {
+	// Type returns the source type identifier (e.g., "filesystem", "web")
+	Type() string
+
+	// BaseURL returns the base URL for generating document links
+	BaseURL() string
+
+	// Traverse iterates over all content items from the source.
+	// It returns a channel of ContentItems and a channel for errors.
+	// The implementation should close both channels when done.
+	Traverse(ctx context.Context) (<-chan ContentItem, <-chan error)
+}
+
+// ContentProcessor processes content bytes into document sections.
+// It works with raw bytes, making it suitable for both filesystem and web sources.
+type ContentProcessor interface {
+	// CanProcess returns true if this processor can handle the given content.
+	// contentType is the MIME type (may be empty)
+	// path is the file path or URL path
+	CanProcess(contentType, path string) bool
+
+	// Process processes content bytes and returns document sections.
+	// path: relative path or URL path for the content
+	// sourceURL: the original URL (for web) or empty (for filesystem)
+	// baseURL: the base URL for generating links
+	// content: raw bytes to process
+	Process(path, sourceURL, baseURL string, content []byte) ([]DocumentSection, error)
+}
+
+// ProcessorRegistry manages a collection of ContentProcessors.
 type ProcessorRegistry interface {
 	// Register adds a processor to the registry.
-	Register(processor FileProcessor)
+	Register(processor ContentProcessor)
 
-	// GetProcessor returns the first processor that can handle the given file path.
-	// Returns nil if no processor can handle the file.
-	GetProcessor(filePath string) FileProcessor
+	// GetProcessor returns the first processor that can handle the given content.
+	// Returns nil if no processor can handle the content.
+	GetProcessor(contentType, path string) ContentProcessor
 
 	// Processors returns all registered processors.
-	Processors() []FileProcessor
+	Processors() []ContentProcessor
 }
