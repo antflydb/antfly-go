@@ -4,9 +4,10 @@ A generic content traversal and processing library for building documentation fr
 
 ## Features
 
-- **Multiple Content Sources**: Traverse local directories or crawl websites
+- **Multiple Content Sources**: Traverse local directories, crawl websites, or clone Git repositories
 - **Pluggable Processors**: Markdown, HTML, PDF, OpenAPI, and custom processors
 - **Web Crawling**: Full-featured web crawler with sitemap support via go-colly
+- **Git Integration**: Clone and traverse Git repositories with branch/tag support
 - **URL Normalization**: Consistent URL deduplication across crawls
 - **Retry Logic**: Exponential backoff for transient failures
 - **Response Caching**: Optional in-memory caching with TTL
@@ -189,6 +190,96 @@ source, err := docsaf.NewWebSource(docsaf.WebSourceConfig{
 })
 ```
 
+### GitSource
+
+Clones Git repositories and traverses their contents. Supports GitHub/GitLab shorthand, authentication, and branch/tag selection.
+
+```go
+// Using GitHub shorthand
+source, err := docsaf.NewGitSource(docsaf.GitSourceConfig{
+    // GitHub shorthand - automatically expanded to https://github.com/owner/repo.git
+    URL: "owner/repo",
+
+    // Optional: Branch, tag, or commit to checkout (default: default branch)
+    Ref: "main",
+})
+
+// Full configuration
+source, err := docsaf.NewGitSource(docsaf.GitSourceConfig{
+    // Required: Git repository URL
+    // Supports: https://, git://, git@, ssh://, or GitHub shorthand (owner/repo)
+    URL: "https://github.com/owner/repo.git",
+
+    // Optional: Branch, tag, or commit to checkout
+    Ref: "v1.0.0",
+
+    // Optional: Base URL for document links (auto-derived for GitHub/GitLab)
+    BaseURL: "https://github.com/owner/repo/blob/v1.0.0",
+
+    // Optional: Subdirectory to traverse (useful for monorepos)
+    SubPath: "docs",
+
+    // Optional: Glob patterns for files to include
+    IncludePatterns: []string{"**/*.md", "**/*.html"},
+
+    // Optional: Glob patterns for files to exclude (has defaults)
+    ExcludePatterns: []string{".git/**", "node_modules/**"},
+
+    // Optional: Use shallow clone with depth 1 (default: true)
+    ShallowClone: true,
+
+    // Optional: Directory to clone into (default: temp directory)
+    CloneDir: "/path/to/clone",
+
+    // Optional: Keep clone directory after traversal (default: false)
+    KeepClone: false,
+
+    // Optional: Authentication for private repositories
+    Auth: &docsaf.GitAuth{
+        Username: "user",
+        Password: "token-or-password",
+        // Or use SSH key:
+        // SSHKeyPath: "/path/to/id_rsa",
+    },
+})
+```
+
+#### Processing a Git Repository
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/antflydb/antfly-go/docsaf"
+)
+
+func main() {
+    // Clone and process a GitHub repository
+    source, err := docsaf.NewGitSource(docsaf.GitSourceConfig{
+        URL:             "owner/repo",
+        Ref:             "main",
+        SubPath:         "docs",
+        IncludePatterns: []string{"**/*.md"},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    processor := docsaf.NewProcessor(source, docsaf.DefaultRegistry())
+
+    sections, err := processor.Process(context.Background())
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Processed %d sections from repository\n", len(sections))
+}
+```
+
 ## Content Processors
 
 Processors extract structured content from raw bytes. Each processor implements:
@@ -312,7 +403,7 @@ Include and exclude patterns use [doublestar](https://github.com/bmatcuk/doubles
 │                 │     │                  │     │                   │
 │ - Filesystem    │     │ Uses registry to │     │ - Title           │
 │ - Web           │     │ find appropriate │     │ - Content         │
-│                 │     │ ContentProcessor │     │ - URL             │
+│ - Git           │     │ ContentProcessor │     │ - URL             │
 └─────────────────┘     └──────────────────┘     └───────────────────┘
                                │
                                ▼

@@ -18,6 +18,7 @@ This document tracks planned enhancements for the docsaf generic content travers
 - [x] **OpenAPI Processor** - Parse OpenAPI/Swagger specs and extract endpoint documentation
 - [x] **HTML Processor** - Extract content from HTML with heading-based section splitting
 - [x] **Markdown Processor** - Parse Markdown files with heading-based sections
+- [x] **Git Source** - Clone and traverse Git repositories with branch/tag support, GitHub/GitLab URL detection, and authentication
 
 ## Planned Enhancements
 
@@ -61,7 +62,6 @@ This document tracks planned enhancements for the docsaf generic content travers
 ### Additional Content Sources
 
 - [ ] **S3 Source** - Traverse AWS S3 buckets
-- [ ] **Git Source** - Clone and traverse Git repositories
 - [ ] **Google Drive Source** - Traverse Google Drive folders
 - [ ] **Confluence Source** - Fetch pages from Atlassian Confluence
 - [ ] **Notion Source** - Fetch pages from Notion workspaces
