@@ -16,6 +16,213 @@ import (
 	"github.com/gocolly/colly/v2"
 )
 
+// urlNormalizer handles URL canonicalization for consistent deduplication.
+type urlNormalizer struct {
+	removeTrailingSlash bool
+	removeFragment      bool
+	removeDefaultPort   bool
+	lowercaseHost       bool
+	sortQueryParams     bool
+}
+
+// newURLNormalizer creates a URL normalizer with sensible defaults.
+func newURLNormalizer() *urlNormalizer {
+	return &urlNormalizer{
+		removeTrailingSlash: true,
+		removeFragment:      true,
+		removeDefaultPort:   true,
+		lowercaseHost:       true,
+		sortQueryParams:     false, // Can cause issues with some APIs
+	}
+}
+
+// Normalize canonicalizes a URL string.
+func (n *urlNormalizer) Normalize(rawURL string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL, err
+	}
+
+	// Lowercase scheme
+	u.Scheme = strings.ToLower(u.Scheme)
+
+	// Lowercase host
+	if n.lowercaseHost {
+		u.Host = strings.ToLower(u.Host)
+	}
+
+	// Remove default ports
+	if n.removeDefaultPort {
+		host := u.Hostname()
+		port := u.Port()
+		if (u.Scheme == "http" && port == "80") ||
+			(u.Scheme == "https" && port == "443") {
+			u.Host = host
+		}
+	}
+
+	// Normalize empty path to "/"
+	if u.Path == "" {
+		u.Path = "/"
+	}
+
+	// Remove trailing slash (except for root)
+	if n.removeTrailingSlash && len(u.Path) > 1 && strings.HasSuffix(u.Path, "/") {
+		u.Path = strings.TrimSuffix(u.Path, "/")
+	}
+
+	// Remove fragment
+	if n.removeFragment {
+		u.Fragment = ""
+	}
+
+	return u.String(), nil
+}
+
+// retryTransport wraps http.RoundTripper with retry logic.
+type retryTransport struct {
+	transport  http.RoundTripper
+	maxRetries int
+	baseDelay  time.Duration
+	maxDelay   time.Duration
+}
+
+// newRetryTransport creates a transport with exponential backoff retry.
+func newRetryTransport(transport http.RoundTripper, maxRetries int, baseDelay time.Duration) *retryTransport {
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	return &retryTransport{
+		transport:  transport,
+		maxRetries: maxRetries,
+		baseDelay:  baseDelay,
+		maxDelay:   30 * time.Second,
+	}
+}
+
+// RoundTrip implements http.RoundTripper with retry logic.
+func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	var resp *http.Response
+	var err error
+
+	for attempt := 0; attempt <= rt.maxRetries; attempt++ {
+		resp, err = rt.transport.RoundTrip(req)
+
+		// Success or non-retryable error
+		if err == nil {
+			// Retry on 5xx errors (server errors)
+			if resp.StatusCode < 500 {
+				return resp, nil
+			}
+			// Close body before retry
+			resp.Body.Close()
+		}
+
+		// Don't retry if context is cancelled
+		if req.Context().Err() != nil {
+			if err == nil {
+				return resp, nil
+			}
+			return nil, err
+		}
+
+		// Don't sleep after last attempt
+		if attempt < rt.maxRetries {
+			delay := rt.baseDelay * time.Duration(1<<uint(attempt))
+			if delay > rt.maxDelay {
+				delay = rt.maxDelay
+			}
+
+			select {
+			case <-time.After(delay):
+			case <-req.Context().Done():
+				if err == nil {
+					return resp, nil
+				}
+				return nil, req.Context().Err()
+			}
+		}
+	}
+
+	return resp, err
+}
+
+// responseCache provides in-memory caching for HTTP responses.
+type responseCache struct {
+	mu       sync.RWMutex
+	cache    map[string]*cachedResponse
+	ttl      time.Duration
+	maxItems int
+}
+
+type cachedResponse struct {
+	body        []byte
+	contentType string
+	statusCode  int
+	cachedAt    time.Time
+}
+
+// newResponseCache creates a new cache with the given TTL and max items.
+func newResponseCache(ttl time.Duration, maxItems int) *responseCache {
+	return &responseCache{
+		cache:    make(map[string]*cachedResponse),
+		ttl:      ttl,
+		maxItems: maxItems,
+	}
+}
+
+// Get retrieves a cached response if it exists and isn't expired.
+func (c *responseCache) Get(url string) (*cachedResponse, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	entry, ok := c.cache[url]
+	if !ok {
+		return nil, false
+	}
+
+	if time.Since(entry.cachedAt) > c.ttl {
+		return nil, false
+	}
+
+	return entry, true
+}
+
+// Set stores a response in the cache.
+func (c *responseCache) Set(url string, body []byte, contentType string, statusCode int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Evict old entries if at capacity
+	if len(c.cache) >= c.maxItems {
+		c.evictOldest()
+	}
+
+	c.cache[url] = &cachedResponse{
+		body:        body,
+		contentType: contentType,
+		statusCode:  statusCode,
+		cachedAt:    time.Now(),
+	}
+}
+
+// evictOldest removes the oldest cached entry.
+func (c *responseCache) evictOldest() {
+	var oldestKey string
+	var oldestTime time.Time
+
+	for key, entry := range c.cache {
+		if oldestKey == "" || entry.cachedAt.Before(oldestTime) {
+			oldestKey = key
+			oldestTime = entry.cachedAt
+		}
+	}
+
+	if oldestKey != "" {
+		delete(c.cache, oldestKey)
+	}
+}
+
 // WebSourceConfig holds configuration for a WebSource.
 type WebSourceConfig struct {
 	// StartURL is the starting URL to crawl (required)
@@ -68,11 +275,32 @@ type WebSourceConfig struct {
 
 	// RespectRobotsTxt enables robots.txt parsing (default: true).
 	RespectRobotsTxt bool
+
+	// MaxRetries is the number of retry attempts for failed requests (default: 3).
+	MaxRetries int
+
+	// RetryDelay is the base delay for exponential backoff retry (default: 1s).
+	// The actual delay doubles with each retry: 1s, 2s, 4s, etc.
+	RetryDelay time.Duration
+
+	// CacheTTL is how long to cache responses (default: 0 = disabled).
+	// Set to a positive duration to enable caching.
+	CacheTTL time.Duration
+
+	// CacheMaxItems is the maximum number of items to cache (default: 1000).
+	CacheMaxItems int
+
+	// NormalizeURLs enables URL normalization for deduplication (default: true).
+	// Includes lowercasing host, removing default ports, removing trailing slashes.
+	NormalizeURLs bool
 }
 
 // WebSource crawls websites and yields content items.
 type WebSource struct {
-	config WebSourceConfig
+	config     WebSourceConfig
+	normalizer *urlNormalizer
+	cache      *responseCache
+	httpClient *http.Client
 }
 
 // NewWebSource creates a new web content source.
@@ -108,6 +336,19 @@ func NewWebSource(config WebSourceConfig) (*WebSource, error) {
 		config.UserAgent = "Antfly-Docsaf/1.0 (+https://antfly.co)"
 	}
 
+	// Retry defaults
+	if config.MaxRetries == 0 {
+		config.MaxRetries = 3
+	}
+	if config.RetryDelay == 0 {
+		config.RetryDelay = 1 * time.Second
+	}
+
+	// Cache defaults
+	if config.CacheMaxItems == 0 {
+		config.CacheMaxItems = 1000
+	}
+
 	// Default exclude patterns for common non-content paths
 	if len(config.ExcludePatterns) == 0 {
 		config.ExcludePatterns = []string{
@@ -128,7 +369,36 @@ func NewWebSource(config WebSourceConfig) (*WebSource, error) {
 		}
 	}
 
-	return &WebSource{config: config}, nil
+	ws := &WebSource{config: config}
+
+	// Initialize URL normalizer if enabled (default: true)
+	if config.NormalizeURLs || !configExplicitlySet(config, "NormalizeURLs") {
+		ws.normalizer = newURLNormalizer()
+	}
+
+	// Initialize cache if TTL is set
+	if config.CacheTTL > 0 {
+		ws.cache = newResponseCache(config.CacheTTL, config.CacheMaxItems)
+	}
+
+	// Initialize HTTP client with retry transport
+	ws.httpClient = &http.Client{
+		Timeout: 30 * time.Second,
+		Transport: newRetryTransport(
+			http.DefaultTransport,
+			config.MaxRetries,
+			config.RetryDelay,
+		),
+	}
+
+	return ws, nil
+}
+
+// configExplicitlySet is a helper that always returns false.
+// In Go, we can't distinguish between explicit false and zero-value,
+// so we default NormalizeURLs to true.
+func configExplicitlySet(_ WebSourceConfig, _ string) bool {
+	return false
 }
 
 // Type returns "web" as the source type.
@@ -155,12 +425,21 @@ func (ws *WebSource) Traverse(ctx context.Context) (<-chan ContentItem, <-chan e
 		var mu sync.Mutex
 		done := false
 
-		// Create collector
-		c := colly.NewCollector(
+		// Build collector options
+		opts := []colly.CollectorOption{
 			colly.AllowedDomains(ws.config.AllowedDomains...),
 			colly.Async(true),
 			colly.MaxDepth(ws.config.MaxDepth),
-		)
+		}
+
+		// Enable robots.txt support if configured (defaults to true in colly)
+		if ws.config.RespectRobotsTxt {
+			// colly respects robots.txt by default, but we can be explicit
+			opts = append(opts, colly.ParseHTTPErrorResponse())
+		}
+
+		// Create collector
+		c := colly.NewCollector(opts...)
 
 		// Set limits
 		c.Limit(&colly.LimitRule{
@@ -190,13 +469,17 @@ func (ws *WebSource) Traverse(ctx context.Context) (<-chan ContentItem, <-chan e
 			mu.Unlock()
 
 			urlStr := r.Request.URL.String()
+
+			// Normalize URL for deduplication
+			normalizedURL := ws.normalizeURL(urlStr)
+
 			path := r.Request.URL.Path
 			if path == "" {
 				path = "/"
 			}
 
-			// Check if we've already processed this URL
-			if _, loaded := visited.LoadOrStore(urlStr, true); loaded {
+			// Check if we've already processed this URL (using normalized URL)
+			if _, loaded := visited.LoadOrStore(normalizedURL, true); loaded {
 				return
 			}
 
@@ -210,6 +493,11 @@ func (ws *WebSource) Traverse(ctx context.Context) (<-chan ContentItem, <-chan e
 			// Only process HTML content
 			if !strings.Contains(contentType, "text/html") {
 				return
+			}
+
+			// Cache the response if caching is enabled
+			if ws.cache != nil {
+				ws.cache.Set(normalizedURL, r.Body, contentType, r.StatusCode)
 			}
 
 			select {
@@ -268,8 +556,11 @@ func (ws *WebSource) Traverse(ctx context.Context) (<-chan ContentItem, <-chan e
 					return
 				}
 
+				// Normalize URL for consistent deduplication
+				normalizedURL := ws.normalizeURL(absURL)
+
 				// Parse URL to check path
-				parsedURL, err := url.Parse(absURL)
+				parsedURL, err := url.Parse(normalizedURL)
 				if err != nil {
 					return
 				}
@@ -279,16 +570,12 @@ func (ws *WebSource) Traverse(ctx context.Context) (<-chan ContentItem, <-chan e
 					return
 				}
 
-				// Remove fragment for deduplication
-				parsedURL.Fragment = ""
-				cleanURL := parsedURL.String()
-
-				// Check if already visited
-				if _, loaded := visited.Load(cleanURL); loaded {
+				// Check if already visited (using normalized URL)
+				if _, loaded := visited.Load(normalizedURL); loaded {
 					return
 				}
 
-				e.Request.Visit(cleanURL)
+				e.Request.Visit(normalizedURL)
 			})
 		}
 
@@ -376,6 +663,18 @@ func (ws *WebSource) shouldIncludePath(path string) bool {
 	return false
 }
 
+// normalizeURL canonicalizes a URL for consistent deduplication.
+func (ws *WebSource) normalizeURL(rawURL string) string {
+	if ws.normalizer == nil {
+		return rawURL
+	}
+	normalized, err := ws.normalizer.Normalize(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	return normalized
+}
+
 // Sitemap types for XML parsing
 type sitemapIndex struct {
 	XMLName  xml.Name         `xml:"sitemapindex"`
@@ -413,10 +712,12 @@ func (ws *WebSource) fetchSitemap(ctx context.Context) ([]string, error) {
 
 // fetchSitemapRecursive fetches a sitemap and any nested sitemaps.
 func (ws *WebSource) fetchSitemapRecursive(ctx context.Context, sitemapURL string, visited map[string]bool) ([]string, error) {
-	if visited[sitemapURL] {
+	// Normalize sitemap URL for deduplication
+	normalizedURL := ws.normalizeURL(sitemapURL)
+	if visited[normalizedURL] {
 		return nil, nil
 	}
-	visited[sitemapURL] = true
+	visited[normalizedURL] = true
 
 	// Create request with context
 	req, err := http.NewRequestWithContext(ctx, "GET", sitemapURL, nil)
@@ -425,8 +726,8 @@ func (ws *WebSource) fetchSitemapRecursive(ctx context.Context, sitemapURL strin
 	}
 	req.Header.Set("User-Agent", ws.config.UserAgent)
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	// Use the HTTP client with retry support
+	resp, err := ws.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

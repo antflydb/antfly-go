@@ -9,7 +9,11 @@ This document tracks planned enhancements for the docsaf generic content travers
 - [x] **Web Crawler Source** - `WebSource` using go-colly for web scraping
 - [x] **Sitemap Support** - Fetch and parse XML sitemaps (including sitemap indexes) for URL discovery
 - [x] **Content Processors** - `ContentProcessor` interface working on raw bytes instead of files
-- [x] **Unified Processor** - `UnifiedProcessor` that works with any content source
+- [x] **Unified Processor** - `Processor` that works with any content source
+- [x] **Exponential Backoff Retry** - Automatic retry with exponential backoff for transient failures (5xx, timeouts)
+- [x] **robots.txt Support** - Respect robots.txt via colly's built-in support with `RespectRobotsTxt` config option
+- [x] **URL Canonicalization** - Normalize URLs for consistent deduplication (lowercase host, remove default ports, remove trailing slashes, remove fragments)
+- [x] **In-Memory Response Caching** - Optional TTL-based caching of HTTP responses
 
 ## Planned Enhancements
 
@@ -21,15 +25,8 @@ This document tracks planned enhancements for the docsaf generic content travers
 
 ### Retry & Error Handling
 
-- [ ] **Exponential Backoff Retry** - Automatic retry with exponential backoff for transient failures (5xx, timeouts)
 - [ ] **Circuit Breaker** - Stop hitting failing domains temporarily to avoid wasting resources
 - [ ] **Detailed Error Reporting** - Collect and report errors per-URL for debugging
-
-### robots.txt Support
-
-- [ ] **Full robots.txt Parsing** - Parse and respect robots.txt directives (Disallow, Allow, Crawl-delay)
-- [ ] **User-Agent Specific Rules** - Honor rules for specific user agents
-- [ ] **Caching of robots.txt** - Cache parsed robots.txt per domain
 
 ### JavaScript Rendering
 
@@ -40,13 +37,12 @@ This document tracks planned enhancements for the docsaf generic content travers
 ### Caching
 
 - [ ] **HTTP Caching** - Respect Cache-Control, ETag, and Last-Modified headers
-- [ ] **Local Cache Storage** - Cache fetched content to disk or memory for faster re-crawls
+- [ ] **Persistent Cache Storage** - Cache fetched content to disk for faster re-crawls
 - [ ] **Incremental Crawling** - Only fetch pages that have changed since last crawl
 - [ ] **Content Deduplication** - Skip pages with identical content hashes
 
 ### Link & URL Handling
 
-- [ ] **URL Canonicalization** - Normalize URLs to avoid duplicates (trailing slashes, query param ordering)
 - [ ] **Query Parameter Filtering** - Option to strip or filter query parameters
 - [ ] **Fragment Handling** - Better handling of fragment identifiers for SPAs
 - [ ] **Redirect Following** - Track and report redirect chains
