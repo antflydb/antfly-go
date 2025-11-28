@@ -14,6 +14,10 @@ This document tracks planned enhancements for the docsaf generic content travers
 - [x] **robots.txt Support** - Respect robots.txt via colly's built-in support with `RespectRobotsTxt` config option
 - [x] **URL Canonicalization** - Normalize URLs for consistent deduplication (lowercase host, remove default ports, remove trailing slashes, remove fragments)
 - [x] **In-Memory Response Caching** - Optional TTL-based caching of HTTP responses
+- [x] **PDF Processor** - Extract text content from PDF files with page-level sections
+- [x] **OpenAPI Processor** - Parse OpenAPI/Swagger specs and extract endpoint documentation
+- [x] **HTML Processor** - Extract content from HTML with heading-based section splitting
+- [x] **Markdown Processor** - Parse Markdown files with heading-based sections
 
 ## Planned Enhancements
 
@@ -49,10 +53,10 @@ This document tracks planned enhancements for the docsaf generic content travers
 
 ### Content Processing
 
-- [ ] **PDF Content Processor** - Add `PDFContentProcessor` for web-sourced PDFs
-- [ ] **OpenAPI Content Processor** - Add content-based OpenAPI processor
 - [ ] **Content Type Detection** - Better MIME type sniffing for ambiguous content
 - [ ] **Encoding Detection** - Auto-detect and handle various character encodings
+- [ ] **RST Processor** - Parse reStructuredText files (common in Python docs)
+- [ ] **AsciiDoc Processor** - Parse AsciiDoc files
 
 ### Additional Content Sources
 
