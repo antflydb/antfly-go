@@ -10,7 +10,7 @@ A generic content traversal and processing library for building documentation fr
 - **Git Integration**: Clone and traverse Git repositories with branch/tag support
 - **URL Normalization**: Consistent URL deduplication across crawls
 - **Retry Logic**: Exponential backoff for transient failures
-- **Response Caching**: Optional in-memory caching with TTL
+- **Advanced Caching**: HTTP-aware caching with disk persistence, ETag/Last-Modified support, and content deduplication
 - **robots.txt Support**: Respect crawling directives
 
 ## Installation
@@ -371,7 +371,9 @@ Failed requests are automatically retried with exponential backoff:
 
 ## Caching
 
-Enable in-memory response caching to avoid re-fetching during development:
+### Simple In-Memory Cache
+
+Enable basic in-memory response caching:
 
 ```go
 source, _ := docsaf.NewWebSource(docsaf.WebSourceConfig{
@@ -381,7 +383,58 @@ source, _ := docsaf.NewWebSource(docsaf.WebSourceConfig{
 })
 ```
 
-Note: Cache is in-memory only and does not persist across restarts.
+### Advanced Caching Features
+
+Enable HTTP-aware caching with disk persistence and content deduplication:
+
+```go
+source, _ := docsaf.NewWebSource(docsaf.WebSourceConfig{
+    StartURL: "https://docs.example.com",
+
+    // Basic cache settings
+    CacheTTL:      1 * time.Hour,
+    CacheMaxItems: 1000,
+
+    // Persistent disk cache
+    CacheDir: "/tmp/docsaf-cache",
+
+    // Respect HTTP cache headers (Cache-Control, ETag, Last-Modified)
+    CacheRespectHeaders: true,
+
+    // Deduplicate identical content across URLs
+    CacheDeduplication: true,
+})
+```
+
+### Cache Features
+
+| Feature | Description |
+|---------|-------------|
+| **HTTP Headers** | Respects `Cache-Control`, `max-age`, `ETag`, `Last-Modified` |
+| **Conditional Requests** | Sends `If-None-Match` and `If-Modified-Since` for revalidation |
+| **Disk Persistence** | Cache survives restarts when `CacheDir` is set |
+| **Content Deduplication** | Identical content stored once via SHA-256 hashing |
+| **LRU Eviction** | Oldest entries removed when cache is full |
+
+### Cache Management
+
+```go
+// Check cache statistics
+stats := source.CacheStats()
+if stats != nil {
+    fmt.Printf("Cached entries: %d\n", stats.MemoryEntries)
+    fmt.Printf("Unique contents: %d\n", stats.UniqueContents)
+    fmt.Printf("Total size: %d bytes\n", stats.TotalSizeBytes)
+}
+
+// Clear the cache
+source.ClearCache()
+
+// Check if a URL is cached
+if source.IsCached("https://docs.example.com/page") {
+    fmt.Println("Page is cached")
+}
+```
 
 ## Pattern Matching
 

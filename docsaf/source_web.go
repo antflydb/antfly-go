@@ -290,6 +290,18 @@ type WebSourceConfig struct {
 	// CacheMaxItems is the maximum number of items to cache (default: 1000).
 	CacheMaxItems int
 
+	// CacheDir is the directory for persistent cache storage.
+	// If empty, only in-memory caching is used.
+	CacheDir string
+
+	// CacheRespectHeaders enables HTTP cache header parsing (default: true when caching enabled).
+	// When enabled, Cache-Control, ETag, and Last-Modified are respected.
+	CacheRespectHeaders bool
+
+	// CacheDeduplication enables content hash deduplication (default: true when caching enabled).
+	// Identical content from different URLs will be stored only once.
+	CacheDeduplication bool
+
 	// NormalizeURLs enables URL normalization for deduplication (default: true).
 	// Includes lowercasing host, removing default ports, removing trailing slashes.
 	NormalizeURLs bool
@@ -297,10 +309,11 @@ type WebSourceConfig struct {
 
 // WebSource crawls websites and yields content items.
 type WebSource struct {
-	config     WebSourceConfig
-	normalizer *urlNormalizer
-	cache      *responseCache
-	httpClient *http.Client
+	config       WebSourceConfig
+	normalizer   *urlNormalizer
+	cache        *responseCache    // Legacy simple cache
+	contentCache *ContentCache     // New advanced cache
+	httpClient   *http.Client
 }
 
 // NewWebSource creates a new web content source.
@@ -378,17 +391,42 @@ func NewWebSource(config WebSourceConfig) (*WebSource, error) {
 
 	// Initialize cache if TTL is set
 	if config.CacheTTL > 0 {
-		ws.cache = newResponseCache(config.CacheTTL, config.CacheMaxItems)
+		// Use advanced ContentCache if advanced features are requested
+		if config.CacheDir != "" || config.CacheRespectHeaders || config.CacheDeduplication {
+			contentCache, err := NewContentCache(CacheConfig{
+				Enabled:             true,
+				Dir:                 config.CacheDir,
+				TTL:                 config.CacheTTL,
+				MaxMemoryItems:      config.CacheMaxItems,
+				RespectCacheHeaders: config.CacheRespectHeaders,
+				EnableDeduplication: config.CacheDeduplication,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to create cache: %w", err)
+			}
+			ws.contentCache = contentCache
+		} else {
+			// Use simple in-memory cache for backward compatibility
+			ws.cache = newResponseCache(config.CacheTTL, config.CacheMaxItems)
+		}
 	}
 
 	// Initialize HTTP client with retry transport
+	baseTransport := newRetryTransport(
+		http.DefaultTransport,
+		config.MaxRetries,
+		config.RetryDelay,
+	)
+
+	// Wrap with caching transport if advanced cache is enabled
+	var transport http.RoundTripper = baseTransport
+	if ws.contentCache != nil {
+		transport = NewCachingTransport(baseTransport, ws.contentCache)
+	}
+
 	ws.httpClient = &http.Client{
-		Timeout: 30 * time.Second,
-		Transport: newRetryTransport(
-			http.DefaultTransport,
-			config.MaxRetries,
-			config.RetryDelay,
-		),
+		Timeout:   30 * time.Second,
+		Transport: transport,
 	}
 
 	return ws, nil
@@ -409,6 +447,36 @@ func (ws *WebSource) Type() string {
 // BaseURL returns the base URL for this source.
 func (ws *WebSource) BaseURL() string {
 	return ws.config.BaseURL
+}
+
+// CacheStats returns statistics about the cache.
+// Returns nil if caching is not enabled.
+func (ws *WebSource) CacheStats() *CacheStats {
+	if ws.contentCache != nil {
+		stats := ws.contentCache.Stats()
+		return &stats
+	}
+	return nil
+}
+
+// ClearCache removes all entries from the cache.
+func (ws *WebSource) ClearCache() error {
+	if ws.contentCache != nil {
+		return ws.contentCache.Clear()
+	}
+	return nil
+}
+
+// IsCached checks if a URL is in the cache.
+func (ws *WebSource) IsCached(url string) bool {
+	if ws.contentCache != nil {
+		return ws.contentCache.Get(url) != nil
+	}
+	if ws.cache != nil {
+		_, ok := ws.cache.Get(url)
+		return ok
+	}
+	return false
 }
 
 // Traverse crawls the website and yields content items.

@@ -19,6 +19,9 @@ This document tracks planned enhancements for the docsaf generic content travers
 - [x] **HTML Processor** - Extract content from HTML with heading-based section splitting
 - [x] **Markdown Processor** - Parse Markdown files with heading-based sections
 - [x] **Git Source** - Clone and traverse Git repositories with branch/tag support, GitHub/GitLab URL detection, and authentication
+- [x] **HTTP Caching** - Respect Cache-Control, ETag, and Last-Modified headers with conditional request support
+- [x] **Persistent Cache Storage** - Cache fetched content to disk for faster re-crawls with automatic loading
+- [x] **Content Deduplication** - Skip pages with identical content hashes using SHA-256
 
 ## Planned Enhancements
 
@@ -41,10 +44,7 @@ This document tracks planned enhancements for the docsaf generic content travers
 
 ### Caching
 
-- [ ] **HTTP Caching** - Respect Cache-Control, ETag, and Last-Modified headers
-- [ ] **Persistent Cache Storage** - Cache fetched content to disk for faster re-crawls
 - [ ] **Incremental Crawling** - Only fetch pages that have changed since last crawl
-- [ ] **Content Deduplication** - Skip pages with identical content hashes
 
 ### Link & URL Handling
 
