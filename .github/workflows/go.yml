@@ -21,8 +21,12 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: "1.25"
+
       - name: Test Antfly Go
         run: go test -v ./antfly/...
 
       - name: Test Antfly Genkit
         run: go test -v ./antfly-genkit/...
+
+      - name: Test Docsaf
+        run: go test -v ./docsaf/...

@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
+	"mime"
 	"path/filepath"
 	"strings"
 
@@ -15,38 +15,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// MarkdownProcessor processes Markdown (.md) and MDX (.mdx) files using goldmark.
-// It chunks files into sections by headings and extracts YAML frontmatter.
+// MarkdownProcessor processes Markdown (.md) and MDX (.mdx) content using goldmark.
+// It chunks content into sections by headings and extracts YAML frontmatter.
 type MarkdownProcessor struct{}
 
-// CanProcess returns true for .md and .mdx files.
-func (mp *MarkdownProcessor) CanProcess(filePath string) bool {
-	lower := strings.ToLower(filePath)
+// CanProcess returns true for markdown content types or .md/.mdx extensions.
+func (mp *MarkdownProcessor) CanProcess(contentType, path string) bool {
+	// Check MIME type first
+	if strings.Contains(contentType, "text/markdown") ||
+		strings.Contains(contentType, "text/x-markdown") {
+		return true
+	}
+	// Fall back to extension
+	lower := strings.ToLower(path)
 	return strings.HasSuffix(lower, ".md") || strings.HasSuffix(lower, ".mdx")
 }
 
-// ProcessFile processes a Markdown or MDX file and returns document sections.
-// Files are chunked by headings (h1, h2, etc.), and YAML frontmatter is extracted.
-func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]DocumentSection, error) {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read file: %w", err)
-	}
-
-	// Convert baseDir to absolute path to ensure correct relative path calculation
-	absBaseDir, err := filepath.Abs(baseDir)
-	if err != nil {
-		absBaseDir = baseDir
-	}
-
-	// Convert filePath to absolute path
-	absFilePath, err := filepath.Abs(filePath)
-	if err != nil {
-		absFilePath = filePath
-	}
-
-	relPath, _ := filepath.Rel(absBaseDir, absFilePath)
-	isMDX := strings.HasSuffix(strings.ToLower(filePath), ".mdx")
+// Process processes markdown content and returns document sections.
+func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []byte) ([]DocumentSection, error) {
+	isMDX := strings.HasSuffix(strings.ToLower(path), ".mdx")
 
 	// Extract frontmatter if present
 	frontmatter, contentWithoutFrontmatter := extractFrontmatter(content)
@@ -61,7 +48,7 @@ func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]D
 	var contentBuffer bytes.Buffer
 
 	// Walk the AST and extract sections by headings
-	err = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+	err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if entering {
 			if heading, ok := n.(*ast.Heading); ok {
 				// Save previous section
@@ -76,7 +63,7 @@ func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]D
 				// Extract heading text
 				headingText := extractText(heading, contentWithoutFrontmatter)
 
-				// Use frontmatter title if available for first section, otherwise use heading
+				// Use frontmatter title if available for first section
 				sectionTitle := headingText
 				if len(sections) == 0 && frontmatter != nil {
 					if title, ok := frontmatter["title"].(string); ok && title != "" {
@@ -94,22 +81,24 @@ func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]D
 					"heading_level": heading.Level,
 					"is_mdx":        isMDX,
 				}
-				// Add frontmatter to metadata if present
 				if frontmatter != nil {
 					metadata["frontmatter"] = frontmatter
+				}
+				if sourceURL != "" {
+					metadata["source_url"] = sourceURL
 				}
 
 				// Generate URL if baseURL is provided
 				url := ""
 				if baseURL != "" {
 					slug := generateSlug(headingText)
-					cleanPath := transformURLPath(relPath)
+					cleanPath := transformURLPath(path)
 					url = baseURL + "/" + cleanPath + "#" + slug
 				}
 
 				currentSection = &DocumentSection{
-					ID:       generateID(relPath, headingText),
-					FilePath: relPath,
+					ID:       generateID(path, headingText),
+					FilePath: path,
 					Title:    sectionTitle,
 					Type:     docType,
 					URL:      url,
@@ -140,7 +129,7 @@ func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]D
 		}
 	}
 
-	// If no sections found (no headings), create one section for the entire file
+	// If no sections found (no headings), create one section for the entire content
 	if len(sections) == 0 {
 		docType := "markdown_section"
 		if isMDX {
@@ -148,7 +137,7 @@ func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]D
 		}
 
 		// Use frontmatter title if available, otherwise use filename
-		title := filepath.Base(filePath)
+		title := filepath.Base(path)
 		if frontmatter != nil {
 			if fmTitle, ok := frontmatter["title"].(string); ok && fmTitle != "" {
 				title = fmTitle
@@ -162,17 +151,19 @@ func (mp *MarkdownProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]D
 		if frontmatter != nil {
 			metadata["frontmatter"] = frontmatter
 		}
+		if sourceURL != "" {
+			metadata["source_url"] = sourceURL
+		}
 
-		// Generate URL if baseURL is provided (no anchor for files without headings)
 		url := ""
 		if baseURL != "" {
-			cleanPath := transformURLPath(relPath)
+			cleanPath := transformURLPath(path)
 			url = baseURL + "/" + cleanPath
 		}
 
 		sections = append(sections, DocumentSection{
-			ID:       generateID(relPath, filepath.Base(filePath)),
-			FilePath: relPath,
+			ID:       generateID(path, filepath.Base(path)),
+			FilePath: path,
 			Title:    title,
 			Content:  string(contentWithoutFrontmatter),
 			Type:     docType,
@@ -194,35 +185,27 @@ func extractText(node ast.Node, source []byte) string {
 }
 
 // extractFrontmatter extracts YAML frontmatter from markdown content.
-// Returns the parsed frontmatter map and the content without frontmatter.
-// Frontmatter must be at the beginning of the file between --- delimiters.
 func extractFrontmatter(content []byte) (map[string]any, []byte) {
-	// Check if content starts with ---
 	if !bytes.HasPrefix(content, []byte("---\n")) && !bytes.HasPrefix(content, []byte("---\r\n")) {
 		return nil, content
 	}
 
-	// Find the closing ---
-	remaining := content[4:] // Skip opening "---\n"
+	remaining := content[4:]
 	endIdx := bytes.Index(remaining, []byte("\n---\n"))
 	if endIdx == -1 {
 		endIdx = bytes.Index(remaining, []byte("\n---\r\n"))
 		if endIdx == -1 {
-			// No closing delimiter found
 			return nil, content
 		}
 	}
 
-	// Extract frontmatter YAML
 	frontmatterYAML := remaining[:endIdx]
 	var frontmatter map[string]any
 	if err := yaml.Unmarshal(frontmatterYAML, &frontmatter); err != nil {
-		// Failed to parse, return original content
 		return nil, content
 	}
 
-	// Return content after frontmatter
-	contentStart := 4 + endIdx + 5 // "---\n" + yaml + "\n---\n"
+	contentStart := 4 + endIdx + 5
 	if contentStart >= len(content) {
 		return frontmatter, []byte{}
 	}
@@ -230,21 +213,17 @@ func extractFrontmatter(content []byte) (map[string]any, []byte) {
 }
 
 // generateID creates a unique ID for a section using SHA-256 hash.
-// The ID format is: doc_<hash(filePath + identifier)[:16]>
-func generateID(filePath, identifier string) string {
+func generateID(path, identifier string) string {
 	hasher := sha256.New()
-	hasher.Write([]byte(filePath + "|" + identifier))
+	hasher.Write([]byte(path + "|" + identifier))
 	hash := hex.EncodeToString(hasher.Sum(nil))
 	return "doc_" + hash[:16]
 }
 
 // generateSlug creates a GitHub-style URL slug from a heading.
-// Example: "Getting Started" -> "getting-started"
 func generateSlug(heading string) string {
-	// Convert to lowercase
 	slug := strings.ToLower(heading)
 
-	// Replace spaces and special characters with hyphens
 	var result strings.Builder
 	for _, ch := range slug {
 		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
@@ -252,10 +231,8 @@ func generateSlug(heading string) string {
 		} else if ch == ' ' || ch == '-' || ch == '_' {
 			result.WriteRune('-')
 		}
-		// Skip other special characters
 	}
 
-	// Remove duplicate hyphens and trim
 	slugStr := result.String()
 	slugStr = strings.ReplaceAll(slugStr, "--", "-")
 	slugStr = strings.Trim(slugStr, "-")
@@ -263,11 +240,37 @@ func generateSlug(heading string) string {
 	return slugStr
 }
 
-// transformURLPath removes .md/.mdx extensions from the file path for cleaner URLs.
-// Example: "content/docs/downloads.mdx" -> "content/docs/downloads"
-func transformURLPath(relPath string) string {
-	// Remove .mdx or .md extension
-	relPath = strings.TrimSuffix(relPath, ".mdx")
-	relPath = strings.TrimSuffix(relPath, ".md")
-	return relPath
+// transformURLPath removes .md/.mdx extensions from the path for cleaner URLs.
+func transformURLPath(path string) string {
+	path = strings.TrimSuffix(path, ".mdx")
+	path = strings.TrimSuffix(path, ".md")
+	return path
+}
+
+// DetectContentType detects the MIME type from a file path.
+func DetectContentType(path string, content []byte) string {
+	ext := filepath.Ext(path)
+	if ext != "" {
+		mimeType := mime.TypeByExtension(ext)
+		if mimeType != "" {
+			return mimeType
+		}
+	}
+
+	switch strings.ToLower(ext) {
+	case ".md", ".markdown", ".mdx":
+		return "text/markdown"
+	case ".html", ".htm":
+		return "text/html"
+	case ".pdf":
+		return "application/pdf"
+	case ".yaml", ".yml":
+		return "application/x-yaml"
+	case ".json":
+		return "application/json"
+	case ".txt":
+		return "text/plain"
+	}
+
+	return "application/octet-stream"
 }

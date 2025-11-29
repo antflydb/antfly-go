@@ -1,6 +1,7 @@
 package docsaf
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -8,43 +9,33 @@ import (
 	"github.com/ledongthuc/pdf"
 )
 
-// PDFProcessor processes PDF (.pdf) files using the ledongthuc/pdf library.
-// It chunks files into sections by pages and extracts metadata from the PDF Info dictionary.
+// PDFProcessor processes PDF (.pdf) content using the ledongthuc/pdf library.
+// It chunks content into sections by pages and extracts metadata from the PDF Info dictionary.
 type PDFProcessor struct{}
 
-// CanProcess returns true for .pdf files.
-func (pp *PDFProcessor) CanProcess(filePath string) bool {
-	lower := strings.ToLower(filePath)
+// CanProcess returns true for PDF content types or .pdf extensions.
+func (pp *PDFProcessor) CanProcess(contentType, path string) bool {
+	if strings.Contains(contentType, "application/pdf") {
+		return true
+	}
+	lower := strings.ToLower(path)
 	return strings.HasSuffix(lower, ".pdf")
 }
 
-// ProcessFile processes a PDF file and returns document sections.
+// Process processes PDF content and returns document sections.
 // Each page becomes a separate section, with text extracted via GetPlainText().
-// Pages without extractable text are skipped.
-func (pp *PDFProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]DocumentSection, error) {
-	// Convert baseDir to absolute path to ensure correct relative path calculation
-	absBaseDir, err := filepath.Abs(baseDir)
+func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte) ([]DocumentSection, error) {
+	// Create a reader from bytes
+	reader, err := pdf.NewReader(bytes.NewReader(content), int64(len(content)))
 	if err != nil {
-		absBaseDir = baseDir
+		return nil, fmt.Errorf("failed to read PDF: %w", err)
 	}
-
-	// Convert filePath to absolute path
-	absFilePath, err := filepath.Abs(filePath)
-	if err != nil {
-		absFilePath = filePath
-	}
-
-	relPath, _ := filepath.Rel(absBaseDir, absFilePath)
-
-	// Open PDF file
-	file, reader, err := pdf.Open(absFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open PDF: %w", err)
-	}
-	defer file.Close()
 
 	// Extract document-level metadata
-	docMetadata := pp.extractMetadata(reader, relPath)
+	docMetadata := pp.extractMetadata(reader, path)
+	if sourceURL != "" {
+		docMetadata["source_url"] = sourceURL
+	}
 
 	// Process each page
 	totalPages := reader.NumPage()
@@ -53,37 +44,32 @@ func (pp *PDFProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]Docume
 	for pageNum := 1; pageNum <= totalPages; pageNum++ {
 		page := reader.Page(pageNum)
 		if page.V.IsNull() {
-			continue // Skip invalid pages
-		}
-
-		// Extract text content
-		content, err := page.GetPlainText(nil)
-		if err != nil {
-			continue // Skip pages with extraction errors
-		}
-		content = strings.TrimSpace(content)
-
-		// Skip empty pages
-		if content == "" {
 			continue
 		}
 
-		// Determine section title
+		pageContent, err := page.GetPlainText(nil)
+		if err != nil {
+			continue
+		}
+		pageContent = strings.TrimSpace(pageContent)
+
+		if pageContent == "" {
+			continue
+		}
+
 		title := pp.getSectionTitle(pageNum, docMetadata)
 
-		// Generate URL with page anchor
 		url := ""
 		if baseURL != "" {
-			cleanPath := transformPDFPath(relPath)
+			cleanPath := transformPDFPath(path)
 			url = fmt.Sprintf("%s/%s#page-%d", baseURL, cleanPath, pageNum)
 		}
 
-		// Create section
 		section := DocumentSection{
-			ID:       generateID(relPath, fmt.Sprintf("page_%d", pageNum)),
-			FilePath: relPath,
+			ID:       generateID(path, fmt.Sprintf("page_%d", pageNum)),
+			FilePath: path,
 			Title:    title,
-			Content:  content,
+			Content:  pageContent,
 			Type:     "pdf_page",
 			URL:      url,
 			Metadata: pp.mergeSectionMetadata(docMetadata, map[string]any{
@@ -98,39 +84,22 @@ func (pp *PDFProcessor) ProcessFile(filePath, baseDir, baseURL string) ([]Docume
 	return sections, nil
 }
 
-// pdfMetadata holds extracted PDF document metadata.
-type pdfMetadata struct {
-	Title        string
-	Author       string
-	Subject      string
-	Keywords     string
-	Creator      string
-	Producer     string
-	CreationDate string
-	ModDate      string
-}
-
 // extractMetadata extracts metadata from the PDF Info dictionary.
-// Returns all available metadata fields, using filename as fallback for title.
-func (pp *PDFProcessor) extractMetadata(reader *pdf.Reader, relPath string) map[string]any {
+func (pp *PDFProcessor) extractMetadata(reader *pdf.Reader, path string) map[string]any {
 	metadata := make(map[string]any)
 
-	// Access Info dictionary through Trailer
 	trailer := reader.Trailer()
 	if trailer.IsNull() {
-		// No trailer, use filename as title
-		metadata["title"] = filepath.Base(relPath)
+		metadata["title"] = filepath.Base(path)
 		return metadata
 	}
 
 	info := trailer.Key("Info")
 	if info.IsNull() {
-		// No Info dict, use filename as title
-		metadata["title"] = filepath.Base(relPath)
+		metadata["title"] = filepath.Base(path)
 		return metadata
 	}
 
-	// Extract standard PDF metadata fields
 	if title := info.Key("Title"); !title.IsNull() {
 		if titleStr := title.Text(); titleStr != "" {
 			metadata["title"] = titleStr
@@ -179,47 +148,32 @@ func (pp *PDFProcessor) extractMetadata(reader *pdf.Reader, relPath string) map[
 		}
 	}
 
-	// Fallback to filename if title not found
 	if _, hasTitle := metadata["title"]; !hasTitle {
-		metadata["title"] = filepath.Base(relPath)
+		metadata["title"] = filepath.Base(path)
 	}
 
 	return metadata
 }
 
-// getSectionTitle determines the section title for a page.
-// Returns "DocumentTitle - Page N" format.
-// Note: The ledongthuc/pdf library's Outline structure does not provide page number mappings,
-// so we cannot use bookmark titles for section names.
 func (pp *PDFProcessor) getSectionTitle(pageNum int, docMetadata map[string]any) string {
-	// Use "DocumentTitle - Page N" format
 	docTitle := "Document"
 	if title, ok := docMetadata["title"].(string); ok && title != "" {
 		docTitle = title
 	}
-
 	return fmt.Sprintf("%s - Page %d", docTitle, pageNum)
 }
 
-// mergeSectionMetadata merges document-level and section-level metadata.
 func (pp *PDFProcessor) mergeSectionMetadata(docMeta, sectionMeta map[string]any) map[string]any {
 	merged := make(map[string]any)
-
-	// Copy document-level metadata
 	for k, v := range docMeta {
 		merged[k] = v
 	}
-
-	// Overlay section-level metadata
 	for k, v := range sectionMeta {
 		merged[k] = v
 	}
-
 	return merged
 }
 
-// transformPDFPath removes .pdf extension from the file path for cleaner URLs.
-// Example: "content/docs/guide.pdf" -> "content/docs/guide"
-func transformPDFPath(relPath string) string {
-	return strings.TrimSuffix(relPath, ".pdf")
+func transformPDFPath(path string) string {
+	return strings.TrimSuffix(path, ".pdf")
 }
