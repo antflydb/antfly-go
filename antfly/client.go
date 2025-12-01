@@ -106,6 +106,16 @@ type (
 	AnswerAgentResult                  = oapi.AnswerAgentResult
 	ClassificationTransformationResult = oapi.ClassificationTransformationResult
 	RouteType                          = oapi.RouteType
+	QueryStrategy                      = oapi.QueryStrategy
+	SemanticQueryMode                  = oapi.SemanticQueryMode
+	AnswerAgentSteps                   = oapi.AnswerAgentSteps
+	ClassificationStepConfig           = oapi.ClassificationStepConfig
+	AnswerStepConfig                   = oapi.AnswerStepConfig
+	FollowupStepConfig                 = oapi.FollowupStepConfig
+	ConfidenceStepConfig               = oapi.ConfidenceStepConfig
+	RetryConfig                        = oapi.RetryConfig
+	ChainLink                          = oapi.ChainLink
+	ChainCondition                     = oapi.ChainCondition
 )
 
 // Re-export chunking strategy constants
@@ -170,6 +180,26 @@ const (
 	SyncLevelWrite    = oapi.SyncLevelWrite
 	SyncLevelFullText = oapi.SyncLevelFullText
 	SyncLevelAknn     = oapi.SyncLevelAknn
+
+	// RouteType values
+	RouteTypeQuestion = oapi.RouteTypeQuestion
+	RouteTypeSearch   = oapi.RouteTypeSearch
+
+	// QueryStrategy values
+	QueryStrategySimple    = oapi.QueryStrategySimple
+	QueryStrategyDecompose = oapi.QueryStrategyDecompose
+	QueryStrategyStepBack  = oapi.QueryStrategyStepBack
+	QueryStrategyHyde      = oapi.QueryStrategyHyde
+
+	// SemanticQueryMode values
+	SemanticQueryModeRewrite      = oapi.SemanticQueryModeRewrite
+	SemanticQueryModeHypothetical = oapi.SemanticQueryModeHypothetical
+
+	// ChainCondition values
+	ChainConditionAlways     = oapi.ChainConditionAlways
+	ChainConditionOnError    = oapi.ChainConditionOnError
+	ChainConditionOnTimeout  = oapi.ChainConditionOnTimeout
+	ChainConditionOnRateLimit = oapi.ChainConditionOnRateLimit
 )
 
 // BatchResult represents the result of a batch operation with detailed failure information
@@ -383,24 +413,29 @@ type AnswerAgentRequest struct {
 	// Query is the user's natural language query (required)
 	Query string `json:"query"`
 
-	// Summarizer is the model configuration for LLM generation (required)
-	Summarizer GeneratorConfig `json:"summarizer"`
+	// Generator is the default model configuration for all pipeline steps (required)
+	// This is the simple configuration - just set this and everything works with sensible defaults
+	Generator GeneratorConfig `json:"generator"`
 
 	// Queries is the array of query requests to execute with the transformed query (required)
 	// The transformed semantic search query will be applied to each QueryRequest
 	Queries []QueryRequest `json:"queries"`
 
-	// SystemPrompt is an optional custom system prompt to guide the agent
-	SystemPrompt string `json:"system_prompt,omitempty"`
+	// Steps is optional advanced per-step configuration
+	// Override the default generator for specific steps, configure step-specific options,
+	// or set up generator chains with retry/fallback
+	Steps *AnswerAgentSteps `json:"steps,omitempty"`
 
 	// WithStreaming enables SSE streaming of results instead of JSON response (default: true)
 	WithStreaming bool `json:"with_streaming,omitempty"`
 
-	// WithReasoning includes LLM reasoning process in the response (default: false)
-	WithReasoning bool `json:"with_reasoning,omitempty"`
+	// MaxContextTokens is the maximum total tokens allowed for retrieved document context
+	// When set, documents are pruned (lowest-ranked first) to fit within this budget
+	MaxContextTokens int `json:"max_context_tokens,omitempty"`
 
-	// WithFollowup includes follow-up questions in the response (default: false)
-	WithFollowup bool `json:"with_followup,omitempty"`
+	// ReserveTokens is the number of tokens to reserve for system prompt, answer generation, and overhead
+	// Defaults to 4000 if MaxContextTokens is set
+	ReserveTokens int `json:"reserve_tokens,omitempty"`
 }
 
 // AntflyClient is a client for interacting with the Antfly API
@@ -764,22 +799,20 @@ type RAGOptions struct {
 
 // AnswerAgentOptions contains optional parameters for answer agent requests
 type AnswerAgentOptions struct {
-	// OnClassification is called when the query classification is received
-	OnClassification func(classification, confidence string) error
+	// OnClassification is called when the classification and transformation result is received
+	// Receives the full ClassificationTransformationResult with route_type, strategy, semantic_query, etc.
+	OnClassification func(result *ClassificationTransformationResult) error
 
-	// OnTransformation is called when the transformed semantic search query is received
-	OnTransformation func(transformation string) error
+	// OnReasoning is called for each chunk of reasoning during classification (if steps.classification.with_reasoning is enabled)
+	OnReasoning func(chunk string) error
 
 	// OnHit is called for each search result hit
 	OnHit func(hit string) error
 
-	// OnReasoning is called when LLM reasoning is received (if WithReasoning is enabled)
-	OnReasoning func(reasoning string) error
-
 	// OnAnswer is called for each chunk of the answer text
 	OnAnswer func(chunk string) error
 
-	// OnFollowupQuestion is called for each follow-up question (if WithFollowup is enabled)
+	// OnFollowupQuestion is called for each follow-up question (if steps.followup.enabled is true)
 	OnFollowupQuestion func(question string) error
 }
 
@@ -957,9 +990,17 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 						if err := sonic.UnmarshalString(data, &classData); err == nil {
 							result.ClassificationTransformation = classData
 							if opt.OnClassification != nil {
-								if err := opt.OnClassification(string(classData.RouteType), fmt.Sprintf("%.2f", classData.Confidence)); err != nil {
+								if err := opt.OnClassification(&classData); err != nil {
 									return nil, fmt.Errorf("classification callback error: %w", err)
 								}
+							}
+						}
+
+					case "reasoning":
+						// Reasoning chunks during classification step
+						if opt.OnReasoning != nil {
+							if err := opt.OnReasoning(data); err != nil {
+								return nil, fmt.Errorf("reasoning callback error: %w", err)
 							}
 						}
 
@@ -967,18 +1008,6 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 						if opt.OnHit != nil {
 							if err := opt.OnHit(data); err != nil {
 								return nil, fmt.Errorf("hit callback error: %w", err)
-							}
-						}
-
-					case "reasoning":
-						if result.Reasoning == "" {
-							result.Reasoning = data
-						} else {
-							result.Reasoning += data
-						}
-						if opt.OnReasoning != nil {
-							if err := opt.OnReasoning(data); err != nil {
-								return nil, fmt.Errorf("reasoning callback error: %w", err)
 							}
 						}
 
