@@ -17,7 +17,19 @@ import (
 
 // MarkdownProcessor processes Markdown (.md) and MDX (.mdx) content using goldmark.
 // It chunks content into sections by headings and extracts YAML frontmatter.
-type MarkdownProcessor struct{}
+// Sections are merged if they would be too small (under MinTokensPerSection tokens).
+type MarkdownProcessor struct {
+	// MinTokensPerSection is the minimum token count before splitting into a new section.
+	// If 0, defaults to 500 tokens. Set to 1 to split on every heading (original behavior).
+	MinTokensPerSection int
+}
+
+// estimateTokens provides a rough token count estimate.
+// Uses ~1.3 tokens per word as a heuristic for English text.
+func estimateTokens(text string) int {
+	words := len(strings.Fields(text))
+	return int(float64(words) * 1.3)
+}
 
 // CanProcess returns true for markdown content types or .md/.mdx extensions.
 func (mp *MarkdownProcessor) CanProcess(contentType, path string) bool {
@@ -129,6 +141,15 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 		}
 	}
 
+	// Merge small sections to ensure minimum token count
+	minTokens := mp.MinTokensPerSection
+	if minTokens == 0 {
+		minTokens = 500 // default
+	}
+	if minTokens > 1 && len(sections) > 1 {
+		sections = mergeSmallerSections(sections, minTokens)
+	}
+
 	// If no sections found (no headings), create one section for the entire content
 	if len(sections) == 0 {
 		docType := "markdown_section"
@@ -238,6 +259,49 @@ func generateSlug(heading string) string {
 	slugStr = strings.Trim(slugStr, "-")
 
 	return slugStr
+}
+
+// mergeSmallerSections merges consecutive sections that are below the minimum token threshold.
+// It combines small sections with the next section to ensure each chunk has enough context.
+func mergeSmallerSections(sections []DocumentSection, minTokens int) []DocumentSection {
+	if len(sections) <= 1 {
+		return sections
+	}
+
+	var merged []DocumentSection
+	var accumulator *DocumentSection
+	var accumulatedContent strings.Builder
+
+	for i, section := range sections {
+		if accumulator == nil {
+			// Start a new accumulator
+			accumulator = &DocumentSection{
+				ID:       section.ID,
+				FilePath: section.FilePath,
+				Title:    section.Title,
+				Type:     section.Type,
+				URL:      section.URL,
+				Metadata: section.Metadata,
+			}
+			accumulatedContent.WriteString(section.Content)
+		} else {
+			// Append to accumulator
+			accumulatedContent.WriteString("\n\n")
+			accumulatedContent.WriteString(section.Content)
+		}
+
+		accumulatedTokens := estimateTokens(accumulatedContent.String())
+
+		// Flush if we've reached the threshold or this is the last section
+		if accumulatedTokens >= minTokens || i == len(sections)-1 {
+			accumulator.Content = strings.TrimSpace(accumulatedContent.String())
+			merged = append(merged, *accumulator)
+			accumulator = nil
+			accumulatedContent.Reset()
+		}
+	}
+
+	return merged
 }
 
 // transformURLPath removes .md/.mdx extensions from the path for cleaner URLs.

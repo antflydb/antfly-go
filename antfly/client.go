@@ -85,6 +85,10 @@ type (
 	FacetOption    = oapi.FacetOption
 	FacetResult    = oapi.FacetResult
 
+	// RAG response types
+	RAGResult      = oapi.RAGResult
+	SummarizeResult = oapi.SummarizeResult
+
 	// Other types
 	AntflyType     = oapi.AntflyType
 	MergeStrategy  = oapi.MergeStrategy
