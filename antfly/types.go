@@ -90,6 +90,10 @@ type (
 	KeyRange              = oapi.KeyRange
 	SyncLevel             = oapi.SyncLevel
 
+	// Key scan types
+	ScanKeysRequest  = oapi.ScanKeysRequest
+	LookupKeyParams  = oapi.LookupKeyParams
+
 	// AI Agent types
 	AnswerAgentResult                  = oapi.AnswerAgentResult
 	ClassificationTransformationResult = oapi.ClassificationTransformationResult

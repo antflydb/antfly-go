@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/antflydb/antfly-go/antfly/oapi"
 	"github.com/bytedance/sonic"
 	"github.com/bytedance/sonic/decoder"
 	"github.com/bytedance/sonic/encoder"
@@ -147,9 +148,26 @@ func (c *AntflyClient) LinearMerge(ctx context.Context, tableName string, reques
 	return &result, nil
 }
 
-// LookupKey looks up a document by its key
+// LookupKey looks up a document by its key.
+// Use LookupKeyWithFields if you need to specify which fields to return.
 func (c *AntflyClient) LookupKey(ctx context.Context, tableName, key string) (map[string]any, error) {
-	resp, err := c.client.LookupKey(ctx, tableName, key)
+	return c.LookupKeyWithFields(ctx, tableName, key, "")
+}
+
+// LookupKeyWithFields looks up a document by its key with optional field projection.
+// The fields parameter is a comma-separated list of fields to include in the response.
+// If empty, returns the full document. Supports:
+// - Simple fields: "title,author"
+// - Nested paths: "user.address.city"
+// - Wildcards: "_chunks.*"
+// - Exclusions: "-_chunks.*._embedding"
+// - Special fields: "_embeddings,_summaries,_chunks"
+func (c *AntflyClient) LookupKeyWithFields(ctx context.Context, tableName, key, fields string) (map[string]any, error) {
+	var params *oapi.LookupKeyParams
+	if fields != "" {
+		params = &oapi.LookupKeyParams{Fields: fields}
+	}
+	resp, err := c.client.LookupKey(ctx, tableName, key, params)
 	if err != nil {
 		return nil, fmt.Errorf("looking up key: %w", err)
 	}
@@ -165,6 +183,28 @@ func (c *AntflyClient) LookupKey(ctx context.Context, tableName, key string) (ma
 	}
 
 	return document, nil
+}
+
+// ScanKeys scans keys in a table within an optional key range.
+// Returns keys and optionally document data based on the request parameters.
+func (c *AntflyClient) ScanKeys(ctx context.Context, tableName string, request ScanKeysRequest) ([]map[string]any, error) {
+	resp, err := c.client.ScanKeys(ctx, tableName, oapi.ScanKeysRequest(request))
+	if err != nil {
+		return nil, fmt.Errorf("scanning keys: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("scanning keys: %w", readErrorResponse(resp))
+	}
+
+	// Parse the response as array of documents
+	var documents []map[string]any
+	if err := decoder.NewStreamDecoder(resp.Body).Decode(&documents); err != nil {
+		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+
+	return documents, nil
 }
 
 // RAG performs a RAG (Retrieval-Augmented Generation) query and streams the response
