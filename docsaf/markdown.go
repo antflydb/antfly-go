@@ -116,13 +116,19 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 					URL:      url,
 					Metadata: metadata,
 				}
+
+				// Skip appending heading text to content - it's already the Title
+				return ast.WalkSkipChildren, nil
 			}
 
-			// Append content to current section
+			// Append content to current section - only from leaf text nodes
+			// to avoid duplicating text from container nodes like paragraphs
 			if currentSection != nil {
-				contentBuffer.Write(n.Text(contentWithoutFrontmatter))
-				if _, ok := n.(*ast.Text); ok && n.NextSibling() == nil {
-					contentBuffer.WriteString("\n")
+				if textNode, ok := n.(*ast.Text); ok {
+					contentBuffer.Write(textNode.Segment.Value(contentWithoutFrontmatter))
+					if textNode.SoftLineBreak() {
+						contentBuffer.WriteString("\n")
+					}
 				}
 			}
 		}

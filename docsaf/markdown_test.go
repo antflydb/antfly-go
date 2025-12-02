@@ -416,6 +416,38 @@ func TestTransformURLPath(t *testing.T) {
 	}
 }
 
+func TestMarkdownProcessor_HeadingNotDuplicatedInContent(t *testing.T) {
+	mp := &MarkdownProcessor{MinTokensPerSection: 1}
+
+	mdContent := []byte(`# Overview
+
+This is the overview content.
+
+## Getting Started
+
+Getting started content here.
+`)
+
+	sections, err := mp.Process("test.md", "", "", mdContent)
+	if err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+
+	// Verify headings are not duplicated in content
+	for _, section := range sections {
+		// The title should NOT appear at the start of content (no "OverviewOverview" bug)
+		if strings.HasPrefix(section.Content, section.Title) {
+			t.Errorf("Section %q has title duplicated at start of content: %q",
+				section.Title, section.Content[:min(50, len(section.Content))])
+		}
+		// Content should not contain the raw heading markdown
+		if strings.Contains(section.Content, "# "+section.Title) {
+			t.Errorf("Section %q content contains heading markdown: %q",
+				section.Title, section.Content)
+		}
+	}
+}
+
 func TestExtractFrontmatter(t *testing.T) {
 	tests := []struct {
 		name            string

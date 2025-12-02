@@ -73,7 +73,7 @@ type (
 	// Chunker config types
 	ChunkerProvider      = oapi.ChunkerProvider
 	ChunkerConfig        = oapi.ChunkerConfig
-	ChunkingStrategy     = oapi.ChunkingStrategy
+	ChunkingModel        = oapi.ChunkingModel
 	TermiteChunkerConfig = oapi.TermiteChunkerConfig
 	AntflyChunkerConfig  = oapi.AntflyChunkerConfig
 
@@ -86,7 +86,7 @@ type (
 	FacetResult    = oapi.FacetResult
 
 	// RAG response types
-	RAGResult      = oapi.RAGResult
+	RAGResult       = oapi.RAGResult
 	SummarizeResult = oapi.SummarizeResult
 
 	// Other types
@@ -122,11 +122,8 @@ type (
 	ChainCondition                     = oapi.ChainCondition
 )
 
-// Re-export chunking strategy constants
-const (
-	ChunkingStrategyFixed      = oapi.ChunkingStrategyFixed
-	ChunkingStrategyChonkyOnnx = oapi.ChunkingStrategyChonkyOnnx
-)
+// ChunkingModel is just a string - use "fixed" or any ONNX model directory name
+// No predefined constants needed since any model name is valid
 
 // BatchRequest represents a batch operation request with flexible insert types.
 // Unlike the oapi.BatchRequest, this version allows Inserts to accept any type
@@ -200,9 +197,9 @@ const (
 	SemanticQueryModeHypothetical = oapi.SemanticQueryModeHypothetical
 
 	// ChainCondition values
-	ChainConditionAlways     = oapi.ChainConditionAlways
-	ChainConditionOnError    = oapi.ChainConditionOnError
-	ChainConditionOnTimeout  = oapi.ChainConditionOnTimeout
+	ChainConditionAlways      = oapi.ChainConditionAlways
+	ChainConditionOnError     = oapi.ChainConditionOnError
+	ChainConditionOnTimeout   = oapi.ChainConditionOnTimeout
 	ChainConditionOnRateLimit = oapi.ChainConditionOnRateLimit
 )
 
