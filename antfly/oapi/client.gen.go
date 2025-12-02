@@ -41,6 +41,14 @@ const (
 	AntflyTypeText            AntflyType = "text"
 )
 
+// Defines values for ChainCondition.
+const (
+	ChainConditionAlways      ChainCondition = "always"
+	ChainConditionOnError     ChainCondition = "on_error"
+	ChainConditionOnRateLimit ChainCondition = "on_rate_limit"
+	ChainConditionOnTimeout   ChainCondition = "on_timeout"
+)
+
 // Defines values for ChunkerProvider.
 const (
 	ChunkerProviderAntfly  ChunkerProvider = "antfly"
@@ -63,6 +71,21 @@ const (
 	ClusterHealthUnknown   ClusterHealth = "unknown"
 )
 
+// Defines values for CohereEmbedderConfigInputType.
+const (
+	CohereEmbedderConfigInputTypeClassification CohereEmbedderConfigInputType = "classification"
+	CohereEmbedderConfigInputTypeClustering     CohereEmbedderConfigInputType = "clustering"
+	CohereEmbedderConfigInputTypeSearchDocument CohereEmbedderConfigInputType = "search_document"
+	CohereEmbedderConfigInputTypeSearchQuery    CohereEmbedderConfigInputType = "search_query"
+)
+
+// Defines values for CohereEmbedderConfigTruncate.
+const (
+	CohereEmbedderConfigTruncateEND   CohereEmbedderConfigTruncate = "END"
+	CohereEmbedderConfigTruncateNONE  CohereEmbedderConfigTruncate = "NONE"
+	CohereEmbedderConfigTruncateSTART CohereEmbedderConfigTruncate = "START"
+)
+
 // Defines values for EdgeDirection.
 const (
 	EdgeDirectionBoth EdgeDirection = "both"
@@ -73,6 +96,7 @@ const (
 // Defines values for EmbedderProvider.
 const (
 	EmbedderProviderBedrock EmbedderProvider = "bedrock"
+	EmbedderProviderCohere  EmbedderProvider = "cohere"
 	EmbedderProviderGemini  EmbedderProvider = "gemini"
 	EmbedderProviderMock    EmbedderProvider = "mock"
 	EmbedderProviderOllama  EmbedderProvider = "ollama"
@@ -95,6 +119,7 @@ const (
 const (
 	GeneratorProviderAnthropic GeneratorProvider = "anthropic"
 	GeneratorProviderBedrock   GeneratorProvider = "bedrock"
+	GeneratorProviderCohere    GeneratorProvider = "cohere"
 	GeneratorProviderGemini    GeneratorProvider = "gemini"
 	GeneratorProviderMock      GeneratorProvider = "mock"
 	GeneratorProviderOllama    GeneratorProvider = "ollama"
@@ -113,6 +138,7 @@ const (
 const (
 	GraphQueryTypeKShortestPaths GraphQueryType = "k_shortest_paths"
 	GraphQueryTypeNeighbors      GraphQueryType = "neighbors"
+	GraphQueryTypePattern        GraphQueryType = "pattern"
 	GraphQueryTypeShortestPath   GraphQueryType = "shortest_path"
 	GraphQueryTypeTraverse       GraphQueryType = "traverse"
 )
@@ -171,8 +197,17 @@ const (
 	QueryRequestExpandStrategyUnion        QueryRequestExpandStrategy = "union"
 )
 
+// Defines values for QueryStrategy.
+const (
+	QueryStrategyDecompose QueryStrategy = "decompose"
+	QueryStrategyHyde      QueryStrategy = "hyde"
+	QueryStrategySimple    QueryStrategy = "simple"
+	QueryStrategyStepBack  QueryStrategy = "step_back"
+)
+
 // Defines values for RerankerProvider.
 const (
+	RerankerProviderCohere  RerankerProvider = "cohere"
 	RerankerProviderOllama  RerankerProvider = "ollama"
 	RerankerProviderTermite RerankerProvider = "termite"
 )
@@ -188,6 +223,12 @@ const (
 const (
 	RouteTypeQuestion RouteType = "question"
 	RouteTypeSearch   RouteType = "search"
+)
+
+// Defines values for SemanticQueryMode.
+const (
+	SemanticQueryModeHypothetical SemanticQueryMode = "hypothetical"
+	SemanticQueryModeRewrite      SemanticQueryMode = "rewrite"
 )
 
 // Defines values for SyncLevel.
@@ -229,6 +270,177 @@ type AnalysesResult struct {
 
 // AnswerAgentRequest defines model for AnswerAgentRequest.
 type AnswerAgentRequest struct {
+	// Generator A unified configuration for a generative AI provider.
+	//
+	// Generators can be configured with custom prompts using templates. Templates use
+	// Handlebars syntax and support various built-in helpers for formatting and data manipulation.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full context data passed to the generator
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//    - Useful for cleaning web content before summarization
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//    - Use in `{{#if}}` blocks for conditional logic
+	//    - Compares any two values for equality
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    - Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//    - Compatible with GenKit's dotprompt format
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// RAG summarization with document references:
+	// ```handlebars
+	// Based on these documents, provide a comprehensive summary:
+	//
+	// {{#each documents}}
+	// Document {{this.id}}:
+	// {{scrubHtml this.content}}
+	//
+	// {{/each}}
+	//
+	// Valid document IDs: {{#each documents}}{{this.id}}{{#unless @last}}, {{/unless}}{{/each}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{#if system_prompt}}System: {{system_prompt}}{{/if}}
+	//
+	// User Query: {{query}}
+	//
+	// {{#if context}}
+	// Context:
+	// {{#each context}}
+	// - {{this}}
+	// {{/each}}
+	// {{/if}}
+	// ```
+	//
+	// Multimodal prompt with images:
+	// ```handlebars
+	// Analyze this image:
+	// {{media url=image_url}}
+	//
+	// Focus on: {{focus_area}}
+	// ```
+	//
+	// Structured data encoding:
+	// ```handlebars
+	// User Profile:
+	// {{encodeToon user_data indent=2 lengthMarker=true}}
+	//
+	// Please analyze this profile.
+	// ```
+	//
+	// **Common Use Cases:**
+	// - **RAG (Retrieval-Augmented Generation)**: Format retrieved documents with citations
+	// - **Summarization**: Clean HTML content and structure summaries
+	// - **Query Classification**: Format queries with metadata for better classification
+	// - **Multimodal**: Include images/audio/video in prompts
+	// - **Data Formatting**: Convert structured data to readable text
+	//
+	// **Best Practices:**
+	// - Keep templates simple - complex logic belongs in application code
+	// - Use clear, descriptive field names in context
+	// - Handle missing fields gracefully (templates use "missingkey=zero" by default)
+	// - Test templates with representative data before production use
+	Generator GeneratorConfig `json:"generator"`
+
+	// MaxContextTokens Maximum total tokens allowed for retrieved document context.
+	// When set, documents are pruned (lowest-ranked first) to fit within this budget.
+	// Useful for ensuring LLM context limits are not exceeded.
+	// Uses BERT tokenizer for estimation.
+	MaxContextTokens int `json:"max_context_tokens,omitempty,omitzero"`
+
 	// Queries Array of query requests to execute. The query text will be transformed for semantic search
 	// and populated into the semantic_search field of each query.
 	Queries []QueryRequest `json:"queries"`
@@ -236,49 +448,262 @@ type AnswerAgentRequest struct {
 	// Query User's natural language query to be classified and improved
 	Query string `json:"query"`
 
-	// Summarizer A unified configuration for a generative AI provider.
-	Summarizer GeneratorConfig `json:"summarizer"`
+	// ReserveTokens Tokens to reserve for system prompt, answer generation, and other overhead.
+	// Subtracted from max_context_tokens to determine available context budget.
+	// Defaults to 4000 if max_context_tokens is set.
+	ReserveTokens int `json:"reserve_tokens,omitempty,omitzero"`
 
-	// SystemPrompt Optional system prompt to guide classification and answer generation
-	SystemPrompt string `json:"system_prompt,omitempty,omitzero"`
-
-	// UserContext Optional user context to customize the content guidance for each section of the answer agent response.
-	//
-	// **What you can customize**: Style, tone, length, detail level, and focus of content for each section independently.
-	//
-	// **What is fixed**: The response format is always markdown with consistent structure (## Reasoning, ## Answer, ## Follow-up Questions).
-	// Markdown formatting (headings, bullets, code blocks, etc.) is always applied and cannot be disabled.
-	//
-	// **Architecture**: These contexts are passed as template variables to the prompt template. Defaults are set
-	// at the application layer, and users can override them via this API to customize content guidance.
-	UserContext UserContext `json:"user_context,omitempty,omitzero"`
-
-	// WithFollowup Include suggested follow-up questions as separate events after the answer
-	WithFollowup bool `json:"with_followup,omitempty,omitzero"`
-
-	// WithReasoning Include the LLM's reasoning process as separate events before the answer
-	WithReasoning bool `json:"with_reasoning,omitempty,omitzero"`
+	// Steps Per-step configuration for the answer agent pipeline. Each step can have
+	// its own generator (or chain of generators) and step-specific options.
+	// If a step is not configured, it uses the top-level generator as default.
+	Steps AnswerAgentSteps `json:"steps,omitempty,omitzero"`
 
 	// WithStreaming Enable SSE streaming of results (classification, queries, results, answer) instead of JSON response
 	WithStreaming bool `json:"with_streaming,omitempty,omitzero"`
 }
 
-// AnswerAgentResult Answer agent result with classification and generated answer with inline resource references
+// AnswerAgentResult defines model for AnswerAgentResult.
 type AnswerAgentResult struct {
-	// Answer Generated answer (markdown format with inline resource references)
-	Answer string `json:"answer,omitempty,omitzero"`
+	// Answer Generated answer in markdown format
+	Answer string `json:"answer"`
 
-	// ClassificationTransformation Query classification and transformation result combining all query enhancements
+	// AnswerConfidence Overall confidence in the answer (0.0 to 1.0)
+	AnswerConfidence float32 `json:"answer_confidence,omitempty,omitzero"`
+
+	// ClassificationTransformation Query classification and transformation result combining all query enhancements including strategy selection and semantic optimization
 	ClassificationTransformation ClassificationTransformationResult `json:"classification_transformation,omitempty,omitzero"`
 
-	// FollowupQuestions Suggested follow-up questions (if with_followup was enabled)
+	// ContextRelevance Relevance of the provided resources to the question (0.0 to 1.0)
+	ContextRelevance float32 `json:"context_relevance,omitempty,omitzero"`
+
+	// FollowupQuestions Suggested follow-up questions
 	FollowupQuestions []string `json:"followup_questions,omitempty,omitzero"`
 
 	// QueryResults Results from each executed query
 	QueryResults []QueryResult `json:"query_results,omitempty,omitzero"`
+}
 
-	// Reasoning LLM's reasoning process (if with_reasoning was enabled)
-	Reasoning string `json:"reasoning,omitempty,omitzero"`
+// AnswerAgentSteps Per-step configuration for the answer agent pipeline. Each step can have
+// its own generator (or chain of generators) and step-specific options.
+// If a step is not configured, it uses the top-level generator as default.
+type AnswerAgentSteps struct {
+	// Answer Configuration for the answer generation step. This step generates the final
+	// answer from retrieved documents using the reasoning as context.
+	Answer AnswerStepConfig `json:"answer,omitempty,omitzero"`
+
+	// Classification Configuration for the classification step. This step analyzes the query,
+	// selects the optimal retrieval strategy, and generates semantic transformations.
+	Classification ClassificationStepConfig `json:"classification,omitempty,omitzero"`
+
+	// Confidence Configuration for confidence assessment. Evaluates answer quality and
+	// resource relevance. Can use a model calibrated for scoring tasks.
+	Confidence ConfidenceStepConfig `json:"confidence,omitempty,omitzero"`
+
+	// Followup Configuration for generating follow-up questions. Uses a separate generator
+	// call which can use a cheaper/faster model.
+	Followup FollowupStepConfig `json:"followup,omitempty,omitzero"`
+}
+
+// AnswerConfidence Confidence assessment for the generated answer
+type AnswerConfidence struct {
+	// AnswerConfidence Overall confidence in the answer (0.0 to 1.0). Considers both ability to answer from provided resources and general knowledge.
+	AnswerConfidence float32 `json:"answer_confidence"`
+
+	// ContextRelevance Relevance of the provided resources to the question (0.0 to 1.0)
+	ContextRelevance float32 `json:"context_relevance"`
+}
+
+// AnswerResult Result from answer generation with optional confidence and follow-up questions
+type AnswerResult struct {
+	// Answer Generated answer in markdown format
+	Answer string `json:"answer"`
+
+	// AnswerConfidence Overall confidence in the answer (0.0 to 1.0)
+	AnswerConfidence float32 `json:"answer_confidence,omitempty,omitzero"`
+
+	// ContextRelevance Relevance of the provided resources to the question (0.0 to 1.0)
+	ContextRelevance float32 `json:"context_relevance,omitempty,omitzero"`
+
+	// FollowupQuestions Suggested follow-up questions
+	FollowupQuestions []string `json:"followup_questions,omitempty,omitzero"`
+}
+
+// AnswerStepConfig Configuration for the answer generation step. This step generates the final
+// answer from retrieved documents using the reasoning as context.
+type AnswerStepConfig struct {
+	// AnswerContext Custom guidance for answer tone, detail level, and style
+	AnswerContext string `json:"answer_context,omitempty,omitzero"`
+
+	// Chain Chain of generators to try in order. Mutually exclusive with 'generator'.
+	Chain []ChainLink `json:"chain,omitempty,omitzero"`
+
+	// Generator A unified configuration for a generative AI provider.
+	//
+	// Generators can be configured with custom prompts using templates. Templates use
+	// Handlebars syntax and support various built-in helpers for formatting and data manipulation.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full context data passed to the generator
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//    - Useful for cleaning web content before summarization
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//    - Use in `{{#if}}` blocks for conditional logic
+	//    - Compares any two values for equality
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    - Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//    - Compatible with GenKit's dotprompt format
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// RAG summarization with document references:
+	// ```handlebars
+	// Based on these documents, provide a comprehensive summary:
+	//
+	// {{#each documents}}
+	// Document {{this.id}}:
+	// {{scrubHtml this.content}}
+	//
+	// {{/each}}
+	//
+	// Valid document IDs: {{#each documents}}{{this.id}}{{#unless @last}}, {{/unless}}{{/each}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{#if system_prompt}}System: {{system_prompt}}{{/if}}
+	//
+	// User Query: {{query}}
+	//
+	// {{#if context}}
+	// Context:
+	// {{#each context}}
+	// - {{this}}
+	// {{/each}}
+	// {{/if}}
+	// ```
+	//
+	// Multimodal prompt with images:
+	// ```handlebars
+	// Analyze this image:
+	// {{media url=image_url}}
+	//
+	// Focus on: {{focus_area}}
+	// ```
+	//
+	// Structured data encoding:
+	// ```handlebars
+	// User Profile:
+	// {{encodeToon user_data indent=2 lengthMarker=true}}
+	//
+	// Please analyze this profile.
+	// ```
+	//
+	// **Common Use Cases:**
+	// - **RAG (Retrieval-Augmented Generation)**: Format retrieved documents with citations
+	// - **Summarization**: Clean HTML content and structure summaries
+	// - **Query Classification**: Format queries with metadata for better classification
+	// - **Multimodal**: Include images/audio/video in prompts
+	// - **Data Formatting**: Convert structured data to readable text
+	//
+	// **Best Practices:**
+	// - Keep templates simple - complex logic belongs in application code
+	// - Use clear, descriptive field names in context
+	// - Handle missing fields gracefully (templates use "missingkey=zero" by default)
+	// - Test templates with representative data before production use
+	Generator GeneratorConfig `json:"generator,omitempty,omitzero"`
+
+	// SystemPrompt Custom system prompt for answer generation
+	SystemPrompt string `json:"system_prompt,omitempty,omitzero"`
 }
 
 // AntflyChunkerConfig Configuration for the local Antfly chunking provider.
@@ -320,18 +745,12 @@ type AntflyChunkerConfig struct {
 type AntflyType string
 
 // AnthropicGeneratorConfig Configuration for the Anthropic generative AI provider (Claude models).
-// Uses the firebase/genkit compat_oai/anthropic plugin with OpenAI-compatible API.
 //
-// Defaults to claude-3-7-sonnet-20250219 if no model is specified.
+// API key via `api_key` field or `ANTHROPIC_API_KEY` environment variable.
 //
-// API key can be provided via the 'api_key' field or the ANTHROPIC_API_KEY environment variable.
+// **Example Models:** claude-sonnet-4-5-20250929 (default), claude-opus-4-5-20251101, claude-3-5-haiku-20241022
 //
-// Supported models:
-// - claude-3-7-sonnet-20250219 (latest, most capable)
-// - claude-3-5-haiku-20241022 (fast and efficient)
-// - claude-3-5-sonnet-20240620 (balanced performance)
-// - claude-3-opus-20240229 (highly capable)
-// - claude-3-haiku-20240307 (fastest)
+// **Docs:** https://docs.anthropic.com/en/docs/about-claude/models/overview
 type AnthropicGeneratorConfig struct {
 	// ApiKey The Anthropic API key. If not provided, falls back to ANTHROPIC_API_KEY environment variable.
 	ApiKey string `json:"api_key,omitempty,omitzero"`
@@ -339,7 +758,7 @@ type AnthropicGeneratorConfig struct {
 	// MaxTokens Maximum number of tokens to generate in the response.
 	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
 
-	// Model The full model ID of the Anthropic model to use (e.g., 'claude-3-7-sonnet-20250219', 'claude-3-5-haiku-20241022').
+	// Model The full model ID of the Anthropic model to use (e.g., 'claude-sonnet-4-5-20250929', 'claude-opus-4-5-20251101').
 	Model string `json:"model"`
 
 	// Temperature Controls randomness in generation (0.0-1.0). Higher values make output more random.
@@ -369,12 +788,33 @@ type BackupRequest struct {
 	Location string `json:"location"`
 }
 
-// BatchRequest Batch insert, delete, and transform operations in a single request. All operations are processed atomically within each shard.
+// BatchRequest Batch insert, delete, and transform operations in a single request.
 //
-// Benefits:
+// **Atomicity**:
+// - **Single shard**: Operations are atomic within shard boundaries
+// - **Multiple shards**: Uses distributed 2-phase commit (2PC) for atomic cross-shard writes
+//
+// **How distributed transactions work**:
+// 1. Metadata server allocates HLC timestamp and selects coordinator shard
+// 2. Coordinator writes transaction record, participants write intents
+// 3. After all intents succeed, coordinator commits transaction
+// 4. Participants are notified asynchronously to resolve intents
+// 5. Recovery loop ensures notifications complete even after coordinator failure
+//
+// **Performance**:
+// - Single-shard batches: < 5ms latency
+// - Cross-shard transactions: ~20ms latency
+// - Intent resolution: < 30 seconds worst-case (via recovery loop)
+//
+// **Guarantees**:
+// - All writes succeed or all fail (atomicity across all shards)
+// - Coordinator failure is recoverable (new leader resumes notifications)
+// - Idempotent resolution (duplicate notifications are safe)
+//
+// **Benefits**:
 // - Reduces network overhead compared to individual requests
 // - More efficient indexing (updates are batched)
-// - Atomic within shard boundaries
+// - Automatic distributed transactions when operations span shards
 //
 // The inserts are upserts - existing keys are overwritten, new keys are created.
 type BatchRequest struct {
@@ -417,27 +857,39 @@ type BatchRequest struct {
 	Transforms []Transform `json:"transforms,omitempty,omitzero"`
 }
 
-// BedrockEmbedderConfig Configuration for the Bedrock embedding provider.
+// BedrockEmbedderConfig Configuration for the AWS Bedrock embedding provider.
+//
+// Uses AWS credentials from environment or IAM roles.
+//
+// **Example Models:** cohere.embed-english-v4, amazon.titan-embed-text-v2:0
+//
+// **Docs:** https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
 type BedrockEmbedderConfig struct {
-	// BatchSize The batch size for embedding requests.
+	// BatchSize The batch size for embedding requests to optimize throughput.
 	BatchSize int `json:"batch_size,omitempty,omitzero"`
 
-	// Model The name of the Bedrock model to use.
+	// Model The Bedrock model ID to use (e.g., 'cohere.embed-english-v4', 'amazon.titan-embed-text-v2:0').
 	Model string `json:"model"`
 
-	// Region The AWS region for the Bedrock service.
+	// Region The AWS region for the Bedrock service (e.g., 'us-east-1').
 	Region string `json:"region,omitempty,omitzero"`
 
-	// StripNewLines Whether to strip new lines from the input text.
+	// StripNewLines Whether to strip new lines from the input text before embedding.
 	StripNewLines bool `json:"strip_new_lines,omitempty,omitzero"`
 }
 
 // BedrockGeneratorConfig Configuration for the AWS Bedrock generative AI provider.
+//
+// Provides access to models from Anthropic, Meta, Amazon, Cohere, Mistral, and others.
+//
+// **Example Models:** anthropic.claude-sonnet-4-5-20250929-v1:0, meta.llama3-3-70b-instruct-v1:0, amazon.nova-pro-v1:0
+//
+// **Docs:** https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html
 type BedrockGeneratorConfig struct {
 	// MaxTokens Maximum number of tokens to generate.
 	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
 
-	// Model The name of the Bedrock model to use.
+	// Model The Bedrock model ID to use (e.g., 'anthropic.claude-sonnet-4-5-20250929-v1:0').
 	Model string `json:"model"`
 
 	// Region The AWS region for the Bedrock service.
@@ -499,6 +951,191 @@ type Boost = float64
 // ByteRange defines model for ByteRange.
 type ByteRange = [][]byte
 
+// ChainCondition Condition for trying the next generator in chain:
+// - always: Always try next regardless of outcome
+// - on_error: Try next on any error (default)
+// - on_timeout: Try next only on timeout errors
+// - on_rate_limit: Try next only on rate limit errors
+type ChainCondition string
+
+// ChainLink A single link in a generator chain with optional retry and condition
+type ChainLink struct {
+	// Condition Condition for trying the next generator in chain:
+	// - always: Always try next regardless of outcome
+	// - on_error: Try next on any error (default)
+	// - on_timeout: Try next only on timeout errors
+	// - on_rate_limit: Try next only on rate limit errors
+	Condition ChainCondition `json:"condition,omitempty,omitzero"`
+
+	// Generator A unified configuration for a generative AI provider.
+	//
+	// Generators can be configured with custom prompts using templates. Templates use
+	// Handlebars syntax and support various built-in helpers for formatting and data manipulation.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full context data passed to the generator
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//    - Useful for cleaning web content before summarization
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//    - Use in `{{#if}}` blocks for conditional logic
+	//    - Compares any two values for equality
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    - Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//    - Compatible with GenKit's dotprompt format
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// RAG summarization with document references:
+	// ```handlebars
+	// Based on these documents, provide a comprehensive summary:
+	//
+	// {{#each documents}}
+	// Document {{this.id}}:
+	// {{scrubHtml this.content}}
+	//
+	// {{/each}}
+	//
+	// Valid document IDs: {{#each documents}}{{this.id}}{{#unless @last}}, {{/unless}}{{/each}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{#if system_prompt}}System: {{system_prompt}}{{/if}}
+	//
+	// User Query: {{query}}
+	//
+	// {{#if context}}
+	// Context:
+	// {{#each context}}
+	// - {{this}}
+	// {{/each}}
+	// {{/if}}
+	// ```
+	//
+	// Multimodal prompt with images:
+	// ```handlebars
+	// Analyze this image:
+	// {{media url=image_url}}
+	//
+	// Focus on: {{focus_area}}
+	// ```
+	//
+	// Structured data encoding:
+	// ```handlebars
+	// User Profile:
+	// {{encodeToon user_data indent=2 lengthMarker=true}}
+	//
+	// Please analyze this profile.
+	// ```
+	//
+	// **Common Use Cases:**
+	// - **RAG (Retrieval-Augmented Generation)**: Format retrieved documents with citations
+	// - **Summarization**: Clean HTML content and structure summaries
+	// - **Query Classification**: Format queries with metadata for better classification
+	// - **Multimodal**: Include images/audio/video in prompts
+	// - **Data Formatting**: Convert structured data to readable text
+	//
+	// **Best Practices:**
+	// - Keep templates simple - complex logic belongs in application code
+	// - Use clear, descriptive field names in context
+	// - Handle missing fields gracefully (templates use "missingkey=zero" by default)
+	// - Test templates with representative data before production use
+	Generator GeneratorConfig `json:"generator"`
+
+	// Retry Retry configuration for generator calls
+	Retry RetryConfig `json:"retry,omitempty,omitzero"`
+}
+
 // ChunkerConfig defines model for ChunkerConfig.
 type ChunkerConfig struct {
 	// Provider The chunking provider to use.
@@ -514,7 +1151,197 @@ type ChunkerProvider string
 // - chonky_onnx: ONNX-accelerated chunking using sentence boundary detection (requires models/chunkers/chonky_onnx/)
 type ChunkingStrategy string
 
-// ClassificationTransformationResult Query classification and transformation result combining all query enhancements
+// ClassificationStepConfig Configuration for the classification step. This step analyzes the query,
+// selects the optimal retrieval strategy, and generates semantic transformations.
+type ClassificationStepConfig struct {
+	// Chain Chain of generators to try in order. Mutually exclusive with 'generator'.
+	Chain []ChainLink `json:"chain,omitempty,omitzero"`
+
+	// ForceSemanticMode Mode for semantic query generation:
+	// - rewrite: Transform query into expanded keywords/concepts optimized for vector search (Level 2 optimization)
+	// - hypothetical: Generate a hypothetical answer that would appear in relevant documents (HyDE - Level 3 optimization)
+	ForceSemanticMode SemanticQueryMode `json:"force_semantic_mode,omitempty,omitzero"`
+
+	// ForceStrategy Strategy for query transformation and retrieval:
+	// - simple: Direct query with multi-phrase expansion. Best for straightforward factual queries.
+	// - decompose: Break complex queries into sub-questions, retrieve for each. Best for multi-part questions.
+	// - step_back: Generate broader background query first, then specific query. Best for questions needing context.
+	// - hyde: Generate hypothetical answer document, embed that for retrieval. Best for abstract/conceptual questions.
+	ForceStrategy QueryStrategy `json:"force_strategy,omitempty,omitzero"`
+
+	// Generator A unified configuration for a generative AI provider.
+	//
+	// Generators can be configured with custom prompts using templates. Templates use
+	// Handlebars syntax and support various built-in helpers for formatting and data manipulation.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full context data passed to the generator
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//    - Useful for cleaning web content before summarization
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//    - Use in `{{#if}}` blocks for conditional logic
+	//    - Compares any two values for equality
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    - Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//    - Compatible with GenKit's dotprompt format
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// RAG summarization with document references:
+	// ```handlebars
+	// Based on these documents, provide a comprehensive summary:
+	//
+	// {{#each documents}}
+	// Document {{this.id}}:
+	// {{scrubHtml this.content}}
+	//
+	// {{/each}}
+	//
+	// Valid document IDs: {{#each documents}}{{this.id}}{{#unless @last}}, {{/unless}}{{/each}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{#if system_prompt}}System: {{system_prompt}}{{/if}}
+	//
+	// User Query: {{query}}
+	//
+	// {{#if context}}
+	// Context:
+	// {{#each context}}
+	// - {{this}}
+	// {{/each}}
+	// {{/if}}
+	// ```
+	//
+	// Multimodal prompt with images:
+	// ```handlebars
+	// Analyze this image:
+	// {{media url=image_url}}
+	//
+	// Focus on: {{focus_area}}
+	// ```
+	//
+	// Structured data encoding:
+	// ```handlebars
+	// User Profile:
+	// {{encodeToon user_data indent=2 lengthMarker=true}}
+	//
+	// Please analyze this profile.
+	// ```
+	//
+	// **Common Use Cases:**
+	// - **RAG (Retrieval-Augmented Generation)**: Format retrieved documents with citations
+	// - **Summarization**: Clean HTML content and structure summaries
+	// - **Query Classification**: Format queries with metadata for better classification
+	// - **Multimodal**: Include images/audio/video in prompts
+	// - **Data Formatting**: Convert structured data to readable text
+	//
+	// **Best Practices:**
+	// - Keep templates simple - complex logic belongs in application code
+	// - Use clear, descriptive field names in context
+	// - Handle missing fields gracefully (templates use "missingkey=zero" by default)
+	// - Test templates with representative data before production use
+	Generator GeneratorConfig `json:"generator,omitempty,omitzero"`
+
+	// MultiPhraseCount Number of alternative query phrasings to generate
+	MultiPhraseCount int `json:"multi_phrase_count,omitempty,omitzero"`
+
+	// WithReasoning Include pre-retrieval reasoning explaining query analysis and strategy selection
+	WithReasoning bool `json:"with_reasoning,omitempty,omitzero"`
+}
+
+// ClassificationTransformationResult Query classification and transformation result combining all query enhancements including strategy selection and semantic optimization
 type ClassificationTransformationResult struct {
 	// Confidence Classification confidence (0.0 to 1.0)
 	Confidence float32 `json:"confidence"`
@@ -522,11 +1349,35 @@ type ClassificationTransformationResult struct {
 	// ImprovedQuery Clarified query with added context for answer generation (human-readable)
 	ImprovedQuery string `json:"improved_query"`
 
+	// MultiPhrases Alternative phrasings of the query for expanded retrieval coverage
+	MultiPhrases []string `json:"multi_phrases,omitempty,omitzero"`
+
+	// Reasoning Pre-retrieval reasoning explaining query analysis and strategy selection (only present when with_classification_reasoning is enabled)
+	Reasoning string `json:"reasoning,omitempty,omitzero"`
+
 	// RouteType Classification of query type: question (specific factual query) or search (exploratory query)
 	RouteType RouteType `json:"route_type"`
 
-	// SemanticQuery Optimized query for vector/semantic search (concept extraction with synonyms)
+	// SemanticMode Mode for semantic query generation:
+	// - rewrite: Transform query into expanded keywords/concepts optimized for vector search (Level 2 optimization)
+	// - hypothetical: Generate a hypothetical answer that would appear in relevant documents (HyDE - Level 3 optimization)
+	SemanticMode SemanticQueryMode `json:"semantic_mode"`
+
+	// SemanticQuery Optimized query for vector/semantic search. Content style depends on semantic_mode: keywords for 'rewrite', hypothetical answer for 'hypothetical'
 	SemanticQuery string `json:"semantic_query"`
+
+	// StepBackQuery Broader background query for context (only present when strategy is 'step_back')
+	StepBackQuery string `json:"step_back_query,omitempty,omitzero"`
+
+	// Strategy Strategy for query transformation and retrieval:
+	// - simple: Direct query with multi-phrase expansion. Best for straightforward factual queries.
+	// - decompose: Break complex queries into sub-questions, retrieve for each. Best for multi-part questions.
+	// - step_back: Generate broader background query first, then specific query. Best for questions needing context.
+	// - hyde: Generate hypothetical answer document, embed that for retrieval. Best for abstract/conceptual questions.
+	Strategy QueryStrategy `json:"strategy"`
+
+	// SubQuestions Decomposed sub-questions (only present when strategy is 'decompose')
+	SubQuestions []string `json:"sub_questions,omitempty,omitzero"`
 }
 
 // ClusterHealth Overall health status of the cluster
@@ -543,6 +1394,265 @@ type ClusterStatus struct {
 	// Message Optional message providing details about the health status
 	Message              string                 `json:"message,omitempty,omitzero"`
 	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// CohereEmbedderConfig Configuration for the Cohere embedding provider.
+//
+// API key via `api_key` field or `COHERE_API_KEY` environment variable.
+//
+// **Example Models:** embed-english-v3.0 (default, 1024 dims), embed-multilingual-v3.0
+//
+// **Docs:** https://docs.cohere.com/reference/embed
+type CohereEmbedderConfig struct {
+	// ApiKey The Cohere API key. Can also be set via COHERE_API_KEY environment variable.
+	ApiKey string `json:"api_key,omitempty,omitzero"`
+
+	// InputType Specifies the type of input for optimized embeddings.
+	InputType CohereEmbedderConfigInputType `json:"input_type,omitempty,omitzero"`
+
+	// Model The name of the Cohere embedding model to use.
+	Model string `json:"model"`
+
+	// Truncate How to handle inputs longer than the max token length.
+	Truncate CohereEmbedderConfigTruncate `json:"truncate,omitempty,omitzero"`
+}
+
+// CohereEmbedderConfigInputType Specifies the type of input for optimized embeddings.
+type CohereEmbedderConfigInputType string
+
+// CohereEmbedderConfigTruncate How to handle inputs longer than the max token length.
+type CohereEmbedderConfigTruncate string
+
+// CohereGeneratorConfig Configuration for the Cohere generative AI provider (Command models).
+//
+// API key via `api_key` field or `COHERE_API_KEY` environment variable.
+//
+// **Example Models:** command-r-plus (default), command-r, command-a-03-2025
+//
+// **Docs:** https://docs.cohere.com/reference/chat
+type CohereGeneratorConfig struct {
+	// ApiKey The Cohere API key. If not provided, falls back to COHERE_API_KEY environment variable.
+	ApiKey string `json:"api_key,omitempty,omitzero"`
+
+	// FrequencyPenalty Penalty for token frequency (0.0-1.0).
+	FrequencyPenalty float32 `json:"frequency_penalty,omitempty,omitzero"`
+
+	// MaxTokens Maximum number of tokens to generate in the response.
+	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
+
+	// Model The name of the Cohere model to use.
+	Model string `json:"model"`
+
+	// PresencePenalty Penalty for token presence (0.0-1.0).
+	PresencePenalty float32 `json:"presence_penalty,omitempty,omitzero"`
+
+	// Temperature Controls randomness in generation (0.0-1.0). Higher values make output more random.
+	Temperature float32 `json:"temperature,omitempty,omitzero"`
+
+	// TopK Top-k sampling parameter. Only sample from the top K options for each subsequent token.
+	TopK int `json:"top_k,omitempty,omitzero"`
+
+	// TopP Nucleus sampling parameter (0.0-1.0). Alternative to temperature.
+	TopP float32 `json:"top_p,omitempty,omitzero"`
+}
+
+// CohereRerankerConfig Configuration for the Cohere reranking provider.
+//
+// API key via `api_key` field or `COHERE_API_KEY` environment variable.
+//
+// **Example Models:** rerank-english-v3.0 (default), rerank-multilingual-v3.0
+//
+// **Docs:** https://docs.cohere.com/reference/rerank
+type CohereRerankerConfig struct {
+	// ApiKey The Cohere API key. Can also be set via COHERE_API_KEY environment variable.
+	ApiKey string `json:"api_key,omitempty,omitzero"`
+
+	// MaxChunksPerDoc Maximum number of chunks per document for long document handling.
+	MaxChunksPerDoc int `json:"max_chunks_per_doc,omitempty,omitzero"`
+
+	// Model The name of the Cohere reranking model to use.
+	Model string `json:"model"`
+
+	// TopN Number of most relevant documents to return. If not specified, returns all documents with scores.
+	TopN int `json:"top_n,omitempty,omitzero"`
+}
+
+// ConfidenceStepConfig Configuration for confidence assessment. Evaluates answer quality and
+// resource relevance. Can use a model calibrated for scoring tasks.
+type ConfidenceStepConfig struct {
+	// Chain Chain of generators to try in order. Mutually exclusive with 'generator'.
+	Chain []ChainLink `json:"chain,omitempty,omitzero"`
+
+	// Context Custom guidance for confidence assessment approach
+	Context string `json:"context,omitempty,omitzero"`
+
+	// Enabled Enable confidence scoring
+	Enabled bool `json:"enabled,omitempty,omitzero"`
+
+	// Generator A unified configuration for a generative AI provider.
+	//
+	// Generators can be configured with custom prompts using templates. Templates use
+	// Handlebars syntax and support various built-in helpers for formatting and data manipulation.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full context data passed to the generator
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//    - Useful for cleaning web content before summarization
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//    - Use in `{{#if}}` blocks for conditional logic
+	//    - Compares any two values for equality
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    - Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//    - Compatible with GenKit's dotprompt format
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// RAG summarization with document references:
+	// ```handlebars
+	// Based on these documents, provide a comprehensive summary:
+	//
+	// {{#each documents}}
+	// Document {{this.id}}:
+	// {{scrubHtml this.content}}
+	//
+	// {{/each}}
+	//
+	// Valid document IDs: {{#each documents}}{{this.id}}{{#unless @last}}, {{/unless}}{{/each}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{#if system_prompt}}System: {{system_prompt}}{{/if}}
+	//
+	// User Query: {{query}}
+	//
+	// {{#if context}}
+	// Context:
+	// {{#each context}}
+	// - {{this}}
+	// {{/each}}
+	// {{/if}}
+	// ```
+	//
+	// Multimodal prompt with images:
+	// ```handlebars
+	// Analyze this image:
+	// {{media url=image_url}}
+	//
+	// Focus on: {{focus_area}}
+	// ```
+	//
+	// Structured data encoding:
+	// ```handlebars
+	// User Profile:
+	// {{encodeToon user_data indent=2 lengthMarker=true}}
+	//
+	// Please analyze this profile.
+	// ```
+	//
+	// **Common Use Cases:**
+	// - **RAG (Retrieval-Augmented Generation)**: Format retrieved documents with citations
+	// - **Summarization**: Clean HTML content and structure summaries
+	// - **Query Classification**: Format queries with metadata for better classification
+	// - **Multimodal**: Include images/audio/video in prompts
+	// - **Data Formatting**: Convert structured data to readable text
+	//
+	// **Best Practices:**
+	// - Keep templates simple - complex logic belongs in application code
+	// - Use clear, descriptive field names in context
+	// - Handle missing fields gracefully (templates use "missingkey=zero" by default)
+	// - Test templates with representative data before production use
+	Generator GeneratorConfig `json:"generator,omitempty,omitzero"`
 }
 
 // ConjunctionQuery defines model for ConjunctionQuery.
@@ -568,12 +1678,32 @@ type CreateTableRequest struct {
 
 	// NumShards Number of shards to create for the table. Data is partitioned across shards based on key ranges.
 	//
-	// Guidelines:
+	// **Sizing Guidelines:**
 	// - Small datasets (<100K docs): 1-3 shards
 	// - Medium datasets (100K-1M docs): 3-10 shards
 	// - Large datasets (>1M docs): 10+ shards
 	//
 	// More shards enable better parallelism but increase overhead. Choose based on expected data size and query patterns.
+	//
+	// **When to Add More Shards:**
+	//
+	// Antfly supports **online shard reallocation** without downtime. Add more shards when:
+	// - Individual shards exceed size thresholds (configurable)
+	// - Query latency increases due to large shard size
+	// - Need better parallelism for write-heavy workloads
+	//
+	// Use the internal `/reallocate` endpoint to trigger automatic shard splitting:
+	// ```bash
+	// POST /_internal/v1/reallocate
+	// ```
+	//
+	// This enqueues a reallocation request that the leader processes asynchronously, splitting
+	// large shards and redistributing data without service interruption.
+	//
+	// **Advantages over Elasticsearch:**
+	// - Automatic shard splitting (no manual reindexing required)
+	// - Online operation (no downtime)
+	// - Transparent to applications (keys remain accessible during reallocation)
 	NumShards uint `json:"num_shards,omitempty,omitzero"`
 
 	// Schema Schema definition for a table with multiple document types
@@ -716,6 +1846,173 @@ type EmbeddingIndexConfig struct {
 	Dimension int `json:"dimension"`
 
 	// Embedder A unified configuration for an embedding provider.
+	//
+	// Embedders can be configured with templates to customize how documents are
+	// converted to text before embedding. Templates use Handlebars syntax and
+	// support various built-in helpers.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full document as context
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active user{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// Document with metadata:
+	// ```handlebars
+	// Title: {{metadata.title}}
+	// Date: {{metadata.date}}
+	// Tags: {{#each metadata.tags}}{{this}}, {{/each}}
+	//
+	// {{content}}
+	// ```
+	//
+	// HTML content extraction:
+	// ```handlebars
+	// Product: {{name}}
+	// Description: {{scrubHtml description_html}}
+	// Price: ${{price}}
+	// ```
+	//
+	// Multimodal with image:
+	// ```handlebars
+	// Product: {{title}}
+	// {{media url=image}}
+	// Description: {{description}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{title}}
+	// {{#if author}}By: {{author}}{{/if}}
+	// {{#if (eq category "premium")}}⭐ Premium Content{{/if}}
+	// {{body}}
+	// ```
+	//
+	// **Environment Variables:**
+	// - `GEMINI_API_KEY` - API key for Google AI
+	// - `OPENAI_API_KEY` - API key for OpenAI
+	// - `OPENAI_BASE_URL` - Base URL for OpenAI-compatible APIs
+	// - `OLLAMA_HOST` - Ollama server URL (e.g., http://localhost:11434)
+	//
+	// **Importing Pre-computed Embeddings:**
+	//
+	// You can import existing embeddings (from OpenAI, Cohere, or any provider) by including
+	// them directly in your documents using the `_embeddings` field. This bypasses the
+	// embedding generation step and writes vectors directly to the index.
+	//
+	// **Steps:**
+	// 1. Create the index first with the appropriate dimension
+	// 2. Write documents with `_embeddings: { "<indexName>": [...<embedding>...] }`
+	//
+	// **Example:**
+	// ```json
+	// {
+	//   "title": "My Document",
+	//   "content": "Document text...",
+	//   "_embeddings": {
+	//     "my_vector_index": [0.1, 0.2, 0.3, ...]
+	//   }
+	// }
+	// ```
+	//
+	// **Use Cases:**
+	// - Migrating from another vector database with existing embeddings
+	// - Using embeddings generated by external systems
+	// - Importing pre-computed OpenAI, Cohere, or other provider embeddings
+	// - Batch processing embeddings offline before ingestion
 	Embedder EmbedderConfig `json:"embedder,omitempty,omitzero"`
 
 	// Field Field to extract embeddings from
@@ -725,6 +2022,168 @@ type EmbeddingIndexConfig struct {
 	MemOnly bool `json:"mem_only,omitempty,omitzero"`
 
 	// Summarizer A unified configuration for a generative AI provider.
+	//
+	// Generators can be configured with custom prompts using templates. Templates use
+	// Handlebars syntax and support various built-in helpers for formatting and data manipulation.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full context data passed to the generator
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//    - Useful for cleaning web content before summarization
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//    - Use in `{{#if}}` blocks for conditional logic
+	//    - Compares any two values for equality
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    - Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//    - Compatible with GenKit's dotprompt format
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// RAG summarization with document references:
+	// ```handlebars
+	// Based on these documents, provide a comprehensive summary:
+	//
+	// {{#each documents}}
+	// Document {{this.id}}:
+	// {{scrubHtml this.content}}
+	//
+	// {{/each}}
+	//
+	// Valid document IDs: {{#each documents}}{{this.id}}{{#unless @last}}, {{/unless}}{{/each}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{#if system_prompt}}System: {{system_prompt}}{{/if}}
+	//
+	// User Query: {{query}}
+	//
+	// {{#if context}}
+	// Context:
+	// {{#each context}}
+	// - {{this}}
+	// {{/each}}
+	// {{/if}}
+	// ```
+	//
+	// Multimodal prompt with images:
+	// ```handlebars
+	// Analyze this image:
+	// {{media url=image_url}}
+	//
+	// Focus on: {{focus_area}}
+	// ```
+	//
+	// Structured data encoding:
+	// ```handlebars
+	// User Profile:
+	// {{encodeToon user_data indent=2 lengthMarker=true}}
+	//
+	// Please analyze this profile.
+	// ```
+	//
+	// **Common Use Cases:**
+	// - **RAG (Retrieval-Augmented Generation)**: Format retrieved documents with citations
+	// - **Summarization**: Clean HTML content and structure summaries
+	// - **Query Classification**: Format queries with metadata for better classification
+	// - **Multimodal**: Include images/audio/video in prompts
+	// - **Data Formatting**: Convert structured data to readable text
+	//
+	// **Best Practices:**
+	// - Keep templates simple - complex logic belongs in application code
+	// - Use clear, descriptive field names in context
+	// - Handle missing fields gracefully (templates use "missingkey=zero" by default)
+	// - Test templates with representative data before production use
 	Summarizer GeneratorConfig `json:"summarizer,omitempty,omitzero"`
 
 	// Template Handlebars template for generating prompts. See https://handlebarsjs.com/guide/ for more information.
@@ -778,6 +2237,187 @@ type FailedOperation struct {
 
 // FailedOperationOperation defines model for FailedOperation.Operation.
 type FailedOperationOperation string
+
+// FollowupStepConfig Configuration for generating follow-up questions. Uses a separate generator
+// call which can use a cheaper/faster model.
+type FollowupStepConfig struct {
+	// Chain Chain of generators to try in order. Mutually exclusive with 'generator'.
+	Chain []ChainLink `json:"chain,omitempty,omitzero"`
+
+	// Context Custom guidance for follow-up question focus and style
+	Context string `json:"context,omitempty,omitzero"`
+
+	// Count Number of follow-up questions to generate
+	Count int `json:"count,omitempty,omitzero"`
+
+	// Enabled Enable follow-up question generation
+	Enabled bool `json:"enabled,omitempty,omitzero"`
+
+	// Generator A unified configuration for a generative AI provider.
+	//
+	// Generators can be configured with custom prompts using templates. Templates use
+	// Handlebars syntax and support various built-in helpers for formatting and data manipulation.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full context data passed to the generator
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//    - Useful for cleaning web content before summarization
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//    - Use in `{{#if}}` blocks for conditional logic
+	//    - Compares any two values for equality
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    - Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//    - Compatible with GenKit's dotprompt format
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// RAG summarization with document references:
+	// ```handlebars
+	// Based on these documents, provide a comprehensive summary:
+	//
+	// {{#each documents}}
+	// Document {{this.id}}:
+	// {{scrubHtml this.content}}
+	//
+	// {{/each}}
+	//
+	// Valid document IDs: {{#each documents}}{{this.id}}{{#unless @last}}, {{/unless}}{{/each}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{#if system_prompt}}System: {{system_prompt}}{{/if}}
+	//
+	// User Query: {{query}}
+	//
+	// {{#if context}}
+	// Context:
+	// {{#each context}}
+	// - {{this}}
+	// {{/each}}
+	// {{/if}}
+	// ```
+	//
+	// Multimodal prompt with images:
+	// ```handlebars
+	// Analyze this image:
+	// {{media url=image_url}}
+	//
+	// Focus on: {{focus_area}}
+	// ```
+	//
+	// Structured data encoding:
+	// ```handlebars
+	// User Profile:
+	// {{encodeToon user_data indent=2 lengthMarker=true}}
+	//
+	// Please analyze this profile.
+	// ```
+	//
+	// **Common Use Cases:**
+	// - **RAG (Retrieval-Augmented Generation)**: Format retrieved documents with citations
+	// - **Summarization**: Clean HTML content and structure summaries
+	// - **Query Classification**: Format queries with metadata for better classification
+	// - **Multimodal**: Include images/audio/video in prompts
+	// - **Data Formatting**: Convert structured data to readable text
+	//
+	// **Best Practices:**
+	// - Keep templates simple - complex logic belongs in application code
+	// - Use clear, descriptive field names in context
+	// - Handle missing fields gracefully (templates use "missingkey=zero" by default)
+	// - Test templates with representative data before production use
+	Generator GeneratorConfig `json:"generator,omitempty,omitzero"`
+}
 
 // Fuzziness The fuzziness of the query. Can be an integer or "auto".
 type Fuzziness struct {
@@ -875,28 +2515,38 @@ type GeoShapeQuery struct {
 	Geometry GeoShapeGeometry `json:"geometry"`
 }
 
-// GoogleEmbedderConfig Configuration for the Google embedding provider.
+// GoogleEmbedderConfig Configuration for the Google AI (Gemini) embedding provider.
+//
+// API key via `api_key` field or `GEMINI_API_KEY` environment variable.
+//
+// **Example Models:** gemini-embedding-001 (default, 3072 dims)
+//
+// **Docs:** https://ai.google.dev/gemini-api/docs/embeddings
 type GoogleEmbedderConfig struct {
-	// ApiKey The Google API key.
+	// ApiKey The Google API key. Can also be set via GEMINI_API_KEY environment variable.
 	ApiKey string `json:"api_key,omitempty,omitzero"`
 
-	// Dimension The dimension of the embedding.
+	// Dimension The dimension of the embedding vector (768, 1536, or 3072 recommended).
 	Dimension int `json:"dimension,omitempty,omitzero"`
 
-	// Location The Google Cloud location (e.g., 'us-central1').
+	// Location The Google Cloud location (e.g., 'us-central1'). Required for Vertex AI, optional for Gemini API.
 	Location string `json:"location,omitempty,omitzero"`
 
-	// Model The name of the embedding model to use (e.g., 'text-embedding-004').
+	// Model The name of the embedding model to use.
 	Model string `json:"model"`
 
-	// ProjectId The Google Cloud project ID.
+	// ProjectId The Google Cloud project ID (optional for Gemini API, required for Vertex AI).
 	ProjectId string `json:"project_id,omitempty,omitzero"`
 
-	// Url The URL of the Google API endpoint.
+	// Url The URL of the Google API endpoint (optional, uses default if not specified).
 	Url string `json:"url,omitempty,omitzero"`
 }
 
-// GoogleGeneratorConfig Configuration for the Google generative AI provider (Gemini). Defaults to gemini-2.5-flash if no model is specified.
+// GoogleGeneratorConfig Configuration for the Google generative AI provider (Gemini).
+//
+// **Example Models:** gemini-2.5-flash (default), gemini-2.5-pro, gemini-3.0-pro
+//
+// **Docs:** https://ai.google.dev/gemini-api/docs/models
 type GoogleGeneratorConfig struct {
 	// ApiKey The Google API key.
 	ApiKey string `json:"api_key,omitempty,omitzero"`
@@ -907,7 +2557,7 @@ type GoogleGeneratorConfig struct {
 	// MaxTokens Maximum number of tokens to generate.
 	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
 
-	// Model The name of the generative model to use (e.g., 'gemini-2.5-flash', 'gemini-1.5-pro').
+	// Model The name of the generative model to use (e.g., 'gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-3.0-pro').
 	Model string `json:"model"`
 
 	// ProjectId The Google Cloud project ID.
@@ -955,6 +2605,9 @@ type GraphNodeSelector struct {
 	// Limit Maximum number of nodes to select from the referenced results
 	Limit int `json:"limit,omitempty,omitzero"`
 
+	// NodeFilter Filter nodes during graph traversal using existing query primitives
+	NodeFilter NodeFilter `json:"node_filter,omitempty,omitzero"`
+
 	// ResultRef Reference to search results to use as nodes:
 	// - "$full_text_results" - use full-text search results
 	// - "$aknn_results.index_name" - use vector search results from specific index
@@ -976,10 +2629,16 @@ type GraphQuery struct {
 	IndexName string `json:"index_name"`
 
 	// Params Parameters for graph traversal and pathfinding
-	Params GraphQueryParams `json:"params"`
+	Params GraphQueryParams `json:"params,omitempty,omitzero"`
+
+	// Pattern Pattern steps for pattern query type
+	Pattern []PatternStep `json:"pattern,omitempty,omitzero"`
+
+	// ReturnAliases Which aliases to return from pattern query (empty = all)
+	ReturnAliases []string `json:"return_aliases,omitempty,omitzero"`
 
 	// StartNodes Defines how to select start/target nodes for graph queries
-	StartNodes GraphNodeSelector `json:"start_nodes"`
+	StartNodes GraphNodeSelector `json:"start_nodes,omitempty,omitzero"`
 
 	// TargetNodes Defines how to select start/target nodes for graph queries
 	TargetNodes GraphNodeSelector `json:"target_nodes,omitempty,omitzero"`
@@ -1026,6 +2685,9 @@ type GraphQueryParams struct {
 	// MinWeight Minimum edge weight
 	MinWeight float64 `json:"min_weight,omitempty,omitzero"`
 
+	// NodeFilter Filter nodes during graph traversal using existing query primitives
+	NodeFilter NodeFilter `json:"node_filter,omitempty,omitzero"`
+
 	// WeightMode Path weighting algorithm for pathfinding:
 	// - min_hops: Minimize number of edges
 	// - min_weight: Minimize sum of edge weights
@@ -1035,6 +2697,9 @@ type GraphQueryParams struct {
 
 // GraphQueryResult Results of a graph query
 type GraphQueryResult struct {
+	// Matches Pattern matches (for pattern queries)
+	Matches []PatternMatch `json:"matches,omitempty,omitzero"`
+
 	// Nodes Result nodes
 	Nodes []GraphResultNode `json:"nodes,omitempty,omitzero"`
 
@@ -1277,6 +2942,15 @@ type MultiPhraseQuery struct {
 	Terms     [][]string `json:"terms"`
 }
 
+// NodeFilter Filter nodes during graph traversal using existing query primitives
+type NodeFilter struct {
+	// FilterPrefix Filter by key prefix
+	FilterPrefix string `json:"filter_prefix,omitempty,omitzero"`
+
+	// FilterQuery Bleve query to filter nodes (same syntax as search filter_query)
+	FilterQuery map[string]interface{} `json:"filter_query,omitempty,omitzero"`
+}
+
 // NumericRange defines model for NumericRange.
 type NumericRange struct {
 	From *float64 `json:"from,omitempty"`
@@ -1304,20 +2978,32 @@ type NumericRangeResult struct {
 }
 
 // OllamaEmbedderConfig Configuration for the Ollama embedding provider.
+//
+// Local embeddings for privacy and offline use. URL via `url` field or `OLLAMA_HOST` env var.
+//
+// **Example Models:** nomic-embed-text (768 dims), mxbai-embed-large (1024 dims), all-minilm (384 dims)
+//
+// **Docs:** https://ollama.com/search?c=embedding
 type OllamaEmbedderConfig struct {
-	// Model The name of the Ollama model to use.
+	// Model The name of the Ollama model to use (e.g., 'nomic-embed-text', 'mxbai-embed-large').
 	Model string `json:"model"`
 
-	// Url The URL of the Ollama API endpoint.
+	// Url The URL of the Ollama API endpoint. Can also be set via OLLAMA_HOST environment variable.
 	Url string `json:"url,omitempty,omitzero"`
 }
 
 // OllamaGeneratorConfig Configuration for the Ollama generative AI provider.
+//
+// Ollama provides local LLM inference for privacy and offline use.
+//
+// **Example Models:** llama3.3:70b, qwen2.5:72b, deepseek-r1:70b, mistral:7b, llava:34b
+//
+// **Docs:** https://ollama.com/library
 type OllamaGeneratorConfig struct {
 	// MaxTokens Maximum number of tokens to generate.
 	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
 
-	// Model The name of the Ollama model to use (e.g., 'llama3.2', 'llava').
+	// Model The name of the Ollama model to use (e.g., 'llama3.3:70b', 'qwen2.5:72b', 'deepseek-coder:33b').
 	Model string `json:"model"`
 
 	// Temperature Controls randomness in generation (0.0-2.0).
@@ -1343,18 +3029,32 @@ type OllamaRerankerConfig struct {
 }
 
 // OpenAIEmbedderConfig Configuration for the OpenAI embedding provider.
+//
+// API key via `api_key` field or `OPENAI_API_KEY` environment variable.
+// Supports OpenAI-compatible APIs via `url` field.
+//
+// **Example Models:** text-embedding-3-small (default, 1536 dims), text-embedding-3-large (3072 dims)
+//
+// **Docs:** https://platform.openai.com/docs/guides/embeddings
 type OpenAIEmbedderConfig struct {
-	// ApiKey The OpenAI API key.
+	// ApiKey The OpenAI API key. Can also be set via OPENAI_API_KEY environment variable.
 	ApiKey string `json:"api_key,omitempty,omitzero"`
+
+	// Dimensions Output dimension for the embedding (uses MRL for dimension reduction). Recommended: 256, 512, 1024, 1536, or 3072.
+	Dimensions int `json:"dimensions,omitempty,omitzero"`
 
 	// Model The name of the OpenAI model to use.
 	Model string `json:"model"`
 
-	// Url The URL of the OpenAI API endpoint.
+	// Url The URL of the OpenAI API endpoint. Defaults to OpenAI's API. Can be set via OPENAI_BASE_URL environment variable.
 	Url string `json:"url,omitempty,omitzero"`
 }
 
 // OpenAIGeneratorConfig Configuration for the OpenAI generative AI provider.
+//
+// **Example Models:** gpt-4.1 (default), gpt-4.1-mini, o3, o4-mini
+//
+// **Docs:** https://platform.openai.com/docs/models
 type OpenAIGeneratorConfig struct {
 	// ApiKey The OpenAI API key.
 	ApiKey string `json:"api_key,omitempty,omitzero"`
@@ -1365,7 +3065,7 @@ type OpenAIGeneratorConfig struct {
 	// MaxTokens Maximum number of tokens to generate.
 	MaxTokens int `json:"max_tokens,omitempty,omitzero"`
 
-	// Model The name of the OpenAI model to use (e.g., 'gpt-4o', 'gpt-4-turbo').
+	// Model The name of the OpenAI model to use (e.g., 'gpt-4.1', 'gpt-4.1-mini', 'o4-mini').
 	Model string `json:"model"`
 
 	// PresencePenalty Penalty for token presence (-2.0 to 2.0).
@@ -1455,6 +3155,51 @@ type PathFindWeightMode string
 // - max_weight: Maximize product of edge weights
 type PathWeightMode string
 
+// PatternEdgeStep Edge constraints in a pattern step
+type PatternEdgeStep struct {
+	// Direction Direction of edges to query:
+	// - out: Outgoing edges from the node
+	// - in: Incoming edges to the node
+	// - both: Both outgoing and incoming edges
+	Direction EdgeDirection `json:"direction,omitempty,omitzero"`
+
+	// MaxHops Maximum number of hops (>1 = variable-length path)
+	MaxHops int `json:"max_hops,omitempty,omitzero"`
+
+	// MaxWeight Maximum edge weight filter
+	MaxWeight float64 `json:"max_weight,omitempty,omitzero"`
+
+	// MinHops Minimum number of hops (1 = direct edge)
+	MinHops int `json:"min_hops,omitempty,omitzero"`
+
+	// MinWeight Minimum edge weight filter
+	MinWeight float64 `json:"min_weight,omitempty,omitzero"`
+
+	// Types Edge types to traverse (empty = any)
+	Types []string `json:"types,omitempty,omitzero"`
+}
+
+// PatternMatch A single match from a pattern query
+type PatternMatch struct {
+	// Bindings Map of alias to matched node
+	Bindings map[string]GraphResultNode `json:"bindings,omitempty,omitzero"`
+
+	// Path Edges traversed in this match
+	Path []PathEdge `json:"path,omitempty,omitzero"`
+}
+
+// PatternStep A step in a graph pattern query
+type PatternStep struct {
+	// Alias Name for this node (reuse alias for cycle detection)
+	Alias string `json:"alias,omitempty,omitzero"`
+
+	// Edge Edge constraints in a pattern step
+	Edge PatternEdgeStep `json:"edge,omitempty,omitzero"`
+
+	// NodeFilter Filter nodes during graph traversal using existing query primitives
+	NodeFilter NodeFilter `json:"node_filter,omitempty,omitzero"`
+}
+
 // Permission defines model for Permission.
 type Permission struct {
 	// Resource Resource name (e.g., table name, target username, or '*' for global).
@@ -1521,6 +3266,199 @@ type Pruner struct {
 // Query defines model for Query.
 type Query struct {
 	union json.RawMessage
+}
+
+// QueryBuilderRequest defines model for QueryBuilderRequest.
+type QueryBuilderRequest struct {
+	// Generator A unified configuration for a generative AI provider.
+	//
+	// Generators can be configured with custom prompts using templates. Templates use
+	// Handlebars syntax and support various built-in helpers for formatting and data manipulation.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full context data passed to the generator
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//    - Useful for cleaning web content before summarization
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//    - Use in `{{#if}}` blocks for conditional logic
+	//    - Compares any two values for equality
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    - Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//    - Compatible with GenKit's dotprompt format
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// RAG summarization with document references:
+	// ```handlebars
+	// Based on these documents, provide a comprehensive summary:
+	//
+	// {{#each documents}}
+	// Document {{this.id}}:
+	// {{scrubHtml this.content}}
+	//
+	// {{/each}}
+	//
+	// Valid document IDs: {{#each documents}}{{this.id}}{{#unless @last}}, {{/unless}}{{/each}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{#if system_prompt}}System: {{system_prompt}}{{/if}}
+	//
+	// User Query: {{query}}
+	//
+	// {{#if context}}
+	// Context:
+	// {{#each context}}
+	// - {{this}}
+	// {{/each}}
+	// {{/if}}
+	// ```
+	//
+	// Multimodal prompt with images:
+	// ```handlebars
+	// Analyze this image:
+	// {{media url=image_url}}
+	//
+	// Focus on: {{focus_area}}
+	// ```
+	//
+	// Structured data encoding:
+	// ```handlebars
+	// User Profile:
+	// {{encodeToon user_data indent=2 lengthMarker=true}}
+	//
+	// Please analyze this profile.
+	// ```
+	//
+	// **Common Use Cases:**
+	// - **RAG (Retrieval-Augmented Generation)**: Format retrieved documents with citations
+	// - **Summarization**: Clean HTML content and structure summaries
+	// - **Query Classification**: Format queries with metadata for better classification
+	// - **Multimodal**: Include images/audio/video in prompts
+	// - **Data Formatting**: Convert structured data to readable text
+	//
+	// **Best Practices:**
+	// - Keep templates simple - complex logic belongs in application code
+	// - Use clear, descriptive field names in context
+	// - Handle missing fields gracefully (templates use "missingkey=zero" by default)
+	// - Test templates with representative data before production use
+	Generator GeneratorConfig `json:"generator,omitempty,omitzero"`
+
+	// Intent Natural language description of the search intent
+	Intent string `json:"intent"`
+
+	// SchemaFields List of searchable field names to consider. Overrides table schema if provided.
+	SchemaFields []string `json:"schema_fields,omitempty,omitzero"`
+
+	// Table Name of the table to build query for. If provided, uses table schema for field context.
+	Table string `json:"table,omitempty,omitzero"`
+}
+
+// QueryBuilderResult defines model for QueryBuilderResult.
+type QueryBuilderResult struct {
+	// Confidence Model's confidence in the generated query (0.0-1.0)
+	Confidence float64 `json:"confidence,omitempty,omitzero"`
+
+	// Explanation Human-readable explanation of what the query does and why it was structured this way
+	Explanation string `json:"explanation,omitempty,omitzero"`
+
+	// Query Generated search query in simplified DSL format.
+	// Can be used directly in QueryRequest.full_text_search or filter_query.
+	Query map[string]interface{} `json:"query"`
+
+	// Warnings Any issues, limitations, or assumptions made when generating the query
+	Warnings []string `json:"warnings,omitempty,omitzero"`
 }
 
 // QueryHit A single query result hit
@@ -1597,7 +3535,30 @@ type QueryRequest struct {
 	// author: Jane Doe
 	// tags[#3]: ai,search,ml
 	// ```
+	//
+	// **References**:
+	// - TOON Specification: https://github.com/toon-format/toon
+	// - Go Implementation: https://github.com/alpkeskin/gotoon
 	DocumentRenderer string `json:"document_renderer,omitempty,omitzero"`
+
+	// EmbeddingTemplate Optional Handlebars template for multimodal embedding of the semantic_search query.
+	// The template has access to `this` which contains the semantic_search string value.
+	//
+	// Use this when you want to embed multimodal content (images, PDFs, etc.) instead of
+	// just text. The template is rendered using dotprompt with access to remote content helpers.
+	//
+	// **Available Helpers**:
+	// - `remoteMedia url=<url>` - Fetches and embeds remote images/media
+	// - `remotePDF url=<url>` - Fetches and extracts content from PDFs
+	// - `remoteText url=<url>` - Fetches and includes remote text content
+	//
+	// **Examples**:
+	// - PDF search: `{{remotePDF url=this}}`
+	// - Image search: `{{remoteMedia url=this}}`
+	// - Mixed: `Search for: {{this}} {{#if this}}{{remoteMedia url=this}}{{/if}}`
+	//
+	// When not specified, the semantic_search string is embedded as plain text.
+	EmbeddingTemplate string `json:"embedding_template,omitempty,omitzero"`
 
 	// Embeddings Pre-computed embeddings to use for semantic searches instead of embedding the semantic_search string.
 	// The keys are the index names, and values are the embedding vectors.
@@ -1699,7 +3660,7 @@ type QueryRequest struct {
 	// to the query and can be combined with full_text_search using Reciprocal Rank Fusion (RRF).
 	//
 	// The semantic_search string is automatically embedded using the configured embedding model
-	// for the specified indexes.
+	// for the specified indexes. Use `embedding_template` for multimodal queries.
 	SemanticSearch string `json:"semantic_search,omitempty,omitzero"`
 
 	// Table Name of the table to query. Optional for global queries.
@@ -1741,6 +3702,13 @@ type QueryResult struct {
 	Took time.Duration `json:"took"`
 }
 
+// QueryStrategy Strategy for query transformation and retrieval:
+// - simple: Direct query with multi-phrase expansion. Best for straightforward factual queries.
+// - decompose: Break complex queries into sub-questions, retrieve for each. Best for multi-part questions.
+// - step_back: Generate broader background query first, then specific query. Best for questions needing context.
+// - hyde: Generate hypothetical answer document, embed that for retrieval. Best for abstract/conceptual questions.
+type QueryStrategy string
+
 // QueryStringQuery defines model for QueryStringQuery.
 type QueryStringQuery struct {
 	// Boost A floating-point number used to decrease or increase the relevance scores of a query.
@@ -1750,6 +3718,171 @@ type QueryStringQuery struct {
 
 // RAGRequest defines model for RAGRequest.
 type RAGRequest struct {
+	// Generator A unified configuration for a generative AI provider.
+	//
+	// Generators can be configured with custom prompts using templates. Templates use
+	// Handlebars syntax and support various built-in helpers for formatting and data manipulation.
+	//
+	// **Template System:**
+	// - **Syntax**: Handlebars templating (https://handlebarsjs.com/guide/)
+	// - **Caching**: Templates are automatically cached with configurable TTL (default: 5 minutes)
+	// - **Context**: Templates receive the full context data passed to the generator
+	//
+	// **Built-in Helpers:**
+	//
+	// 1. **scrubHtml** - Remove script/style tags and extract clean text from HTML
+	//    ```handlebars
+	//    {{scrubHtml html_content}}
+	//    ```
+	//    - Removes `<script>` and `<style>` tags
+	//    - Adds newlines after block elements (p, div, h1-h6, li, etc.)
+	//    - Returns plain text with preserved readability
+	//    - Useful for cleaning web content before summarization
+	//
+	// 2. **eq** - Equality comparison for conditionals
+	//    ```handlebars
+	//    {{#if (eq status "active")}}Active{{/if}}
+	//    {{#if (eq @key "special")}}Special field{{/if}}
+	//    ```
+	//    - Use in `{{#if}}` blocks for conditional logic
+	//    - Compares any two values for equality
+	//
+	// 3. **media** - GenKit dotprompt media directive for multimodal content
+	//    ```handlebars
+	//    {{media url=imageDataURI}}
+	//    {{media url=this.image_url}}
+	//    {{media url="https://example.com/image.jpg"}}
+	//    {{media url="s3://endpoint/bucket/image.png"}}
+	//    {{media url="file:///path/to/image.jpg"}}
+	//    ```
+	//    - Returns: `<<<dotprompt:media:url data:image/png;base64,...>>>`
+	//    - Compatible with GenKit's dotprompt format
+	//
+	//    **Supported URL Schemes:**
+	//    - `data:` - Base64 encoded data URIs (e.g., `data:image/jpeg;base64,...`)
+	//    - `http://` / `https://` - Web URLs with automatic content type detection
+	//    - `file://` - Local filesystem paths
+	//    - `s3://` - S3-compatible storage (format: `s3://endpoint/bucket/key`)
+	//
+	//    **Automatic Content Processing:**
+	//    - **Images**: Downloaded, resized (if needed), converted to data URIs
+	//    - **PDFs**: Text extracted or first page rendered as image
+	//    - **HTML**: Readable text extracted using Mozilla Readability
+	//
+	//    **Security Controls:**
+	//    Downloads are protected by content security settings (see Configuration Reference):
+	//    - Allowed host whitelist
+	//    - Private IP blocking (prevents SSRF attacks)
+	//    - Download size limits (default: 100MB)
+	//    - Download timeouts (default: 30s)
+	//    - Image dimension limits (default: 2048px, auto-resized)
+	//
+	//    See: https://antfly.io/docs/configuration#security--cors
+	//
+	// 4. **encodeToon** - Encode data in TOON format (Token-Oriented Object Notation)
+	//    ```handlebars
+	//    {{encodeToon this.fields}}
+	//    {{encodeToon this.fields lengthMarker=false indent=4}}
+	//    {{encodeToon this.fields delimiter="\t"}}
+	//    ```
+	//
+	//    **What is TOON?**
+	//    TOON is a compact, human-readable format designed for passing structured data to LLMs.
+	//    It provides **30-60% token reduction** compared to JSON while maintaining high LLM
+	//    comprehension accuracy.
+	//
+	//    **Key Features:**
+	//    - Compact syntax using `:` for key-value pairs
+	//    - Array length markers: `tags[#3]: ai,search,ml`
+	//    - Tabular format for uniform data structures
+	//    - Optimized for LLM parsing and understanding
+	//    - Maintains human readability
+	//
+	//    **Benefits:**
+	//    - **Lower API costs** - Reduced token usage means lower LLM API costs
+	//    - **Faster responses** - Less tokens to process
+	//    - **More context** - Fit more documents within token limits
+	//
+	//    **Options:**
+	//    - `lengthMarker` (bool): Add # prefix to array counts like `[#3]` (default: true)
+	//    - `indent` (int): Indentation spacing for nested objects (default: 2)
+	//    - `delimiter` (string): Field separator for tabular arrays (default: none, use `"\t"` for tabs)
+	//
+	//    **Example output:**
+	//    ```
+	//    title: Introduction to Vector Search
+	//    author: Jane Doe
+	//    tags[#3]: ai,search,ml
+	//    metadata:
+	//      edition: 2
+	//      pages: 450
+	//    ```
+	//
+	//    **Default in RAG:** TOON is the default format for document rendering in RAG queries.
+	//
+	//    **References:**
+	//    - TOON Specification: https://github.com/toon-format/toon
+	//    - Go Implementation: https://github.com/alpkeskin/gotoon
+	//
+	// **Template Examples:**
+	//
+	// RAG summarization with document references:
+	// ```handlebars
+	// Based on these documents, provide a comprehensive summary:
+	//
+	// {{#each documents}}
+	// Document {{this.id}}:
+	// {{scrubHtml this.content}}
+	//
+	// {{/each}}
+	//
+	// Valid document IDs: {{#each documents}}{{this.id}}{{#unless @last}}, {{/unless}}{{/each}}
+	// ```
+	//
+	// Conditional formatting:
+	// ```handlebars
+	// {{#if system_prompt}}System: {{system_prompt}}{{/if}}
+	//
+	// User Query: {{query}}
+	//
+	// {{#if context}}
+	// Context:
+	// {{#each context}}
+	// - {{this}}
+	// {{/each}}
+	// {{/if}}
+	// ```
+	//
+	// Multimodal prompt with images:
+	// ```handlebars
+	// Analyze this image:
+	// {{media url=image_url}}
+	//
+	// Focus on: {{focus_area}}
+	// ```
+	//
+	// Structured data encoding:
+	// ```handlebars
+	// User Profile:
+	// {{encodeToon user_data indent=2 lengthMarker=true}}
+	//
+	// Please analyze this profile.
+	// ```
+	//
+	// **Common Use Cases:**
+	// - **RAG (Retrieval-Augmented Generation)**: Format retrieved documents with citations
+	// - **Summarization**: Clean HTML content and structure summaries
+	// - **Query Classification**: Format queries with metadata for better classification
+	// - **Multimodal**: Include images/audio/video in prompts
+	// - **Data Formatting**: Convert structured data to readable text
+	//
+	// **Best Practices:**
+	// - Keep templates simple - complex logic belongs in application code
+	// - Use clear, descriptive field names in context
+	// - Handle missing fields gracefully (templates use "missingkey=zero" by default)
+	// - Test templates with representative data before production use
+	Generator GeneratorConfig `json:"generator"`
+
 	// Prompt Optional custom user prompt template for the LLM. If not provided, a default prompt is used.
 	// The prompt can reference the following variables:
 	// - {{documents}}: Array of retrieved documents with id and fields
@@ -1764,9 +3897,6 @@ type RAGRequest struct {
 	// For broadcast: [{"table": "images", "limit": 5, ...}, {"table": "products", "limit": 5, ...}]
 	// For mixed: [{"table": "papers", "semantic_search": "...", "limit": 10}, {"table": "books", "full_text_search": {...}, "limit": 5}]
 	Queries []QueryRequest `json:"queries"`
-
-	// Summarizer A unified configuration for a generative AI provider.
-	Summarizer GeneratorConfig `json:"summarizer"`
 
 	// SystemPrompt Optional system prompt to guide the summarization
 	SystemPrompt string `json:"system_prompt,omitempty,omitzero"`
@@ -1814,8 +3944,28 @@ type ResourceType string
 // RestoreRequest defines model for RestoreRequest.
 type RestoreRequest = BackupRequest
 
+// RetryConfig Retry configuration for generator calls
+type RetryConfig struct {
+	// BackoffMultiplier Multiplier for exponential backoff
+	BackoffMultiplier float32 `json:"backoff_multiplier,omitempty,omitzero"`
+
+	// InitialBackoffMs Initial backoff delay in milliseconds
+	InitialBackoffMs int `json:"initial_backoff_ms,omitempty,omitzero"`
+
+	// MaxAttempts Maximum number of retry attempts
+	MaxAttempts int `json:"max_attempts,omitempty,omitzero"`
+
+	// MaxBackoffMs Maximum backoff delay in milliseconds
+	MaxBackoffMs int `json:"max_backoff_ms,omitempty,omitzero"`
+}
+
 // RouteType Classification of query type: question (specific factual query) or search (exploratory query)
 type RouteType string
+
+// SemanticQueryMode Mode for semantic query generation:
+// - rewrite: Transform query into expanded keywords/concepts optimized for vector search (Level 2 optimization)
+// - hypothetical: Generate a hypothetical answer that would appear in relevant documents (HyDE - Level 3 optimization)
+type SemanticQueryMode string
 
 // ShardConfig defines model for ShardConfig.
 type ShardConfig struct {
@@ -2081,54 +4231,18 @@ type User struct {
 	Username     string `json:"username"`
 }
 
-// UserContext Optional user context to customize the content guidance for each section of the answer agent response.
-//
-// **What you can customize**: Style, tone, length, detail level, and focus of content for each section independently.
-//
-// **What is fixed**: The response format is always markdown with consistent structure (## Reasoning, ## Answer, ## Follow-up Questions).
-// Markdown formatting (headings, bullets, code blocks, etc.) is always applied and cannot be disabled.
-//
-// **Architecture**: These contexts are passed as template variables to the prompt template. Defaults are set
-// at the application layer, and users can override them via this API to customize content guidance.
-type UserContext struct {
-	// AnswerContext Custom content guidance for the answer section. Controls the tone, content depth, level of detail,
-	// and what information to emphasize. Does not control markdown formatting (which is always applied).
-	AnswerContext string `json:"answer_context,omitempty,omitzero"`
-
-	// FollowupContext Custom content guidance for follow-up questions. Controls the quantity, focus area, tone,
-	// and style of follow-up questions. Does not control markdown formatting.
-	FollowupContext string `json:"followup_context,omitempty,omitzero"`
-
-	// ReasoningContext Custom content guidance for the reasoning section. Controls what information to include,
-	// the level of detail, and the focus of the reasoning process. Does not control markdown formatting.
-	ReasoningContext string `json:"reasoning_context,omitempty,omitzero"`
-}
-
 // VertexEmbedderConfig Configuration for Google Cloud Vertex AI embedding models (enterprise-grade).
 //
-// Uses Application Default Credentials (ADC) for authentication by default.
-// Suitable for production deployments on Google Cloud Platform.
+// Uses Application Default Credentials (ADC) for authentication. Requires IAM role `roles/aiplatform.user`.
 //
-// **Authentication Priority:**
-// 1. credentials_path (path to service account key file)
-// 2. GOOGLE_APPLICATION_CREDENTIALS environment variable
-// 3. Application Default Credentials (ADC) - RECOMMENDED
-//   - In GCP: automatic (Cloud Run, GKE, Compute Engine)
-//   - Local dev: `gcloud auth application-default login`
+// **Example Models:** gemini-embedding-001 (default, 3072 dims), multimodalembedding (images/audio/video)
 //
-// **Required IAM Permission:** `roles/aiplatform.user`
-//
-// **Supported Models:**
-// - text-embedding-004 (latest, 768 dimensions)
-// - textembedding-gecko@003, @002, @001 (legacy)
-// - textembedding-gecko-multilingual@001 (multilingual support)
-// - text-multilingual-embedding-002 (multilingual, 768 dimensions)
-// - multimodalembedding (images, audio, video - 128/256/512/1408 dimensions)
+// **Docs:** https://cloud.google.com/vertex-ai/generative-ai/docs/embeddings/get-text-embeddings
 type VertexEmbedderConfig struct {
 	// CredentialsPath Path to service account JSON key file. Alternative to ADC for non-GCP environments.
 	CredentialsPath string `json:"credentials_path,omitempty,omitzero"`
 
-	// Dimension The dimension of the embedding vector. Model-specific (e.g., 768 for text-embedding-004, 128-1408 for multimodalembedding).
+	// Dimension The dimension of the embedding vector (768, 1536, or 3072 for gemini-embedding-001; 128-1408 for multimodalembedding).
 	Dimension int `json:"dimension,omitempty,omitzero"`
 
 	// Location Google Cloud region for Vertex AI API (e.g., 'us-central1', 'europe-west1'). Can also be set via GOOGLE_CLOUD_LOCATION. Defaults to 'us-central1'.
@@ -2143,28 +4257,13 @@ type VertexEmbedderConfig struct {
 
 // VertexGeneratorConfig Configuration for Google Cloud Vertex AI generative models (enterprise-grade).
 //
-// Uses Application Default Credentials (ADC) for authentication by default.
-// Suitable for production deployments on Google Cloud Platform.
+// Uses Application Default Credentials (ADC) for authentication. In GCP environments
+// (Cloud Run, GKE, Compute Engine) this is automatic. For local dev, run
+// `gcloud auth application-default login`. Requires IAM role `roles/aiplatform.user`.
 //
-// **Authentication Priority:**
-// 1. credentials_path (path to service account key file)
-// 2. GOOGLE_APPLICATION_CREDENTIALS environment variable
-// 3. Application Default Credentials (ADC) - RECOMMENDED
-//   - In GCP: automatic (Cloud Run, GKE, Compute Engine)
-//   - Local dev: `gcloud auth application-default login`
+// **Example Models:** gemini-2.5-flash (default), gemini-2.5-pro, gemini-3.0-pro
 //
-// **Note:** credentials_json is not supported by the genkit VertexAI plugin.
-// Use credentials_path or ADC instead.
-//
-// **Required IAM Permission:** `roles/aiplatform.user`
-//
-// **Supported Models:**
-// - gemini-2.5-flash (default, fast and efficient)
-// - gemini-1.5-pro (balanced performance)
-// - gemini-1.5-flash (cost-effective)
-// - gemini-2.0-pro (advanced reasoning)
-//
-// Defaults to gemini-2.5-flash if no model is specified.
+// **Docs:** https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models
 type VertexGeneratorConfig struct {
 	// CredentialsPath Path to service account JSON key file. Sets GOOGLE_APPLICATION_CREDENTIALS environment variable. Alternative to ADC for non-GCP environments.
 	CredentialsPath string `json:"credentials_path,omitempty,omitzero"`
@@ -2231,6 +4330,9 @@ type RemovePermissionFromUserParams struct {
 
 // AnswerAgentJSONRequestBody defines body for AnswerAgent for application/json ContentType.
 type AnswerAgentJSONRequestBody = AnswerAgentRequest
+
+// QueryBuilderAgentJSONRequestBody defines body for QueryBuilderAgent for application/json ContentType.
+type QueryBuilderAgentJSONRequestBody = QueryBuilderRequest
 
 // GlobalQueryJSONRequestBody defines body for GlobalQuery for application/json ContentType.
 type GlobalQueryJSONRequestBody = QueryRequest
@@ -2591,6 +4693,32 @@ func (t *EmbedderConfig) MergeBedrockEmbedderConfig(v BedrockEmbedderConfig) err
 	return err
 }
 
+// AsCohereEmbedderConfig returns the union data inside the EmbedderConfig as a CohereEmbedderConfig
+func (t EmbedderConfig) AsCohereEmbedderConfig() (CohereEmbedderConfig, error) {
+	var body CohereEmbedderConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCohereEmbedderConfig overwrites any union data inside the EmbedderConfig as the provided CohereEmbedderConfig
+func (t *EmbedderConfig) FromCohereEmbedderConfig(v CohereEmbedderConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCohereEmbedderConfig performs a merge with any union data inside the EmbedderConfig, using the provided CohereEmbedderConfig
+func (t *EmbedderConfig) MergeCohereEmbedderConfig(v CohereEmbedderConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t EmbedderConfig) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	if err != nil {
@@ -2842,6 +4970,32 @@ func (t *GeneratorConfig) FromAnthropicGeneratorConfig(v AnthropicGeneratorConfi
 
 // MergeAnthropicGeneratorConfig performs a merge with any union data inside the GeneratorConfig, using the provided AnthropicGeneratorConfig
 func (t *GeneratorConfig) MergeAnthropicGeneratorConfig(v AnthropicGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsCohereGeneratorConfig returns the union data inside the GeneratorConfig as a CohereGeneratorConfig
+func (t GeneratorConfig) AsCohereGeneratorConfig() (CohereGeneratorConfig, error) {
+	var body CohereGeneratorConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCohereGeneratorConfig overwrites any union data inside the GeneratorConfig as the provided CohereGeneratorConfig
+func (t *GeneratorConfig) FromCohereGeneratorConfig(v CohereGeneratorConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCohereGeneratorConfig performs a merge with any union data inside the GeneratorConfig, using the provided CohereGeneratorConfig
+func (t *GeneratorConfig) MergeCohereGeneratorConfig(v CohereGeneratorConfig) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -3852,6 +6006,32 @@ func (t *RerankerConfig) MergeTermiteRerankerConfig(v TermiteRerankerConfig) err
 	return err
 }
 
+// AsCohereRerankerConfig returns the union data inside the RerankerConfig as a CohereRerankerConfig
+func (t RerankerConfig) AsCohereRerankerConfig() (CohereRerankerConfig, error) {
+	var body CohereRerankerConfig
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCohereRerankerConfig overwrites any union data inside the RerankerConfig as the provided CohereRerankerConfig
+func (t *RerankerConfig) FromCohereRerankerConfig(v CohereRerankerConfig) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCohereRerankerConfig performs a merge with any union data inside the RerankerConfig, using the provided CohereRerankerConfig
+func (t *RerankerConfig) MergeCohereRerankerConfig(v CohereRerankerConfig) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t RerankerConfig) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	if err != nil {
@@ -3997,6 +6177,11 @@ type ClientInterface interface {
 
 	AnswerAgent(ctx context.Context, body AnswerAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// QueryBuilderAgentWithBody request with any body
+	QueryBuilderAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	QueryBuilderAgent(ctx context.Context, body QueryBuilderAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GlobalQueryWithBody request with any body
 	GlobalQueryWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -4124,6 +6309,30 @@ func (c *Client) AnswerAgentWithBody(ctx context.Context, contentType string, bo
 
 func (c *Client) AnswerAgent(ctx context.Context, body AnswerAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewAnswerAgentRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) QueryBuilderAgentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewQueryBuilderAgentRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) QueryBuilderAgent(ctx context.Context, body QueryBuilderAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewQueryBuilderAgentRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -4659,6 +6868,46 @@ func NewAnswerAgentRequestWithBody(server string, contentType string, body io.Re
 	}
 
 	operationPath := fmt.Sprintf("/agents/answer")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewQueryBuilderAgentRequest calls the generic QueryBuilderAgent builder with application/json body
+func NewQueryBuilderAgentRequest(server string, body QueryBuilderAgentJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewQueryBuilderAgentRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewQueryBuilderAgentRequestWithBody generates requests for QueryBuilderAgent with any type of body
+func NewQueryBuilderAgentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/agents/query-builder")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -5906,6 +8155,11 @@ type ClientWithResponsesInterface interface {
 
 	AnswerAgentWithResponse(ctx context.Context, body AnswerAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*AnswerAgentResponse, error)
 
+	// QueryBuilderAgentWithBodyWithResponse request with any body
+	QueryBuilderAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueryBuilderAgentResponse, error)
+
+	QueryBuilderAgentWithResponse(ctx context.Context, body QueryBuilderAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*QueryBuilderAgentResponse, error)
+
 	// GlobalQueryWithBodyWithResponse request with any body
 	GlobalQueryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GlobalQueryResponse, error)
 
@@ -6037,6 +8291,31 @@ func (r AnswerAgentResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r AnswerAgentResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type QueryBuilderAgentResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *QueryBuilderResult
+	JSON400      *Error
+	JSON404      *Error
+	JSON500      *Error
+}
+
+// Status returns HTTPResponse.Status
+func (r QueryBuilderAgentResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r QueryBuilderAgentResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -6764,6 +9043,23 @@ func (c *ClientWithResponses) AnswerAgentWithResponse(ctx context.Context, body 
 	return ParseAnswerAgentResponse(rsp)
 }
 
+// QueryBuilderAgentWithBodyWithResponse request with arbitrary body returning *QueryBuilderAgentResponse
+func (c *ClientWithResponses) QueryBuilderAgentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueryBuilderAgentResponse, error) {
+	rsp, err := c.QueryBuilderAgentWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseQueryBuilderAgentResponse(rsp)
+}
+
+func (c *ClientWithResponses) QueryBuilderAgentWithResponse(ctx context.Context, body QueryBuilderAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*QueryBuilderAgentResponse, error) {
+	rsp, err := c.QueryBuilderAgent(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseQueryBuilderAgentResponse(rsp)
+}
+
 // GlobalQueryWithBodyWithResponse request with arbitrary body returning *GlobalQueryResponse
 func (c *ClientWithResponses) GlobalQueryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*GlobalQueryResponse, error) {
 	rsp, err := c.GlobalQueryWithBody(ctx, contentType, body, reqEditors...)
@@ -7165,6 +9461,53 @@ func ParseAnswerAgentResponse(rsp *http.Response) (*AnswerAgentResponse, error) 
 
 	case rsp.StatusCode == 200:
 		// Content-type (text/event-stream) unsupported
+
+	}
+
+	return response, nil
+}
+
+// ParseQueryBuilderAgentResponse parses an HTTP response from a QueryBuilderAgentWithResponse call
+func ParseQueryBuilderAgentResponse(rsp *http.Response) (*QueryBuilderAgentResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &QueryBuilderAgentResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest QueryBuilderResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -8380,512 +10723,764 @@ func ParseAddPermissionToUserResponse(rsp *http.Response) (*AddPermissionToUserR
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"mz8c4AIA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

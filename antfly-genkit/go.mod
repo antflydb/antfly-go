@@ -5,7 +5,7 @@ go 1.24.7
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly-go/antfly v0.0.0-20251125234808-eb6f13c86da9
+	github.com/antflydb/antfly-go/antfly v0.0.0-20251201184810-7e68b913d253
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/firebase/genkit/go v1.2.0
 	github.com/stretchr/testify v1.11.1
@@ -26,7 +26,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.22.3 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.4 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
-	github.com/goccy/go-yaml v1.18.0 // indirect
+	github.com/goccy/go-yaml v1.19.0 // indirect
 	github.com/google/dotprompt/go v0.0.0-20251121213842-db5416a4f7ce // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
