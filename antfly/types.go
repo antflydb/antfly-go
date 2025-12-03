@@ -57,7 +57,6 @@ type (
 	// Chunker config types
 	ChunkerProvider      = oapi.ChunkerProvider
 	ChunkerConfig        = oapi.ChunkerConfig
-	ChunkingModel        = oapi.ChunkingModel
 	TermiteChunkerConfig = oapi.TermiteChunkerConfig
 	AntflyChunkerConfig  = oapi.AntflyChunkerConfig
 
