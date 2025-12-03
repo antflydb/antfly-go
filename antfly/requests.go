@@ -239,8 +239,14 @@ type RAGRequest struct {
 	// Queries to execute for retrieval
 	Queries []QueryRequest `json:"queries"`
 
-	// Generator model configuration for generation
-	Generator GeneratorConfig `json:"generator"`
+	// Generator model configuration for generation.
+	// Mutually exclusive with Chain. Either Generator or Chain must be provided.
+	Generator GeneratorConfig `json:"generator,omitzero"`
+
+	// Chain of generators with retry/fallback semantics.
+	// Mutually exclusive with Generator. Either Generator or Chain must be provided.
+	// Each link can specify retry configuration and a condition for trying the next generator.
+	Chain []ChainLink `json:"chain,omitempty,omitzero"`
 
 	// SystemPrompt optional system prompt to guide the summarization
 	SystemPrompt string `json:"system_prompt,omitempty"`
@@ -255,9 +261,14 @@ type AnswerAgentRequest struct {
 	// Query is the user's natural language query (required)
 	Query string `json:"query"`
 
-	// Generator is the default model configuration for all pipeline steps (required)
-	// This is the simple configuration - just set this and everything works with sensible defaults
-	Generator GeneratorConfig `json:"generator"`
+	// Generator is the default model configuration for all pipeline steps.
+	// Mutually exclusive with Chain. Either Generator or Chain must be provided.
+	Generator GeneratorConfig `json:"generator,omitzero"`
+
+	// Chain of generators with retry/fallback semantics.
+	// Mutually exclusive with Generator. Either Generator or Chain must be provided.
+	// Each link can specify retry configuration and a condition for trying the next generator.
+	Chain []ChainLink `json:"chain,omitempty,omitzero"`
 
 	// Queries is the array of query requests to execute with the transformed query (required)
 	// The transformed semantic search query will be applied to each QueryRequest
@@ -280,7 +291,7 @@ type AnswerAgentRequest struct {
 	ReserveTokens int `json:"reserve_tokens,omitempty"`
 
 	// Eval is the configuration for inline evaluation of query results
-	Eval EvalConfig `json:"eval,omitempty,omitzero"`
+	Eval EvalConfig `json:"eval,omitzero"`
 }
 
 // RAGOptions contains optional parameters for RAG requests
