@@ -239,8 +239,8 @@ type RAGRequest struct {
 	// Queries to execute for retrieval
 	Queries []QueryRequest `json:"queries"`
 
-	// Summarizer model configuration for generation
-	Summarizer GeneratorConfig `json:"summarizer"`
+	// Generator model configuration for generation
+	Generator GeneratorConfig `json:"generator"`
 
 	// SystemPrompt optional system prompt to guide the summarization
 	SystemPrompt string `json:"system_prompt,omitempty"`
