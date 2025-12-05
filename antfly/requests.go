@@ -311,7 +311,7 @@ type AnswerAgentOptions struct {
 	OnReasoning func(chunk string) error
 
 	// OnHit is called for each search result hit
-	OnHit func(hit string) error
+	OnHit func(hit *Hit) error
 
 	// OnAnswer is called for each chunk of the answer text
 	OnAnswer func(chunk string) error

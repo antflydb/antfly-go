@@ -28,9 +28,7 @@ import (
 
 // AntflyClient is a client for interacting with the Antfly API
 type AntflyClient struct {
-	client     *oapi.Client
-	httpClient *http.Client
-	baseURL    string
+	client *oapi.Client
 }
 
 // NewAntflyClient creates a new Antfly client
@@ -40,9 +38,7 @@ func NewAntflyClient(baseURL string, httpClient *http.Client) (*AntflyClient, er
 		return nil, err
 	}
 	return &AntflyClient{
-		client:     client,
-		httpClient: httpClient,
-		baseURL:    baseURL,
+		client: client,
 	}, err
 }
 

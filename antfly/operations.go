@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/antflydb/antfly-go/antfly/oapi"
@@ -211,8 +210,6 @@ func (c *AntflyClient) ScanKeys(ctx context.Context, tableName string, request S
 // Accepts a RAGRequest with one or more QueryRequests for single-table or multi-table RAG queries
 // The callback function is called for each chunk of the streaming response
 func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOptions) (string, error) {
-	ragURL, _ := url.JoinPath(c.baseURL, "rag")
-
 	// Merge options
 	var opt RAGOptions
 	if len(opts) > 0 {
@@ -225,28 +222,24 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 		return "", fmt.Errorf("marshalling RAG request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, ragURL, bytes.NewBuffer(ragBody))
-	if err != nil {
-		return "", fmt.Errorf("creating request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	// When streaming is enabled, expect SSE response instead of JSON
-	if ragReq.WithStreaming {
-		req.Header.Set("Accept", "text/event-stream")
-	} else {
-		req.Header.Set("Accept", "application/json")
+	// Set Accept header based on streaming mode
+	acceptHeader := func(_ context.Context, req *http.Request) error {
+		if ragReq.WithStreaming {
+			req.Header.Set("Accept", "text/event-stream")
+		} else {
+			req.Header.Set("Accept", "application/json")
+		}
+		return nil
 	}
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.client.RagQueryWithBody(ctx, "application/json", bytes.NewBuffer(ragBody), acceptHeader)
 	if err != nil {
 		return "", fmt.Errorf("sending RAG request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("RAG request failed with status %d: %s", resp.StatusCode, string(respBody))
+		return "", fmt.Errorf("RAG request failed: %w", readErrorResponse(resp))
 	}
 
 	// If streaming is disabled, read JSON response directly
@@ -300,42 +293,36 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 // The agent classifies the query, generates appropriate searches, executes them, and generates answers.
 // Supports streaming responses with granular callbacks for different event types.
 func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, opts ...AnswerAgentOptions) (*AnswerAgentResult, error) {
-	answerURL, _ := url.JoinPath(c.baseURL, "agents", "answer")
-
 	// Merge options
 	var opt AnswerAgentOptions
 	if len(opts) > 0 {
 		opt = opts[0]
 	}
 
-	// Marshal request
+	// Marshal request - AnswerAgentRequest.MarshalJSON handles the conversion automatically
 	reqBody, err := sonic.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling answer agent request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, answerURL, bytes.NewBuffer(reqBody))
-	if err != nil {
-		return nil, fmt.Errorf("creating request: %w", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	// When streaming is enabled, expect SSE response instead of JSON
-	if req.WithStreaming {
-		httpReq.Header.Set("Accept", "text/event-stream")
-	} else {
-		httpReq.Header.Set("Accept", "application/json")
+	// Set Accept header based on streaming mode
+	acceptHeader := func(_ context.Context, httpReq *http.Request) error {
+		if req.WithStreaming {
+			httpReq.Header.Set("Accept", "text/event-stream")
+		} else {
+			httpReq.Header.Set("Accept", "application/json")
+		}
+		return nil
 	}
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.client.AnswerAgentWithBody(ctx, "application/json", bytes.NewBuffer(reqBody), acceptHeader)
 	if err != nil {
 		return nil, fmt.Errorf("sending answer agent request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("answer agent request failed with status %d: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("answer agent request failed: %w", readErrorResponse(resp))
 	}
 
 	// If streaming is disabled, read JSON response directly
@@ -388,33 +375,47 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 						}
 
 					case "reasoning":
-						// Reasoning chunks during classification step
-						if opt.OnReasoning != nil {
-							if err := opt.OnReasoning(data); err != nil {
-								return nil, fmt.Errorf("reasoning callback error: %w", err)
+						// Reasoning chunks are JSON-encoded strings to preserve newlines in SSE format
+						var reasoningStr string
+						if err := sonic.UnmarshalString(data, &reasoningStr); err == nil {
+							if opt.OnReasoning != nil {
+								if err := opt.OnReasoning(reasoningStr); err != nil {
+									return nil, fmt.Errorf("reasoning callback error: %w", err)
+								}
 							}
 						}
 
 					case "hit":
-						if opt.OnHit != nil {
-							if err := opt.OnHit(data); err != nil {
-								return nil, fmt.Errorf("hit callback error: %w", err)
+						var hitData Hit
+						if err := sonic.UnmarshalString(data, &hitData); err == nil {
+							if opt.OnHit != nil {
+								if err := opt.OnHit(&hitData); err != nil {
+									return nil, fmt.Errorf("hit callback error: %w", err)
+								}
 							}
 						}
 
 					case "answer":
-						answerBuilder.WriteString(data)
-						if opt.OnAnswer != nil {
-							if err := opt.OnAnswer(data); err != nil {
-								return nil, fmt.Errorf("answer callback error: %w", err)
+						// Answer chunks are JSON-encoded strings to preserve newlines in SSE format
+						var answerStr string
+						if err := sonic.UnmarshalString(data, &answerStr); err == nil {
+							answerBuilder.WriteString(answerStr)
+							if opt.OnAnswer != nil {
+								if err := opt.OnAnswer(answerStr); err != nil {
+									return nil, fmt.Errorf("answer callback error: %w", err)
+								}
 							}
 						}
 
 					case "followup_question":
-						result.FollowupQuestions = append(result.FollowupQuestions, data)
-						if opt.OnFollowupQuestion != nil {
-							if err := opt.OnFollowupQuestion(data); err != nil {
-								return nil, fmt.Errorf("followup question callback error: %w", err)
+						// Followup questions are JSON-encoded strings to preserve newlines in SSE format
+						var followupStr string
+						if err := sonic.UnmarshalString(data, &followupStr); err == nil {
+							result.FollowupQuestions = append(result.FollowupQuestions, followupStr)
+							if opt.OnFollowupQuestion != nil {
+								if err := opt.OnFollowupQuestion(followupStr); err != nil {
+									return nil, fmt.Errorf("followup question callback error: %w", err)
+								}
 							}
 						}
 
