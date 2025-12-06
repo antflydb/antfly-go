@@ -84,10 +84,29 @@ func (hp *HTMLProcessor) extractSections(doc *goquery.Document, path, baseURL st
 		return []DocumentSection{hp.createFullDocSection(doc, path, baseURL, docMetadata)}
 	}
 
+	// Track heading hierarchy for section_path
+	var headingStack []headingStackEntry
+
 	headings.Each(func(i int, heading *goquery.Selection) {
 		headingText := strings.TrimSpace(heading.Text())
 		headingLevel := hp.getHeadingLevel(heading)
 		headingID := heading.AttrOr("id", "")
+
+		// Update heading stack: pop entries with level >= current
+		for len(headingStack) > 0 && headingStack[len(headingStack)-1].level >= headingLevel {
+			headingStack = headingStack[:len(headingStack)-1]
+		}
+		// Push current heading onto stack
+		headingStack = append(headingStack, headingStackEntry{
+			level: headingLevel,
+			title: headingText,
+		})
+
+		// Build section path from stack
+		sectionPath := make([]string, len(headingStack))
+		for j, entry := range headingStack {
+			sectionPath[j] = entry.title
+		}
 
 		slug := headingID
 		if slug == "" {
@@ -110,13 +129,17 @@ func (hp *HTMLProcessor) extractSections(doc *goquery.Document, path, baseURL st
 			url = baseURL + "/" + cleanPath + "#" + slug
 		}
 
+		// Use full section path for ID to ensure uniqueness (e.g., "Overview" may appear multiple times)
+		sectionPathID := strings.Join(sectionPath, " > ")
+
 		sections = append(sections, DocumentSection{
-			ID:       generateID(path, headingText),
-			FilePath: path,
-			Title:    title,
-			Content:  content,
-			Type:     "html_section",
-			URL:      url,
+			ID:          generateID(path, sectionPathID),
+			FilePath:    path,
+			Title:       title,
+			Content:     content,
+			Type:        "html_section",
+			URL:         url,
+			SectionPath: sectionPath,
 			Metadata: hp.mergeSectionMetadata(docMetadata, map[string]any{
 				"heading_level": headingLevel,
 				"heading_id":    headingID,

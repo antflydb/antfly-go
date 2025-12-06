@@ -1,11 +1,11 @@
 module github.com/antflydb/antfly-go/antfly-genkit
 
-go 1.25.4
+go 1.25
 
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly-go/antfly v0.0.0-20251203224037-ce6ee38b3234
+	github.com/antflydb/antfly-go/antfly v0.0.0-20251205072931-28f1fe042f4f
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/firebase/genkit/go v1.2.0
 	github.com/stretchr/testify v1.11.1
@@ -33,7 +33,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kaptinlin/go-i18n v0.2.0 // indirect
 	github.com/kaptinlin/jsonpointer v0.4.6 // indirect
-	github.com/kaptinlin/jsonschema v0.6.1 // indirect
+	github.com/kaptinlin/jsonschema v0.6.2 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect

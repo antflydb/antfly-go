@@ -43,6 +43,12 @@ func (mp *MarkdownProcessor) CanProcess(contentType, path string) bool {
 	return strings.HasSuffix(lower, ".md") || strings.HasSuffix(lower, ".mdx")
 }
 
+// headingStackEntry represents a heading in the hierarchy stack
+type headingStackEntry struct {
+	level int
+	title string
+}
+
 // Process processes markdown content and returns document sections.
 func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []byte) ([]DocumentSection, error) {
 	isMDX := strings.HasSuffix(strings.ToLower(path), ".mdx")
@@ -59,6 +65,9 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 	var currentSection *DocumentSection
 	var contentBuffer bytes.Buffer
 
+	// Track heading hierarchy for section_path
+	var headingStack []headingStackEntry
+
 	// Walk the AST and extract sections by headings
 	err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if entering {
@@ -74,6 +83,22 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 
 				// Extract heading text
 				headingText := extractText(heading, contentWithoutFrontmatter)
+
+				// Update heading stack: pop entries with level >= current
+				for len(headingStack) > 0 && headingStack[len(headingStack)-1].level >= heading.Level {
+					headingStack = headingStack[:len(headingStack)-1]
+				}
+				// Push current heading onto stack
+				headingStack = append(headingStack, headingStackEntry{
+					level: heading.Level,
+					title: headingText,
+				})
+
+				// Build section path from stack
+				sectionPath := make([]string, len(headingStack))
+				for i, entry := range headingStack {
+					sectionPath[i] = entry.title
+				}
 
 				// Use frontmatter title if available for first section
 				sectionTitle := headingText
@@ -108,13 +133,17 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 					url = baseURL + "/" + cleanPath + "#" + slug
 				}
 
+				// Use full section path for ID to ensure uniqueness (e.g., "Overview" may appear multiple times)
+				sectionPathID := strings.Join(sectionPath, " > ")
+
 				currentSection = &DocumentSection{
-					ID:       generateID(path, headingText),
-					FilePath: path,
-					Title:    sectionTitle,
-					Type:     docType,
-					URL:      url,
-					Metadata: metadata,
+					ID:          generateID(path, sectionPathID),
+					FilePath:    path,
+					Title:       sectionTitle,
+					Type:        docType,
+					URL:         url,
+					SectionPath: sectionPath,
+					Metadata:    metadata,
 				}
 
 				// Skip appending heading text to content - it's already the Title
@@ -282,12 +311,13 @@ func mergeSmallerSections(sections []DocumentSection, minTokens int) []DocumentS
 		if accumulator == nil {
 			// Start a new accumulator
 			accumulator = &DocumentSection{
-				ID:       section.ID,
-				FilePath: section.FilePath,
-				Title:    section.Title,
-				Type:     section.Type,
-				URL:      section.URL,
-				Metadata: section.Metadata,
+				ID:          section.ID,
+				FilePath:    section.FilePath,
+				Title:       section.Title,
+				Type:        section.Type,
+				URL:         section.URL,
+				SectionPath: section.SectionPath,
+				Metadata:    section.Metadata,
 			}
 			accumulatedContent.WriteString(section.Content)
 		} else {

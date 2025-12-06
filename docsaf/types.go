@@ -8,13 +8,14 @@ import (
 // It contains the content, metadata, and type information needed to index
 // the section in Antfly.
 type DocumentSection struct {
-	ID       string         // Unique ID for the section (generated from path + identifier)
-	FilePath string         // Source path (relative path or URL path)
-	Title    string         // Section title (from heading or frontmatter)
-	Content  string         // Section content (markdown/text)
-	Type     string         // Document type (markdown_section, mdx_section, openapi_path, etc.)
-	URL      string         // URL to the document section (base URL + path + anchor)
-	Metadata map[string]any // Additional type-specific metadata
+	ID          string         // Unique ID for the section (generated from path + identifier)
+	FilePath    string         // Source path (relative path or URL path)
+	Title       string         // Section title (from heading or frontmatter)
+	Content     string         // Section content (markdown/text)
+	Type        string         // Document type (markdown_section, mdx_section, openapi_path, etc.)
+	URL         string         // URL to the document section (base URL + path + anchor)
+	SectionPath []string       // Heading hierarchy path (e.g., ["Getting Started", "Installation", "Prerequisites"])
+	Metadata    map[string]any // Additional type-specific metadata
 }
 
 // ToDocument converts a DocumentSection to a document map suitable for
@@ -30,6 +31,9 @@ func (ds *DocumentSection) ToDocument() map[string]any {
 	}
 	if ds.URL != "" {
 		doc["url"] = ds.URL
+	}
+	if len(ds.SectionPath) > 0 {
+		doc["section_path"] = ds.SectionPath
 	}
 	return doc
 }
