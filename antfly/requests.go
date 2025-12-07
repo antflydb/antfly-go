@@ -261,6 +261,11 @@ type AnswerAgentRequest struct {
 	// Query is the user's natural language query (required)
 	Query string `json:"query"`
 
+	// AgentKnowledge is background knowledge that guides the agent's understanding of the domain.
+	// Similar to CLAUDE.md, this provides context that applies to all steps
+	// (classification, retrieval, and answer generation).
+	AgentKnowledge string `json:"agent_knowledge,omitempty"`
+
 	// Generator is the default model configuration for all pipeline steps.
 	// Mutually exclusive with Chain. Either Generator or Chain must be provided.
 	Generator GeneratorConfig `json:"generator,omitzero"`

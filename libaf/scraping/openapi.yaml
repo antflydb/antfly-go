@@ -1,0 +1,42 @@
+openapi: 3.0.3
+info:
+  title: Scraping Configuration
+  description: "Configuration schema for content security and download settings."
+  version: "0.0.1"
+components:
+  schemas:
+    ContentSecurityConfig:
+      type: object
+      properties:
+        allowed_hosts:
+          type: array
+          description: "Whitelist of allowed hostnames/IPs for link downloads. If empty, all hosts are allowed (except private IPs if block_private_ips is true)."
+          items:
+            type: string
+          example:
+            - "example.com"
+            - "cdn.example.com"
+            - "192.0.2.1"
+        block_private_ips:
+          type: boolean
+          description: "Block requests to private IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16)"
+          default: true
+        max_download_size_bytes:
+          type: integer
+          description: "Maximum size of downloaded content in bytes"
+          default: 104857600
+          minimum: 0
+          example: 104857600
+          x-go-type: int64
+        download_timeout_seconds:
+          type: integer
+          description: "Timeout for individual download operations in seconds"
+          default: 30
+          minimum: 1
+          example: 30
+        max_image_dimension:
+          type: integer
+          description: "Maximum image width/height in pixels (images will be resized)"
+          default: 2048
+          minimum: 1
+          example: 2048
