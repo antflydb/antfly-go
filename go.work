@@ -2,7 +2,9 @@ go 1.25
 
 use (
 	./antfly
+	./antfly-evalaf
 	./antfly-genkit
 	./docsaf
+	./evalaf
 	./libaf
 )

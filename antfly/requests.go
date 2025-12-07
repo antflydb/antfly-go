@@ -122,7 +122,7 @@ type QueryRequest struct {
 	Reranker *RerankerConfig `json:"reranker,omitempty"`
 
 	// Pruner configuration for pruning search results based on score quality
-	Pruner Pruner `json:"pruner,omitempty,omitzero"`
+	Pruner Pruner `json:"pruner,omitzero"`
 
 	// SemanticSearch text to use for semantic similarity search
 	SemanticSearch string `json:"semantic_search,omitempty"`
