@@ -16,7 +16,7 @@ The `rag` package provides evaluators specifically designed for Retrieval-Augmen
 Validates that citations in the output are accurate and valid.
 
 ```go
-import "github.com/antflydb/evalaf/rag"
+import "github.com/antflydb/antfly-go/evalaf/rag"
 
 evaluator := rag.NewCitationEvaluator("citation_check")
 ```
@@ -72,7 +72,7 @@ Evaluates retrieval quality using various information retrieval metrics.
 - **MAP**: Mean Average Precision
 
 ```go
-import "github.com/antflydb/evalaf/rag"
+import "github.com/antflydb/antfly-go/evalaf/rag"
 
 // NDCG@10
 ndcg := rag.NewRetrievalEvaluator("ndcg@10", rag.MetricNDCG, 10)
@@ -143,9 +143,9 @@ package main
 
 import (
     "context"
-    "github.com/antflydb/evalaf/eval"
-    "github.com/antflydb/evalaf/rag"
-    "github.com/antflydb/evalaf/genkit"
+    "github.com/antflydb/antfly-go/evalaf/eval"
+    "github.com/antflydb/antfly-go/evalaf/rag"
+    "github.com/antflydb/antfly-go/evalaf/genkit"
     genkitpkg "github.com/firebase/genkit/go/genkit"
     "github.com/firebase/genkit/go/plugins/ollama"
 )

@@ -16,7 +16,7 @@ The `genkitplugin` package integrates evalaf evaluators with Genkit's built-in e
 The plugin is part of the evalaf package:
 
 ```bash
-go get github.com/antflydb/evalaf/genkitplugin
+go get github.com/antflydb/antfly-go/evalaf/genkitplugin
 ```
 
 ## Quick Start
@@ -32,7 +32,7 @@ import (
 
     "github.com/firebase/genkit/go/genkit"
     "github.com/firebase/genkit/go/plugins/googlegenai"
-    "github.com/antflydb/evalaf/genkitplugin"
+    "github.com/antflydb/antfly-go/evalaf/genkitplugin"
 )
 
 func main() {
@@ -233,7 +233,7 @@ import (
 
     "github.com/firebase/genkit/go/genkit"
     "github.com/firebase/genkit/go/plugins/ollama"
-    "github.com/antflydb/evalaf/genkitplugin"
+    "github.com/antflydb/antfly-go/evalaf/genkitplugin"
 )
 
 func main() {
@@ -327,7 +327,7 @@ The plugin provides utilities for converting between Genkit and evalaf formats:
 ### Convert Genkit Input to Evalaf
 
 ```go
-import "github.com/antflydb/evalaf/genkitplugin"
+import "github.com/antflydb/antfly-go/evalaf/genkitplugin"
 
 genkitInput := genkitplugin.GenkitInput{
     TestCaseID: "test_001",

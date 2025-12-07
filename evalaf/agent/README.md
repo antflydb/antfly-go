@@ -17,7 +17,7 @@ The `agent` package provides evaluators for AI agent systems, including query cl
 Evaluates if the agent correctly classified the input.
 
 ```go
-import "github.com/antflydb/evalaf/agent"
+import "github.com/antflydb/antfly-go/evalaf/agent"
 
 evaluator := agent.NewClassificationEvaluator("classification", []string{"question", "search"})
 ```
@@ -114,9 +114,9 @@ package main
 
 import (
     "context"
-    "github.com/antflydb/evalaf/eval"
-    "github.com/antflydb/evalaf/agent"
-    "github.com/antflydb/evalaf/genkit"
+    "github.com/antflydb/antfly-go/evalaf/eval"
+    "github.com/antflydb/antfly-go/evalaf/agent"
+    "github.com/antflydb/antfly-go/evalaf/genkit"
     genkitpkg "github.com/firebase/genkit/go/genkit"
     "github.com/firebase/genkit/go/plugins/ollama"
 )

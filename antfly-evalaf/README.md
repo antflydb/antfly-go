@@ -19,8 +19,8 @@ package main
 
 import (
     "context"
-    "github.com/antflydb/evalaf/antfly"
-    "github.com/antflydb/evalaf/eval"
+    "github.com/antflydb/antfly-go/evalaf/antfly"
+    "github.com/antflydb/antfly-go/evalaf/eval"
 )
 
 func main() {
@@ -61,8 +61,8 @@ package main
 
 import (
     "context"
-    "github.com/antflydb/evalaf/antfly"
-    "github.com/antflydb/evalaf/eval"
+    "github.com/antflydb/antfly-go/evalaf/antfly"
+    "github.com/antflydb/antfly-go/evalaf/eval"
 )
 
 func main() {
@@ -237,8 +237,8 @@ import (
     "fmt"
     "log"
 
-    "github.com/antflydb/evalaf/antfly"
-    "github.com/antflydb/evalaf/eval"
+    "github.com/antflydb/antfly-go/evalaf/antfly"
+    "github.com/antflydb/antfly-go/evalaf/eval"
     genkitpkg "github.com/firebase/genkit/go/genkit"
     "github.com/firebase/genkit/go/plugins/ollama"
 )

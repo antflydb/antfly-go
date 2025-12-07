@@ -12,7 +12,7 @@ The `ui` package provides utilities for embedding evaluation results in user int
 ## Quick Start
 
 ```go
-import "github.com/antflydb/evalaf/ui"
+import "github.com/antflydb/antfly-go/evalaf/ui"
 
 // Run evaluation
 report, _ := runner.RunWithTarget(ctx, dataset, target)
@@ -96,8 +96,8 @@ import (
     "fmt"
     "net/http"
 
-    "github.com/antflydb/evalaf/eval"
-    "github.com/antflydb/evalaf/ui"
+    "github.com/antflydb/antfly-go/evalaf/eval"
+    "github.com/antflydb/antfly-go/evalaf/ui"
 )
 
 func handleEvaluation(w http.ResponseWriter, r *http.Request) {
@@ -217,7 +217,7 @@ func (s *SearchafServer) handleCustomerEvaluation(w http.ResponseWriter, r *http
 Compare two evaluation runs:
 
 ```go
-import "github.com/antflydb/evalaf/ui"
+import "github.com/antflydb/antfly-go/evalaf/ui"
 
 // Run baseline evaluation
 baselineReport, _ := runEvaluation(baselinePrompt)

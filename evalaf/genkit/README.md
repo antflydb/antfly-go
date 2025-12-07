@@ -25,8 +25,8 @@ package main
 
 import (
     "context"
-    "github.com/antflydb/evalaf/eval"
-    "github.com/antflydb/evalaf/genkit"
+    "github.com/antflydb/antfly-go/evalaf/eval"
+    "github.com/antflydb/antfly-go/evalaf/genkit"
     genkitpkg "github.com/firebase/genkit/go/genkit"
     "github.com/firebase/genkit/go/plugins/ollama"
 )
@@ -320,8 +320,8 @@ package main
 
 import (
     "context"
-    "github.com/antflydb/evalaf/eval"
-    "github.com/antflydb/evalaf/genkit"
+    "github.com/antflydb/antfly-go/evalaf/eval"
+    "github.com/antflydb/antfly-go/evalaf/genkit"
     genkitpkg "github.com/firebase/genkit/go/genkit"
     "github.com/firebase/genkit/go/plugins/ollama"
 )
@@ -408,7 +408,7 @@ If you're upgrading from the old text/template approach:
 
 - `github.com/firebase/genkit/go/genkit` - Genkit core
 - `github.com/firebase/genkit/go/ai` - AI abstractions
-- `github.com/antflydb/evalaf/eval` - Core evaluation library
+- `github.com/antflydb/antfly-go/evalaf/eval` - Core evaluation library
 
 ## See Also
 

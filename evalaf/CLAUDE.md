@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Evalaf is an embeddable evaluation framework for testing and monitoring LLM applications, including RAG systems, agents, and general LLM outputs. It's designed as a reusable Go module that can be embedded in any Go project or used as a standalone CLI tool - essentially "promptfoo for golang".
 
-**Module Path**: `github.com/antflydb/evalaf` (while living in the `evalaf/` directory of the antfly repository as a nested Go module)
+**Module Path**: `github.com/antflydb/antfly-go/evalaf` (while living in the `evalaf/` directory of the antfly repository as a nested Go module)
 
 ## Architecture
 
@@ -366,16 +366,16 @@ The runner can also run evaluators in parallel within each example evaluation.
 ## Module Information
 
 This is a **nested Go module** within the Antfly repository:
-- Module path: `github.com/antflydb/evalaf`
+- Module path: `github.com/antflydb/antfly-go/evalaf`
 - Directory: `evalaf/` in antfly repo
 - Go version: 1.25
 
 When importing:
 ```go
-import "github.com/antflydb/evalaf/eval"
-import "github.com/antflydb/evalaf/genkit"
-import "github.com/antflydb/evalaf/redteam"
-import "github.com/antflydb/evalaf/rag"
+import "github.com/antflydb/antfly-go/evalaf/eval"
+import "github.com/antflydb/antfly-go/evalaf/genkit"
+import "github.com/antflydb/antfly-go/evalaf/redteam"
+import "github.com/antflydb/antfly-go/evalaf/rag"
 ```
 
 ## Testing Strategy

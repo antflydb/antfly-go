@@ -180,8 +180,8 @@ package main
 
 import (
     "context"
-    "github.com/antflydb/evalaf/eval"
-    "github.com/antflydb/evalaf/redteam"
+    "github.com/antflydb/antfly-go/evalaf/eval"
+    "github.com/antflydb/antfly-go/evalaf/redteam"
 )
 
 func main() {
