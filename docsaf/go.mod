@@ -4,9 +4,11 @@ go 1.24.7
 
 require (
 	github.com/PuerkitoBio/goquery v1.11.0
+	github.com/antflydb/antfly-go/libaf v0.0.0
 	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/gocolly/colly/v2 v2.3.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
+	github.com/minio/minio-go/v7 v7.0.97
 	github.com/pb33f/libopenapi v0.28.2
 	github.com/yuin/goldmark v1.7.13
 	gopkg.in/yaml.v3 v3.0.1
