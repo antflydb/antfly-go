@@ -494,3 +494,38 @@ Content here`,
 		})
 	}
 }
+
+func TestMarkdownProcessor_Process_MDXComponentContent(t *testing.T) {
+	mp := &MarkdownProcessor{MinTokensPerSection: 1}
+
+	mdxContent := []byte(`# Getting Started
+
+<Questions>
+- How do I install Antfly?
+- Where can I download the CLI?
+</Questions>
+
+Some content here.
+`)
+
+	sections, err := mp.Process("test.mdx", "", "", mdxContent)
+	if err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+
+	if len(sections) != 1 {
+		t.Fatalf("Expected 1 section, got %d", len(sections))
+	}
+
+	// Verify MDX component content is included
+	if !strings.Contains(sections[0].Content, "How do I install Antfly?") {
+		t.Errorf("Expected content to include MDX component text, got: %q", sections[0].Content)
+	}
+	if !strings.Contains(sections[0].Content, "Where can I download the CLI?") {
+		t.Errorf("Expected content to include MDX component text, got: %q", sections[0].Content)
+	}
+	// Also verify regular content is still included
+	if !strings.Contains(sections[0].Content, "Some content here") {
+		t.Errorf("Expected content to include regular text, got: %q", sections[0].Content)
+	}
+}

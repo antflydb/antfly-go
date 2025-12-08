@@ -159,6 +159,13 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 						contentBuffer.WriteString("\n")
 					}
 				}
+				// Also extract content from HTML blocks (e.g., MDX components like <Questions>)
+				if htmlBlock, ok := n.(*ast.HTMLBlock); ok {
+					for i := 0; i < htmlBlock.Lines().Len(); i++ {
+						line := htmlBlock.Lines().At(i)
+						contentBuffer.Write(line.Value(contentWithoutFrontmatter))
+					}
+				}
 			}
 		}
 		return ast.WalkContinue, nil
