@@ -424,7 +424,25 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 						break
 
 					case "error":
-						return nil, fmt.Errorf("answer agent error: %s", data)
+						// Parse error JSON - can be {"error": "..."} or {"error": "...", "status": N, "table": "..."}
+						var agentErr AnswerAgentError
+						if err := sonic.UnmarshalString(data, &agentErr); err != nil {
+							// Fallback if parsing fails
+							agentErr = AnswerAgentError{Error: data}
+						}
+
+						// Call OnError callback if provided
+						if opt.OnError != nil {
+							if callbackErr := opt.OnError(&agentErr); callbackErr != nil {
+								return nil, callbackErr
+							}
+						}
+
+						// Return error with context if available
+						if agentErr.Table != "" {
+							return nil, fmt.Errorf("answer agent error on table %s (status %d): %s", agentErr.Table, agentErr.Status, agentErr.Error)
+						}
+						return nil, fmt.Errorf("answer agent error: %s", agentErr.Error)
 					}
 				}
 			}

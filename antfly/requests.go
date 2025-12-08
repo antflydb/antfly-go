@@ -306,6 +306,19 @@ type RAGOptions struct {
 	Callback func(chunk string) error
 }
 
+// AnswerAgentError represents an error received during streaming from the answer agent.
+// Errors can contain additional context like the table name and HTTP status code.
+type AnswerAgentError struct {
+	// Error is the error message
+	Error string `json:"error"`
+
+	// Status is the HTTP status code (optional, present for query execution errors)
+	Status int32 `json:"status,omitempty"`
+
+	// Table is the table name where the error occurred (optional, present for query execution errors)
+	Table string `json:"table,omitempty"`
+}
+
 // AnswerAgentOptions contains optional parameters for answer agent requests
 type AnswerAgentOptions struct {
 	// OnClassification is called when the classification and transformation result is received
@@ -323,4 +336,9 @@ type AnswerAgentOptions struct {
 
 	// OnFollowupQuestion is called for each follow-up question (if steps.followup.enabled is true)
 	OnFollowupQuestion func(question string) error
+
+	// OnError is called when an error event is received during streaming.
+	// If the callback returns nil, the error is still returned from AnswerAgent.
+	// If the callback returns an error, that error is returned instead.
+	OnError func(err *AnswerAgentError) error
 }
