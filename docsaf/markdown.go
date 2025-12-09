@@ -64,6 +64,8 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 	var sections []DocumentSection
 	var currentSection *DocumentSection
 	var contentBuffer bytes.Buffer
+	var preambleBuffer bytes.Buffer // Buffer for content before first heading
+	seenHeading := false
 
 	// Track heading hierarchy for section_path
 	var headingStack []headingStackEntry
@@ -72,6 +74,8 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 	err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		if entering {
 			if heading, ok := n.(*ast.Heading); ok {
+				seenHeading = true
+
 				// Save previous section
 				if currentSection != nil {
 					currentSection.Content = strings.TrimSpace(contentBuffer.String())
@@ -100,9 +104,9 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 					sectionPath[i] = entry.title
 				}
 
-				// Use frontmatter title if available for first section
+				// Use frontmatter title if available for first section (only if no preamble content)
 				sectionTitle := headingText
-				if len(sections) == 0 && frontmatter != nil {
+				if len(sections) == 0 && preambleBuffer.Len() == 0 && frontmatter != nil {
 					if title, ok := frontmatter["title"].(string); ok && title != "" {
 						sectionTitle = title
 					}
@@ -150,21 +154,27 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 				return ast.WalkSkipChildren, nil
 			}
 
-			// Append content to current section - only from leaf text nodes
-			// to avoid duplicating text from container nodes like paragraphs
-			if currentSection != nil {
-				if textNode, ok := n.(*ast.Text); ok {
-					contentBuffer.Write(textNode.Segment.Value(contentWithoutFrontmatter))
-					if textNode.SoftLineBreak() {
-						contentBuffer.WriteString("\n")
-					}
+			// Append content - use preambleBuffer before first heading, contentBuffer after
+			// Only extract from leaf text nodes to avoid duplicating text from container nodes
+			if textNode, ok := n.(*ast.Text); ok {
+				targetBuffer := &preambleBuffer
+				if seenHeading && currentSection != nil {
+					targetBuffer = &contentBuffer
 				}
-				// Also extract content from HTML blocks (e.g., MDX components like <Questions>)
-				if htmlBlock, ok := n.(*ast.HTMLBlock); ok {
-					for i := 0; i < htmlBlock.Lines().Len(); i++ {
-						line := htmlBlock.Lines().At(i)
-						contentBuffer.Write(line.Value(contentWithoutFrontmatter))
-					}
+				targetBuffer.Write(textNode.Segment.Value(contentWithoutFrontmatter))
+				if textNode.SoftLineBreak() {
+					targetBuffer.WriteString("\n")
+				}
+			}
+			// Also extract content from HTML blocks (e.g., MDX components like <Questions>)
+			if htmlBlock, ok := n.(*ast.HTMLBlock); ok {
+				targetBuffer := &preambleBuffer
+				if seenHeading && currentSection != nil {
+					targetBuffer = &contentBuffer
+				}
+				for i := 0; i < htmlBlock.Lines().Len(); i++ {
+					line := htmlBlock.Lines().At(i)
+					targetBuffer.Write(line.Value(contentWithoutFrontmatter))
 				}
 			}
 		}
@@ -181,6 +191,53 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 		if currentSection.Content != "" {
 			sections = append(sections, *currentSection)
 		}
+	}
+
+	// Create preamble section for content before first heading (if any)
+	preambleContent := strings.TrimSpace(preambleBuffer.String())
+	if preambleContent != "" && len(sections) > 0 {
+		docType := "markdown_section"
+		if isMDX {
+			docType = "mdx_section"
+		}
+
+		// Use frontmatter title if available, otherwise use filename
+		title := filepath.Base(path)
+		if frontmatter != nil {
+			if fmTitle, ok := frontmatter["title"].(string); ok && fmTitle != "" {
+				title = fmTitle
+			}
+		}
+
+		metadata := map[string]any{
+			"is_mdx":   isMDX,
+			"preamble": true,
+		}
+		if frontmatter != nil {
+			metadata["frontmatter"] = frontmatter
+		}
+		if sourceURL != "" {
+			metadata["source_url"] = sourceURL
+		}
+
+		url := ""
+		if baseURL != "" {
+			cleanPath := transformURLPath(path)
+			url = baseURL + "/" + cleanPath
+		}
+
+		preambleSection := DocumentSection{
+			ID:       generateID(path, "_preamble"),
+			FilePath: path,
+			Title:    title,
+			Content:  preambleContent,
+			Type:     docType,
+			URL:      url,
+			Metadata: metadata,
+		}
+
+		// Prepend preamble section to the beginning
+		sections = append([]DocumentSection{preambleSection}, sections...)
 	}
 
 	// Merge small sections to ensure minimum token count
