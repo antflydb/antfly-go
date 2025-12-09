@@ -214,3 +214,153 @@ func (c *AntflyClient) Restore(ctx context.Context, tableName, backupID, locatio
 
 	return nil
 }
+
+// ClusterBackupResult represents the result of a cluster backup operation
+type ClusterBackupResult struct {
+	BackupID string
+	Status   string
+	Tables   []TableBackupStatus
+}
+
+// TableBackupStatus represents backup status for a single table
+type TableBackupStatus struct {
+	Name   string
+	Status string
+	Error  string
+}
+
+// ClusterBackup backs up multiple tables or all tables in the cluster
+func (c *AntflyClient) ClusterBackup(ctx context.Context, backupID, location string, tableNames []string) (*ClusterBackupResult, error) {
+	req := oapi.ClusterBackupRequest{
+		BackupId:   backupID,
+		Location:   location,
+		TableNames: tableNames,
+	}
+
+	resp, err := c.client.Backup(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("cluster backup request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("cluster backup failed: %w", readErrorResponse(resp))
+	}
+
+	var result oapi.ClusterBackupResponse
+	if err := decoder.NewStreamDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+
+	tables := make([]TableBackupStatus, len(result.Tables))
+	for i, t := range result.Tables {
+		tables[i] = TableBackupStatus{
+			Name:   t.Name,
+			Status: string(t.Status),
+			Error:  t.Error,
+		}
+	}
+
+	return &ClusterBackupResult{
+		BackupID: result.BackupId,
+		Status:   string(result.Status),
+		Tables:   tables,
+	}, nil
+}
+
+// ClusterRestoreResult represents the result of a cluster restore operation
+type ClusterRestoreResult struct {
+	Status string
+	Tables []TableRestoreStatus
+}
+
+// TableRestoreStatus represents restore status for a single table
+type TableRestoreStatus struct {
+	Name   string
+	Status string
+	Error  string
+}
+
+// ClusterRestore restores multiple tables from a cluster backup
+func (c *AntflyClient) ClusterRestore(ctx context.Context, backupID, location string, tableNames []string, restoreMode string) (*ClusterRestoreResult, error) {
+	req := oapi.ClusterRestoreRequest{
+		BackupId:   backupID,
+		Location:   location,
+		TableNames: tableNames,
+	}
+	if restoreMode != "" {
+		req.RestoreMode = oapi.ClusterRestoreRequestRestoreMode(restoreMode)
+	}
+
+	resp, err := c.client.Restore(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("cluster restore request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Restore returns 202 Accepted
+	if resp.StatusCode >= 300 && resp.StatusCode != http.StatusAccepted {
+		return nil, fmt.Errorf("cluster restore failed: %w", readErrorResponse(resp))
+	}
+
+	var result oapi.ClusterRestoreResponse
+	if err := decoder.NewStreamDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+
+	tables := make([]TableRestoreStatus, len(result.Tables))
+	for i, t := range result.Tables {
+		tables[i] = TableRestoreStatus{
+			Name:   t.Name,
+			Status: string(t.Status),
+			Error:  t.Error,
+		}
+	}
+
+	return &ClusterRestoreResult{
+		Status: string(result.Status),
+		Tables: tables,
+	}, nil
+}
+
+// BackupInfo represents metadata about a stored backup
+type BackupInfo struct {
+	BackupID      string
+	Timestamp     string
+	AntflyVersion string
+	Tables        []string
+}
+
+// ListBackups lists available cluster backups at the specified location
+func (c *AntflyClient) ListBackups(ctx context.Context, location string) ([]BackupInfo, error) {
+	params := &oapi.ListBackupsParams{
+		Location: location,
+	}
+
+	resp, err := c.client.ListBackups(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("list backups request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("list backups failed: %w", readErrorResponse(resp))
+	}
+
+	var result oapi.BackupListResponse
+	if err := decoder.NewStreamDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("parsing response: %w", err)
+	}
+
+	backups := make([]BackupInfo, len(result.Backups))
+	for i, b := range result.Backups {
+		backups[i] = BackupInfo{
+			BackupID:      b.BackupId,
+			Timestamp:     b.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+			AntflyVersion: b.AntflyVersion,
+			Tables:        b.Tables,
+		}
+	}
+
+	return backups, nil
+}
