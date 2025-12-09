@@ -30,3 +30,6 @@ jobs:
 
       - name: Test Docsaf
         run: go test -v ./docsaf/...
+
+      - name: Test OpenRouter Genkit
+        run: go test -v ./openrouter-genkit/...
