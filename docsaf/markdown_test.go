@@ -529,3 +529,69 @@ Some content here.
 		t.Errorf("Expected content to include regular text, got: %q", sections[0].Content)
 	}
 }
+
+func TestMarkdownProcessor_Process_MDXComponentBeforeHeading(t *testing.T) {
+	mp := &MarkdownProcessor{MinTokensPerSection: 1}
+
+	// MDX content with Questions component BEFORE the first heading (after frontmatter)
+	mdxContent := []byte(`---
+title: My Guide
+---
+
+<Questions>
+- What is Antfly?
+- How do I get started?
+</Questions>
+
+Some intro text here.
+
+# Getting Started
+
+This is the getting started section.
+`)
+
+	sections, err := mp.Process("test.mdx", "", "https://example.com", mdxContent)
+	if err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+
+	if len(sections) != 2 {
+		t.Fatalf("Expected 2 sections (preamble + heading), got %d", len(sections))
+	}
+
+	// First section should be the preamble with MDX component content
+	preamble := sections[0]
+	if preamble.Title != "My Guide" {
+		t.Errorf("Preamble title = %q, want %q", preamble.Title, "My Guide")
+	}
+	if !strings.Contains(preamble.Content, "What is Antfly?") {
+		t.Errorf("Preamble should contain MDX component text, got: %q", preamble.Content)
+	}
+	if !strings.Contains(preamble.Content, "How do I get started?") {
+		t.Errorf("Preamble should contain MDX component text, got: %q", preamble.Content)
+	}
+	if !strings.Contains(preamble.Content, "Some intro text here") {
+		t.Errorf("Preamble should contain intro text, got: %q", preamble.Content)
+	}
+	// Check preamble metadata
+	if preamble.Metadata["preamble"] != true {
+		t.Errorf("Preamble metadata should have preamble=true")
+	}
+	// Preamble URL should not have anchor
+	if preamble.URL != "https://example.com/test" {
+		t.Errorf("Preamble URL = %q, want %q", preamble.URL, "https://example.com/test")
+	}
+
+	// Second section should be the heading-based section
+	headingSection := sections[1]
+	if headingSection.Title != "Getting Started" {
+		t.Errorf("Heading section title = %q, want %q", headingSection.Title, "Getting Started")
+	}
+	if !strings.Contains(headingSection.Content, "getting started section") {
+		t.Errorf("Heading section should contain its content, got: %q", headingSection.Content)
+	}
+	// Heading section should NOT contain the preamble content
+	if strings.Contains(headingSection.Content, "What is Antfly?") {
+		t.Errorf("Heading section should NOT contain preamble MDX content")
+	}
+}
