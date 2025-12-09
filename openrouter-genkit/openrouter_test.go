@@ -313,7 +313,7 @@ func TestTranslateResponseWithToolCalls(t *testing.T) {
 	}
 }
 
-func TestModelLookup(t *testing.T) {
+func TestModelLookupWithName(t *testing.T) {
 	ctx := context.Background()
 	plugin := &OpenRouter{
 		APIKey: "test-api-key",
@@ -322,41 +322,94 @@ func TestModelLookup(t *testing.T) {
 	g := genkit.Init(ctx, genkit.WithPlugins(plugin))
 
 	// Model should not exist before defining
-	if IsDefinedModel(g, "test-model") {
+	if IsDefinedModel(g, "fast") {
 		t.Error("model should not be defined before DefineModel")
 	}
 
-	plugin.DefineModel(g, ModelDefinition{Name: "test-model"}, nil)
+	// Define model with custom name - registers as "openrouter/fast"
+	plugin.DefineModel(g, ModelDefinition{
+		Name:   "fast",
+		Models: []string{"anthropic/claude-3-haiku", "openai/gpt-4o-mini"},
+	}, nil)
 
 	// Model should exist after defining
-	if !IsDefinedModel(g, "test-model") {
+	if !IsDefinedModel(g, "fast") {
 		t.Error("model should be defined after DefineModel")
 	}
 
 	// Lookup should return the model
-	model := Model(g, "test-model")
+	model := Model(g, "fast")
 	if model == nil {
 		t.Error("Model() should return non-nil after DefineModel")
 	}
 }
 
-func TestModelDefinitionWithFallbacks(t *testing.T) {
+func TestModelLookupWithoutName(t *testing.T) {
+	ctx := context.Background()
+	plugin := &OpenRouter{
+		APIKey: "test-api-key",
+	}
+
+	g := genkit.Init(ctx, genkit.WithPlugins(plugin))
+
+	// Define model without custom name - registers as "openrouter/anthropic/claude-3-opus"
+	plugin.DefineModel(g, ModelDefinition{
+		Models: []string{"anthropic/claude-3-opus"},
+	}, nil)
+
+	// Model should exist using the first model ID as the name
+	if !IsDefinedModel(g, "anthropic/claude-3-opus") {
+		t.Error("model should be defined using first model ID as name")
+	}
+
+	model := Model(g, "anthropic/claude-3-opus")
+	if model == nil {
+		t.Error("Model() should return non-nil after DefineModel")
+	}
+}
+
+func TestModelDefinitionWithModels(t *testing.T) {
+	// Test with custom name and multiple models (fallbacks)
 	md := ModelDefinition{
-		Name:      "anthropic/claude-3-opus",
-		Fallbacks: []string{"anthropic/claude-3-sonnet", "openai/gpt-4"},
-		Label:     "Claude with Fallbacks",
+		Name:   "expensive",
+		Models: []string{"anthropic/claude-3-opus", "anthropic/claude-3-sonnet", "openai/gpt-4"},
+		Label:  "Expensive Models with Fallbacks",
 	}
 
-	if md.Name != "anthropic/claude-3-opus" {
-		t.Errorf("expected Name 'anthropic/claude-3-opus', got %s", md.Name)
+	if md.Name != "expensive" {
+		t.Errorf("expected Name 'expensive', got %s", md.Name)
 	}
 
-	if len(md.Fallbacks) != 2 {
-		t.Errorf("expected 2 fallbacks, got %d", len(md.Fallbacks))
+	if len(md.Models) != 3 {
+		t.Errorf("expected 3 models, got %d", len(md.Models))
 	}
 
-	if md.Label != "Claude with Fallbacks" {
-		t.Errorf("expected Label 'Claude with Fallbacks', got %s", md.Label)
+	if md.Models[0] != "anthropic/claude-3-opus" {
+		t.Errorf("expected first model 'anthropic/claude-3-opus', got %s", md.Models[0])
+	}
+
+	if md.Label != "Expensive Models with Fallbacks" {
+		t.Errorf("expected Label 'Expensive Models with Fallbacks', got %s", md.Label)
+	}
+}
+
+func TestModelDefinitionWithoutName(t *testing.T) {
+	// Test without custom name - should use first model as registration name
+	md := ModelDefinition{
+		Models: []string{"openai/gpt-4o"},
+		Label:  "GPT-4o",
+	}
+
+	if md.Name != "" {
+		t.Errorf("expected empty Name, got %s", md.Name)
+	}
+
+	if len(md.Models) != 1 {
+		t.Errorf("expected 1 model, got %d", len(md.Models))
+	}
+
+	if md.Models[0] != "openai/gpt-4o" {
+		t.Errorf("expected model 'openai/gpt-4o', got %s", md.Models[0])
 	}
 }
 
@@ -423,10 +476,11 @@ func TestIntegration(t *testing.T) {
 
 	g := genkit.Init(ctx, genkit.WithPlugins(plugin))
 
-	// Use a free model for testing
+	// Use a free model for testing - registers as "openrouter/free"
 	model := plugin.DefineModel(g, ModelDefinition{
-		Name:  "google/gemini-2.0-flash-exp:free",
-		Label: "Gemini Flash (Free)",
+		Name:   "free",
+		Models: []string{"google/gemini-2.0-flash-exp:free"},
+		Label:  "Gemini Flash (Free)",
 	}, nil)
 
 	resp, err := model.Generate(ctx, &ai.ModelRequest{

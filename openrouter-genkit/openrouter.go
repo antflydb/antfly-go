@@ -91,14 +91,15 @@ func (o *OpenRouter) Init(ctx context.Context) []api.Action {
 
 // ModelDefinition represents a model configuration.
 type ModelDefinition struct {
-	// Name is the OpenRouter model ID (e.g., "openai/gpt-4", "anthropic/claude-3-opus").
-	// This is the primary model that will be used.
+	// Name is an optional label for the model (e.g., "fast", "expensive").
+	// If provided, the model registers as "openrouter/{Name}" (e.g., "openrouter/fast").
+	// If empty, the first model in Models is used as the name (e.g., "openrouter/anthropic/claude-3-opus").
 	Name string
-	// Fallbacks is an optional list of fallback model IDs.
-	// If the primary model is unavailable, OpenRouter will try these in order.
-	// When fallbacks are specified, the "models" parameter is used instead of "model".
-	Fallbacks []string
-	// Label is an optional human-readable label.
+	// Models is the list of OpenRouter model IDs to use, in order of preference.
+	// If multiple models are specified, OpenRouter will try them in order as fallbacks.
+	// At least one model must be specified.
+	Models []string
+	// Label is an optional human-readable label for display purposes.
 	Label string
 }
 
@@ -108,6 +109,18 @@ func (o *OpenRouter) DefineModel(g *genkit.Genkit, model ModelDefinition, opts *
 	defer o.mu.Unlock()
 	if !o.initted {
 		panic("openrouter.Init not called")
+	}
+
+	if len(model.Models) == 0 {
+		panic("openrouter: ModelDefinition.Models must have at least one model")
+	}
+
+	// Determine the registration name:
+	// - If Name is provided, use it (e.g., "fast" -> "openrouter/fast")
+	// - Otherwise, use the first model ID (e.g., "anthropic/claude-3-opus" -> "openrouter/anthropic/claude-3-opus")
+	registrationName := model.Name
+	if registrationName == "" {
+		registrationName = model.Models[0]
 	}
 
 	var modelOpts ai.ModelOptions
@@ -126,7 +139,7 @@ func (o *OpenRouter) DefineModel(g *genkit.Genkit, model ModelDefinition, opts *
 		}
 	}
 	if modelOpts.Label == "" {
-		modelOpts.Label = "OpenRouter - " + model.Name
+		modelOpts.Label = "OpenRouter - " + registrationName
 	}
 
 	meta := &ai.ModelOptions{
@@ -140,7 +153,7 @@ func (o *OpenRouter) DefineModel(g *genkit.Genkit, model ModelDefinition, opts *
 		client: o.client,
 	}
 
-	return genkit.DefineModel(g, api.NewName(provider, model.Name), meta, gen.generate)
+	return genkit.DefineModel(g, api.NewName(provider, registrationName), meta, gen.generate)
 }
 
 // IsDefinedModel reports whether a model is defined.
@@ -175,14 +188,11 @@ func (g *generator) generate(ctx context.Context, input *ai.ModelRequest, cb fun
 		Stream:   stream,
 	}
 
-	// Use "models" array if fallbacks are specified, otherwise use single "model"
-	if len(g.model.Fallbacks) > 0 {
-		models := make([]string, 0, 1+len(g.model.Fallbacks))
-		models = append(models, g.model.Name)
-		models = append(models, g.model.Fallbacks...)
-		req.Models = models
+	// Use "models" array if multiple models specified (for fallbacks), otherwise use single "model"
+	if len(g.model.Models) > 1 {
+		req.Models = g.model.Models
 	} else {
-		req.Model = g.model.Name
+		req.Model = g.model.Models[0]
 	}
 
 	// Add generation config
