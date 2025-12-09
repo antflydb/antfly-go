@@ -19,49 +19,39 @@
 package openrouter
 
 import (
-	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/firebase/genkit/go/ai"
 	"github.com/firebase/genkit/go/core/api"
 	"github.com/firebase/genkit/go/genkit"
+	"github.com/revrost/go-openrouter"
 )
 
-const (
-	provider   = "openrouter"
-	apiBaseURL = "https://openrouter.ai/api/v1"
-)
+const provider = "openrouter"
 
 var roleMapping = map[ai.Role]string{
-	ai.RoleUser:   "user",
-	ai.RoleModel:  "assistant",
-	ai.RoleSystem: "system",
-	ai.RoleTool:   "tool",
+	ai.RoleUser:   openrouter.ChatMessageRoleUser,
+	ai.RoleModel:  openrouter.ChatMessageRoleAssistant,
+	ai.RoleSystem: openrouter.ChatMessageRoleSystem,
+	ai.RoleTool:   openrouter.ChatMessageRoleTool,
 }
 
 // OpenRouter provides configuration options for the plugin.
 type OpenRouter struct {
 	// APIKey is the OpenRouter API key. If empty, reads from OPENROUTER_API_KEY env var.
 	APIKey string
-	// BaseURL is the OpenRouter API base URL. Defaults to https://openrouter.ai/api/v1
-	BaseURL string
-	// Timeout is the request timeout in seconds. Defaults to 120.
-	Timeout int
 	// SiteName is an optional site name for OpenRouter analytics.
 	SiteName string
 	// SiteURL is an optional site URL for OpenRouter analytics.
 	SiteURL string
 
+	client  *openrouter.Client
 	mu      sync.Mutex
 	initted bool
 }
@@ -84,12 +74,17 @@ func (o *OpenRouter) Init(ctx context.Context) []api.Action {
 	if o.APIKey == "" {
 		panic("openrouter: need APIKey or OPENROUTER_API_KEY environment variable")
 	}
-	if o.BaseURL == "" {
-		o.BaseURL = apiBaseURL
+
+	// Build client options
+	opts := []openrouter.Option{}
+	if o.SiteName != "" {
+		opts = append(opts, openrouter.WithXTitle(o.SiteName))
 	}
-	if o.Timeout == 0 {
-		o.Timeout = 120
+	if o.SiteURL != "" {
+		opts = append(opts, openrouter.WithHTTPReferer(o.SiteURL))
 	}
+
+	o.client = openrouter.NewClient(o.APIKey, opts...)
 	o.initted = true
 	return []api.Action{}
 }
@@ -124,8 +119,8 @@ func (o *OpenRouter) DefineModel(g *genkit.Genkit, model ModelDefinition, opts *
 			Supports: &ai.ModelSupports{
 				Multiturn:  true,
 				SystemRole: true,
-				Media:      true, // Most models on OpenRouter support media
-				Tools:      true, // Most models on OpenRouter support tools
+				Media:      true,
+				Tools:      true,
 			},
 			Versions: []string{},
 		}
@@ -141,12 +136,8 @@ func (o *OpenRouter) DefineModel(g *genkit.Genkit, model ModelDefinition, opts *
 	}
 
 	gen := &generator{
-		model:    model,
-		apiKey:   o.APIKey,
-		baseURL:  o.BaseURL,
-		timeout:  o.Timeout,
-		siteName: o.SiteName,
-		siteURL:  o.SiteURL,
+		model:  model,
+		client: o.client,
 	}
 
 	return genkit.DefineModel(g, api.NewName(provider, model.Name), meta, gen.generate)
@@ -164,108 +155,8 @@ func Model(g *genkit.Genkit, name string) ai.Model {
 
 // generator handles API requests.
 type generator struct {
-	model    ModelDefinition
-	apiKey   string
-	baseURL  string
-	timeout  int
-	siteName string
-	siteURL  string
-}
-
-// OpenRouter API types (OpenAI-compatible)
-type chatRequest struct {
-	// Model is the single model to use. Mutually exclusive with Models.
-	Model string `json:"model,omitempty"`
-	// Models is an array of models for fallback support.
-	// OpenRouter will try each model in order until one succeeds.
-	// Mutually exclusive with Model.
-	Models           []string        `json:"models,omitempty"`
-	Messages         []chatMessage   `json:"messages"`
-	Stream           bool            `json:"stream,omitempty"`
-	Temperature      *float64        `json:"temperature,omitempty"`
-	TopP             *float64        `json:"top_p,omitempty"`
-	MaxTokens        *int            `json:"max_tokens,omitempty"`
-	Stop             []string        `json:"stop,omitempty"`
-	FrequencyPenalty *float64        `json:"frequency_penalty,omitempty"`
-	PresencePenalty  *float64        `json:"presence_penalty,omitempty"`
-	Tools            []chatTool      `json:"tools,omitempty"`
-	ToolChoice       any             `json:"tool_choice,omitempty"`
-	ResponseFormat   *responseFormat `json:"response_format,omitempty"`
-}
-
-type chatMessage struct {
-	Role       string         `json:"role"`
-	Content    any            `json:"content"` // string or []contentPart
-	Name       string         `json:"name,omitempty"`
-	ToolCalls  []toolCall     `json:"tool_calls,omitempty"`
-	ToolCallID string         `json:"tool_call_id,omitempty"`
-}
-
-type contentPart struct {
-	Type     string    `json:"type"`
-	Text     string    `json:"text,omitempty"`
-	ImageURL *imageURL `json:"image_url,omitempty"`
-}
-
-type imageURL struct {
-	URL    string `json:"url"`
-	Detail string `json:"detail,omitempty"`
-}
-
-type chatTool struct {
-	Type     string       `json:"type"`
-	Function toolFunction `json:"function"`
-}
-
-type toolFunction struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	Parameters  map[string]any `json:"parameters,omitempty"`
-}
-
-type toolCall struct {
-	ID       string           `json:"id"`
-	Type     string           `json:"type"`
-	Function toolCallFunction `json:"function"`
-}
-
-type toolCallFunction struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
-}
-
-type responseFormat struct {
-	Type string `json:"type"` // "text" or "json_object"
-}
-
-type chatResponse struct {
-	ID      string   `json:"id"`
-	Object  string   `json:"object"`
-	Created int64    `json:"created"`
-	Model   string   `json:"model"`
-	Choices []choice `json:"choices"`
-	Usage   *usage   `json:"usage,omitempty"`
-}
-
-type choice struct {
-	Index        int          `json:"index"`
-	Message      *chatMessage `json:"message,omitempty"`
-	Delta        *chatMessage `json:"delta,omitempty"`
-	FinishReason string       `json:"finish_reason,omitempty"`
-}
-
-type usage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
-}
-
-type streamChunk struct {
-	ID      string   `json:"id"`
-	Object  string   `json:"object"`
-	Created int64    `json:"created"`
-	Model   string   `json:"model"`
-	Choices []choice `json:"choices"`
+	model  ModelDefinition
+	client *openrouter.Client
 }
 
 // generate handles the chat completion request.
@@ -279,14 +170,13 @@ func (g *generator) generate(ctx context.Context, input *ai.ModelRequest, cb fun
 	}
 
 	// Build request
-	req := chatRequest{
+	req := openrouter.ChatCompletionRequest{
 		Messages: messages,
 		Stream:   stream,
 	}
 
 	// Use "models" array if fallbacks are specified, otherwise use single "model"
 	if len(g.model.Fallbacks) > 0 {
-		// Combine primary model with fallbacks
 		models := make([]string, 0, 1+len(g.model.Fallbacks))
 		models = append(models, g.model.Name)
 		models = append(models, g.model.Fallbacks...)
@@ -297,156 +187,97 @@ func (g *generator) generate(ctx context.Context, input *ai.ModelRequest, cb fun
 
 	// Add generation config
 	if input.Config != nil {
-		// Try to convert config to GenerationCommonConfig
-		if cfg, ok := input.Config.(*ai.GenerationCommonConfig); ok && cfg != nil {
-			if cfg.Temperature != 0 {
-				temp := cfg.Temperature
-				req.Temperature = &temp
-			}
-			if cfg.TopP != 0 {
-				topP := cfg.TopP
-				req.TopP = &topP
-			}
-			if cfg.MaxOutputTokens != 0 {
-				maxTokens := cfg.MaxOutputTokens
-				req.MaxTokens = &maxTokens
-			}
-			if len(cfg.StopSequences) > 0 {
-				req.Stop = cfg.StopSequences
-			}
-		} else if cfg, ok := input.Config.(ai.GenerationCommonConfig); ok {
-			if cfg.Temperature != 0 {
-				temp := cfg.Temperature
-				req.Temperature = &temp
-			}
-			if cfg.TopP != 0 {
-				topP := cfg.TopP
-				req.TopP = &topP
-			}
-			if cfg.MaxOutputTokens != 0 {
-				maxTokens := cfg.MaxOutputTokens
-				req.MaxTokens = &maxTokens
-			}
-			if len(cfg.StopSequences) > 0 {
-				req.Stop = cfg.StopSequences
-			}
-		} else if cfgMap, ok := input.Config.(map[string]any); ok {
-			// Handle config passed as a map
-			if temp, ok := cfgMap["temperature"].(float64); ok && temp != 0 {
-				req.Temperature = &temp
-			}
-			if topP, ok := cfgMap["topP"].(float64); ok && topP != 0 {
-				req.TopP = &topP
-			}
-			if maxTokens, ok := cfgMap["maxOutputTokens"].(float64); ok && maxTokens != 0 {
-				mt := int(maxTokens)
-				req.MaxTokens = &mt
-			}
-			if stop, ok := cfgMap["stopSequences"].([]string); ok && len(stop) > 0 {
-				req.Stop = stop
-			}
-		}
+		applyConfig(&req, input.Config)
 	}
 
 	// Add tools
 	if len(input.Tools) > 0 {
-		tools, err := convertTools(input.Tools)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert tools: %w", err)
-		}
-		req.Tools = tools
+		req.Tools = convertTools(input.Tools)
 	}
-
-	// Marshal request
-	payloadBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", g.baseURL+"/chat/completions", bytes.NewReader(payloadBytes))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Bearer "+g.apiKey)
-	if g.siteName != "" {
-		httpReq.Header.Set("X-Title", g.siteName)
-	}
-	if g.siteURL != "" {
-		httpReq.Header.Set("HTTP-Referer", g.siteURL)
-	}
-
-	client := &http.Client{Timeout: time.Duration(g.timeout) * time.Second}
-	resp, err := client.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send request: %w", err)
-	}
-	defer resp.Body.Close()
 
 	if stream {
-		return g.handleStreamingResponse(ctx, input, resp, cb)
+		return g.handleStreamingResponse(ctx, req, input, cb)
 	}
-	return g.handleNonStreamingResponse(input, resp)
+	return g.handleNonStreamingResponse(ctx, req, input)
 }
 
-func (g *generator) handleNonStreamingResponse(input *ai.ModelRequest, resp *http.Response) (*ai.ModelResponse, error) {
-	body, err := io.ReadAll(resp.Body)
+func applyConfig(req *openrouter.ChatCompletionRequest, config any) {
+	if cfg, ok := config.(*ai.GenerationCommonConfig); ok && cfg != nil {
+		if cfg.Temperature != 0 {
+			req.Temperature = float32(cfg.Temperature)
+		}
+		if cfg.TopP != 0 {
+			req.TopP = float32(cfg.TopP)
+		}
+		if cfg.MaxOutputTokens != 0 {
+			req.MaxTokens = cfg.MaxOutputTokens
+		}
+		if len(cfg.StopSequences) > 0 {
+			req.Stop = cfg.StopSequences
+		}
+	} else if cfg, ok := config.(ai.GenerationCommonConfig); ok {
+		if cfg.Temperature != 0 {
+			req.Temperature = float32(cfg.Temperature)
+		}
+		if cfg.TopP != 0 {
+			req.TopP = float32(cfg.TopP)
+		}
+		if cfg.MaxOutputTokens != 0 {
+			req.MaxTokens = cfg.MaxOutputTokens
+		}
+		if len(cfg.StopSequences) > 0 {
+			req.Stop = cfg.StopSequences
+		}
+	} else if cfgMap, ok := config.(map[string]any); ok {
+		if temp, ok := cfgMap["temperature"].(float64); ok && temp != 0 {
+			req.Temperature = float32(temp)
+		}
+		if topP, ok := cfgMap["topP"].(float64); ok && topP != 0 {
+			req.TopP = float32(topP)
+		}
+		if maxTokens, ok := cfgMap["maxOutputTokens"].(float64); ok && maxTokens != 0 {
+			req.MaxTokens = int(maxTokens)
+		}
+		if stop, ok := cfgMap["stopSequences"].([]string); ok && len(stop) > 0 {
+			req.Stop = stop
+		}
+	}
+}
+
+func (g *generator) handleNonStreamingResponse(ctx context.Context, req openrouter.ChatCompletionRequest, input *ai.ModelRequest) (*ai.ModelResponse, error) {
+	resp, err := g.client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("OpenRouter API error: %w", err)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("OpenRouter API error (status %d): %s", resp.StatusCode, string(body))
-	}
-
-	var chatResp chatResponse
-	if err := json.Unmarshal(body, &chatResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	return translateResponse(&chatResp, input)
+	return translateResponse(&resp, input)
 }
 
-func (g *generator) handleStreamingResponse(ctx context.Context, input *ai.ModelRequest, resp *http.Response, cb func(context.Context, *ai.ModelResponseChunk) error) (*ai.ModelResponse, error) {
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("OpenRouter API error (status %d): %s", resp.StatusCode, string(body))
+func (g *generator) handleStreamingResponse(ctx context.Context, req openrouter.ChatCompletionRequest, input *ai.ModelRequest, cb func(context.Context, *ai.ModelResponseChunk) error) (*ai.ModelResponse, error) {
+	stream, err := g.client.CreateChatCompletionStream(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("OpenRouter API error: %w", err)
 	}
+	defer stream.Close()
 
 	var chunks []*ai.ModelResponseChunk
-	scanner := bufio.NewScanner(resp.Body)
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" || line == "data: [DONE]" {
-			continue
+	for {
+		resp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			break
 		}
-		if !strings.HasPrefix(line, "data: ") {
-			continue
-		}
-
-		data := strings.TrimPrefix(line, "data: ")
-		var streamResp streamChunk
-		if err := json.Unmarshal([]byte(data), &streamResp); err != nil {
-			continue // Skip malformed chunks
-		}
-
-		chunk, err := translateStreamChunk(&streamResp)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("stream error: %w", err)
 		}
-		if chunk != nil {
+
+		chunk := translateStreamChunk(&resp)
+		if chunk != nil && len(chunk.Content) > 0 {
 			chunks = append(chunks, chunk)
 			if err := cb(ctx, chunk); err != nil {
 				return nil, err
 			}
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading stream: %w", err)
 	}
 
 	// Build final response
@@ -464,8 +295,8 @@ func (g *generator) handleStreamingResponse(ctx context.Context, input *ai.Model
 	return finalResponse, nil
 }
 
-func convertMessages(messages []*ai.Message) ([]chatMessage, error) {
-	result := make([]chatMessage, 0, len(messages))
+func convertMessages(messages []*ai.Message) ([]openrouter.ChatCompletionMessage, error) {
+	result := make([]openrouter.ChatCompletionMessage, 0, len(messages))
 
 	for _, msg := range messages {
 		converted, err := convertMessage(msg)
@@ -478,24 +309,26 @@ func convertMessages(messages []*ai.Message) ([]chatMessage, error) {
 	return result, nil
 }
 
-func convertMessage(msg *ai.Message) ([]chatMessage, error) {
+func convertMessage(msg *ai.Message) ([]openrouter.ChatCompletionMessage, error) {
 	role := roleMapping[msg.Role]
 	if role == "" {
-		role = "user"
+		role = openrouter.ChatMessageRoleUser
 	}
 
 	// Check if this is a tool response
 	if msg.Role == ai.RoleTool {
-		var messages []chatMessage
+		var messages []openrouter.ChatCompletionMessage
 		for _, part := range msg.Content {
 			if part.IsToolResponse() {
 				outputJSON, err := json.Marshal(part.ToolResponse.Output)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal tool response: %w", err)
 				}
-				messages = append(messages, chatMessage{
-					Role:       "tool",
-					Content:    string(outputJSON),
+				messages = append(messages, openrouter.ChatCompletionMessage{
+					Role: openrouter.ChatMessageRoleTool,
+					Content: openrouter.Content{
+						Text: string(outputJSON),
+					},
 					ToolCallID: part.ToolResponse.Ref,
 				})
 			}
@@ -504,9 +337,9 @@ func convertMessage(msg *ai.Message) ([]chatMessage, error) {
 	}
 
 	// Check for tool calls (from model)
-	var toolCalls []toolCall
-	var textParts []contentPart
-	var hasMedia bool
+	var toolCalls []openrouter.ToolCall
+	var contentParts []openrouter.ChatMessagePart
+	var hasMultiPart bool
 
 	for _, part := range msg.Content {
 		if part.IsToolRequest() {
@@ -514,39 +347,35 @@ func convertMessage(msg *ai.Message) ([]chatMessage, error) {
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal tool request args: %w", err)
 			}
-			toolCalls = append(toolCalls, toolCall{
+			toolCalls = append(toolCalls, openrouter.ToolCall{
 				ID:   part.ToolRequest.Ref,
 				Type: "function",
-				Function: toolCallFunction{
+				Function: openrouter.FunctionCall{
 					Name:      part.ToolRequest.Name,
 					Arguments: string(args),
 				},
 			})
 		} else if part.IsText() {
-			textParts = append(textParts, contentPart{
-				Type: "text",
+			contentParts = append(contentParts, openrouter.ChatMessagePart{
+				Type: openrouter.ChatMessagePartTypeText,
 				Text: part.Text,
 			})
 		} else if part.IsMedia() {
-			hasMedia = true
-			// Handle media (images)
-			// In Genkit, media content is stored in Text field as URL or data URI
-			// ContentType contains the MIME type
+			hasMultiPart = true
 			mediaURL := part.Text
 			if mediaURL == "" && part.ContentType != "" {
-				// Fallback: use content type as placeholder
 				mediaURL = part.ContentType
 			}
-			textParts = append(textParts, contentPart{
-				Type: "image_url",
-				ImageURL: &imageURL{
+			contentParts = append(contentParts, openrouter.ChatMessagePart{
+				Type: openrouter.ChatMessagePartTypeImageURL,
+				ImageURL: &openrouter.ChatMessageImageURL{
 					URL: mediaURL,
 				},
 			})
 		}
 	}
 
-	chatMsg := chatMessage{
+	chatMsg := openrouter.ChatCompletionMessage{
 		Role: role,
 	}
 
@@ -554,34 +383,36 @@ func convertMessage(msg *ai.Message) ([]chatMessage, error) {
 		chatMsg.ToolCalls = toolCalls
 	}
 
-	// Set content
-	if hasMedia || len(textParts) > 1 {
-		chatMsg.Content = textParts
-	} else if len(textParts) == 1 && textParts[0].Type == "text" {
-		chatMsg.Content = textParts[0].Text
-	} else if len(textParts) == 0 && len(toolCalls) == 0 {
-		chatMsg.Content = ""
+	// Set content - use multipart if we have images, otherwise use simple string
+	if hasMultiPart || len(contentParts) > 1 {
+		chatMsg.Content = openrouter.Content{
+			Multi: contentParts,
+		}
+	} else if len(contentParts) == 1 && contentParts[0].Type == openrouter.ChatMessagePartTypeText {
+		chatMsg.Content = openrouter.Content{
+			Text: contentParts[0].Text,
+		}
 	}
 
-	return []chatMessage{chatMsg}, nil
+	return []openrouter.ChatCompletionMessage{chatMsg}, nil
 }
 
-func convertTools(tools []*ai.ToolDefinition) ([]chatTool, error) {
-	result := make([]chatTool, 0, len(tools))
+func convertTools(tools []*ai.ToolDefinition) []openrouter.Tool {
+	result := make([]openrouter.Tool, 0, len(tools))
 	for _, tool := range tools {
-		result = append(result, chatTool{
-			Type: "function",
-			Function: toolFunction{
+		result = append(result, openrouter.Tool{
+			Type: openrouter.ToolTypeFunction,
+			Function: &openrouter.FunctionDefinition{
 				Name:        tool.Name,
 				Description: tool.Description,
 				Parameters:  tool.InputSchema,
 			},
 		})
 	}
-	return result, nil
+	return result
 }
 
-func translateResponse(resp *chatResponse, input *ai.ModelRequest) (*ai.ModelResponse, error) {
+func translateResponse(resp *openrouter.ChatCompletionResponse, input *ai.ModelRequest) (*ai.ModelResponse, error) {
 	if len(resp.Choices) == 0 {
 		return nil, errors.New("no choices in response")
 	}
@@ -595,27 +426,25 @@ func translateResponse(resp *chatResponse, input *ai.ModelRequest) (*ai.ModelRes
 		},
 	}
 
-	if choice.Message != nil {
-		// Handle tool calls
-		if len(choice.Message.ToolCalls) > 0 {
-			for _, tc := range choice.Message.ToolCalls {
-				var args any
-				if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-					args = tc.Function.Arguments
-				}
-				toolReq := &ai.ToolRequest{
-					Ref:   tc.ID,
-					Name:  tc.Function.Name,
-					Input: args,
-				}
-				modelResp.Message.Content = append(modelResp.Message.Content, ai.NewToolRequestPart(toolReq))
+	// Handle tool calls
+	if len(choice.Message.ToolCalls) > 0 {
+		for _, tc := range choice.Message.ToolCalls {
+			var args any
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+				args = tc.Function.Arguments
 			}
+			toolReq := &ai.ToolRequest{
+				Ref:   tc.ID,
+				Name:  tc.Function.Name,
+				Input: args,
+			}
+			modelResp.Message.Content = append(modelResp.Message.Content, ai.NewToolRequestPart(toolReq))
 		}
+	}
 
-		// Handle text content
-		if content, ok := choice.Message.Content.(string); ok && content != "" {
-			modelResp.Message.Content = append(modelResp.Message.Content, ai.NewTextPart(content))
-		}
+	// Handle text content
+	if choice.Message.Content.Text != "" {
+		modelResp.Message.Content = append(modelResp.Message.Content, ai.NewTextPart(choice.Message.Content.Text))
 	}
 
 	// Add usage info
@@ -629,16 +458,12 @@ func translateResponse(resp *chatResponse, input *ai.ModelRequest) (*ai.ModelRes
 	return modelResp, nil
 }
 
-func translateStreamChunk(chunk *streamChunk) (*ai.ModelResponseChunk, error) {
-	if len(chunk.Choices) == 0 {
-		return nil, nil
+func translateStreamChunk(resp *openrouter.ChatCompletionStreamResponse) *ai.ModelResponseChunk {
+	if len(resp.Choices) == 0 {
+		return nil
 	}
 
-	choice := chunk.Choices[0]
-	if choice.Delta == nil {
-		return nil, nil
-	}
-
+	choice := resp.Choices[0]
 	result := &ai.ModelResponseChunk{}
 
 	// Handle tool calls in stream
@@ -660,13 +485,13 @@ func translateStreamChunk(chunk *streamChunk) (*ai.ModelResponseChunk, error) {
 	}
 
 	// Handle text content
-	if content, ok := choice.Delta.Content.(string); ok && content != "" {
-		result.Content = append(result.Content, ai.NewTextPart(content))
+	if choice.Delta.Content != "" {
+		result.Content = append(result.Content, ai.NewTextPart(choice.Delta.Content))
 	}
 
 	if len(result.Content) == 0 {
-		return nil, nil
+		return nil
 	}
 
-	return result, nil
+	return result
 }
