@@ -97,7 +97,12 @@ func (o *OpenRouter) Init(ctx context.Context) []api.Action {
 // ModelDefinition represents a model configuration.
 type ModelDefinition struct {
 	// Name is the OpenRouter model ID (e.g., "openai/gpt-4", "anthropic/claude-3-opus").
+	// This is the primary model that will be used.
 	Name string
+	// Fallbacks is an optional list of fallback model IDs.
+	// If the primary model is unavailable, OpenRouter will try these in order.
+	// When fallbacks are specified, the "models" parameter is used instead of "model".
+	Fallbacks []string
 	// Label is an optional human-readable label.
 	Label string
 }
@@ -169,7 +174,12 @@ type generator struct {
 
 // OpenRouter API types (OpenAI-compatible)
 type chatRequest struct {
-	Model            string          `json:"model"`
+	// Model is the single model to use. Mutually exclusive with Models.
+	Model string `json:"model,omitempty"`
+	// Models is an array of models for fallback support.
+	// OpenRouter will try each model in order until one succeeds.
+	// Mutually exclusive with Model.
+	Models           []string        `json:"models,omitempty"`
 	Messages         []chatMessage   `json:"messages"`
 	Stream           bool            `json:"stream,omitempty"`
 	Temperature      *float64        `json:"temperature,omitempty"`
@@ -270,9 +280,19 @@ func (g *generator) generate(ctx context.Context, input *ai.ModelRequest, cb fun
 
 	// Build request
 	req := chatRequest{
-		Model:    g.model.Name,
 		Messages: messages,
 		Stream:   stream,
+	}
+
+	// Use "models" array if fallbacks are specified, otherwise use single "model"
+	if len(g.model.Fallbacks) > 0 {
+		// Combine primary model with fallbacks
+		models := make([]string, 0, 1+len(g.model.Fallbacks))
+		models = append(models, g.model.Name)
+		models = append(models, g.model.Fallbacks...)
+		req.Models = models
+	} else {
+		req.Model = g.model.Name
 	}
 
 	// Add generation config

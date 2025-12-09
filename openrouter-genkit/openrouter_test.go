@@ -437,3 +437,188 @@ func TestModelLookup(t *testing.T) {
 		t.Error("Model() should return non-nil after DefineModel")
 	}
 }
+
+func TestFallbackModels(t *testing.T) {
+	// Create a mock server that verifies the "models" array is sent
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+
+		var req map[string]any
+		if err := json.Unmarshal(body, &req); err != nil {
+			t.Fatalf("failed to unmarshal request: %v", err)
+		}
+
+		// Verify "models" array is present instead of "model"
+		if _, hasModel := req["model"]; hasModel {
+			t.Error("expected 'models' array, but got 'model' string")
+		}
+
+		models, hasModels := req["models"].([]any)
+		if !hasModels {
+			t.Fatal("expected 'models' array in request")
+		}
+
+		if len(models) != 3 {
+			t.Errorf("expected 3 models in array, got %d", len(models))
+		}
+
+		expectedModels := []string{"anthropic/claude-3-opus", "anthropic/claude-3-sonnet", "openai/gpt-4"}
+		for i, expected := range expectedModels {
+			if i < len(models) {
+				if actual, ok := models[i].(string); !ok || actual != expected {
+					t.Errorf("model[%d]: expected %q, got %v", i, expected, models[i])
+				}
+			}
+		}
+
+		// Send mock response
+		resp := chatResponse{
+			ID:      "test-id",
+			Object:  "chat.completion",
+			Created: 1234567890,
+			Model:   "anthropic/claude-3-opus", // The model that was actually used
+			Choices: []choice{
+				{
+					Index: 0,
+					Message: &chatMessage{
+						Role:    "assistant",
+						Content: "Hello from Claude!",
+					},
+					FinishReason: "stop",
+				},
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	plugin := &OpenRouter{
+		APIKey:  "test-api-key",
+		BaseURL: server.URL,
+		Timeout: 30,
+	}
+
+	g := genkit.Init(ctx, genkit.WithPlugins(plugin))
+
+	// Define model with fallbacks
+	model := plugin.DefineModel(g, ModelDefinition{
+		Name:      "anthropic/claude-3-opus",
+		Fallbacks: []string{"anthropic/claude-3-sonnet", "openai/gpt-4"},
+		Label:     "Claude with Fallbacks",
+	}, nil)
+
+	resp, err := model.Generate(ctx, &ai.ModelRequest{
+		Messages: []*ai.Message{
+			{
+				Role:    ai.RoleUser,
+				Content: []*ai.Part{ai.NewTextPart("Hello!")},
+			},
+		},
+	}, nil)
+
+	if err != nil {
+		t.Fatalf("failed to generate: %v", err)
+	}
+
+	if resp == nil {
+		t.Fatal("response is nil")
+	}
+
+	if len(resp.Message.Content) == 0 {
+		t.Fatal("response has no content")
+	}
+
+	text := resp.Message.Content[0].Text
+	if text != "Hello from Claude!" {
+		t.Errorf("expected 'Hello from Claude!', got %s", text)
+	}
+}
+
+func TestSingleModelNoFallback(t *testing.T) {
+	// Create a mock server that verifies "model" string is sent (not "models" array)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
+
+		var req map[string]any
+		if err := json.Unmarshal(body, &req); err != nil {
+			t.Fatalf("failed to unmarshal request: %v", err)
+		}
+
+		// Verify "model" string is present, not "models" array
+		if _, hasModels := req["models"]; hasModels {
+			t.Error("expected 'model' string, but got 'models' array")
+		}
+
+		model, hasModel := req["model"].(string)
+		if !hasModel {
+			t.Fatal("expected 'model' string in request")
+		}
+
+		if model != "openai/gpt-4" {
+			t.Errorf("expected model 'openai/gpt-4', got %s", model)
+		}
+
+		// Send mock response
+		resp := chatResponse{
+			ID:      "test-id",
+			Object:  "chat.completion",
+			Created: 1234567890,
+			Model:   "openai/gpt-4",
+			Choices: []choice{
+				{
+					Index: 0,
+					Message: &chatMessage{
+						Role:    "assistant",
+						Content: "Hello!",
+					},
+					FinishReason: "stop",
+				},
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	}))
+	defer server.Close()
+
+	ctx := context.Background()
+	plugin := &OpenRouter{
+		APIKey:  "test-api-key",
+		BaseURL: server.URL,
+		Timeout: 30,
+	}
+
+	g := genkit.Init(ctx, genkit.WithPlugins(plugin))
+
+	// Define model WITHOUT fallbacks
+	model := plugin.DefineModel(g, ModelDefinition{
+		Name:  "openai/gpt-4",
+		Label: "GPT-4",
+	}, nil)
+
+	resp, err := model.Generate(ctx, &ai.ModelRequest{
+		Messages: []*ai.Message{
+			{
+				Role:    ai.RoleUser,
+				Content: []*ai.Part{ai.NewTextPart("Hello!")},
+			},
+		},
+	}, nil)
+
+	if err != nil {
+		t.Fatalf("failed to generate: %v", err)
+	}
+
+	if resp == nil {
+		t.Fatal("response is nil")
+	}
+}
