@@ -59,9 +59,9 @@ func evaluateRAGQuick(ctx context.Context) {
 		// For demo purposes, simulate a response with citations
 		query := example.Input.(string)
 		if query == "What is machine learning?" {
-			return "Machine learning is a subset of AI [doc_id 0]. It trains models on data [doc_id 1].", nil
+			return "Machine learning is a subset of AI [resource_id 0]. It trains models on data [resource_id 1].", nil
 		}
-		return "Deep learning uses neural networks [doc_id 1].", nil
+		return "Deep learning uses neural networks [resource_id 1].", nil
 	}
 
 	// Run evaluation

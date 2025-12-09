@@ -149,13 +149,13 @@ func showMetric(cmd *cobra.Command, args []string) error {
     prompt: "[relevance prompt]"`,
 		},
 		"rag_citation": {
-			description: "Validates citation accuracy (e.g., [doc_id 0])",
+			description: "Validates citation accuracy (e.g., [resource_id 0])",
 			category:    "RAG",
 			inputReq:    "Context documents required",
 			config: `evaluators:
   citations:
     type: rag_citation
-    pattern: '\[doc_id\s+([^\]]+)\]'`,
+    pattern: '\[resource_id\s+([^\]]+)\]'`,
 		},
 		"ndcg": {
 			description: "Normalized Discounted Cumulative Gain for ranking",

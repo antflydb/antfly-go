@@ -227,7 +227,7 @@ Respond in JSON format:
 
 **Context Documents (with IDs):**
 {{#each Context}}
-[doc_id {{@index}}]: {{this}}
+[resource_id {{@index}}]: {{this}}
 {{/each}}
 
 **Question:** {{Input}}
@@ -238,7 +238,7 @@ Evaluate if:
 1. Citations are present where needed
 2. Citations reference the correct documents
 3. All factual claims are properly cited
-4. Citations follow the correct format (e.g., [doc_id 0])
+4. Citations follow the correct format (e.g., [resource_id 0])
 
 Respond in JSON format:
 {

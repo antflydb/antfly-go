@@ -118,9 +118,9 @@ func runStandaloneExample(ctx context.Context) {
 	target := func(ctx context.Context, example eval.Example) (any, error) {
 		query := example.Input.(string)
 		if strings.Contains(query, "machine learning") {
-			return "Machine learning is a subset of AI [doc_id 0]. It trains models on data [doc_id 1].", nil
+			return "Machine learning is a subset of AI [resource_id 0]. It trains models on data [resource_id 1].", nil
 		}
-		return "Response with [doc_id 0] citation.", nil
+		return "Response with [resource_id 0] citation.", nil
 	}
 
 	// Run evaluation

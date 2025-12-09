@@ -11,21 +11,21 @@ import (
 )
 
 // CitationEvaluator validates citation accuracy in RAG outputs.
-// It checks if citations like [doc_id 0] or [doc_id 0, 1] are valid.
+// It checks if citations like [resource_id 0] or [resource_id 0, 1] are valid.
 type CitationEvaluator struct {
 	name    string
 	pattern *regexp.Regexp
 }
 
 // NewCitationEvaluator creates a new citation evaluator.
-// The default pattern matches citations like [doc_id X] or [doc_id X, Y, Z].
+// The default pattern matches citations like [resource_id X] or [resource_id X, Y, Z].
 func NewCitationEvaluator(name string) *CitationEvaluator {
 	if name == "" {
 		name = "citation_accuracy"
 	}
 
 	// Default pattern for Antfly-style citations
-	pattern := regexp.MustCompile(`\[doc_id\s+([^\]]+)\]`)
+	pattern := regexp.MustCompile(`\[resource_id\s+([^\]]+)\]`)
 
 	return &CitationEvaluator{
 		name:    name,
@@ -173,7 +173,7 @@ func NewCitationCoverageEvaluator(name string) *CitationCoverageEvaluator {
 		name = "citation_coverage"
 	}
 
-	pattern := regexp.MustCompile(`\[doc_id\s+([^\]]+)\]`)
+	pattern := regexp.MustCompile(`\[resource_id\s+([^\]]+)\]`)
 
 	return &CitationCoverageEvaluator{
 		name:    name,

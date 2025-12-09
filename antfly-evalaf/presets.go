@@ -13,9 +13,9 @@ func RAGEvaluatorPreset(g *genkitpkg.Genkit, modelName string) []eval.Evaluator 
 		modelName = "ollama/mistral"
 	}
 
-	// Use custom citation pattern to match LLM output format [docN] instead of [doc_id N]
-	citationEval, _ := rag.NewCitationEvaluatorWithPattern("citations", `\[doc(\d+)\]`)
-	coverageEval, _ := rag.NewCitationCoverageEvaluatorWithPattern("coverage", `\[doc(\d+)\]`)
+	// Use custom citation pattern to match LLM output format [resource_id N]
+	citationEval, _ := rag.NewCitationEvaluatorWithPattern("citations", `\[resource_id\s+(\d+)\]`)
+	coverageEval, _ := rag.NewCitationCoverageEvaluatorWithPattern("coverage", `\[resource_id\s+(\d+)\]`)
 
 	evaluators := []eval.Evaluator{
 		// Citation quality
@@ -81,9 +81,9 @@ func ComprehensiveEvaluatorPreset(g *genkitpkg.Genkit, modelName string) []eval.
 		modelName = "ollama/mistral"
 	}
 
-	// Use custom citation pattern to match LLM output format [docN] instead of [doc_id N]
-	citationEval, _ := rag.NewCitationEvaluatorWithPattern("citations", `\[doc(\d+)\]`)
-	coverageEval, _ := rag.NewCitationCoverageEvaluatorWithPattern("coverage", `\[doc(\d+)\]`)
+	// Use custom citation pattern to match LLM output format [resource_id N]
+	citationEval, _ := rag.NewCitationEvaluatorWithPattern("citations", `\[resource_id\s+(\d+)\]`)
+	coverageEval, _ := rag.NewCitationCoverageEvaluatorWithPattern("coverage", `\[resource_id\s+(\d+)\]`)
 
 	evaluators := []eval.Evaluator{
 		// Citations
@@ -130,8 +130,8 @@ func ComprehensiveEvaluatorPreset(g *genkitpkg.Genkit, modelName string) []eval.
 // QuickEvaluatorPreset returns a fast preset without LLM-as-judge.
 // Useful for CI/CD or rapid iteration.
 func QuickEvaluatorPreset() []eval.Evaluator {
-	// Use custom citation pattern to match LLM output format [docN] instead of [doc_id N]
-	citationEval, _ := rag.NewCitationEvaluatorWithPattern("citations", `\[doc(\d+)\]`)
+	// Use custom citation pattern to match LLM output format [resource_id N]
+	citationEval, _ := rag.NewCitationEvaluatorWithPattern("citations", `\[resource_id\s+(\d+)\]`)
 
 	return []eval.Evaluator{
 		citationEval,

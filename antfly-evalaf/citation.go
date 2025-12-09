@@ -5,7 +5,7 @@ import (
 )
 
 // NewCitationEvaluator creates a citation evaluator configured for Antfly's format.
-// Antfly uses the format: [doc_id 0] or [doc_id 0, 1, 2]
+// Antfly uses the format: [resource_id 0] or [resource_id 0, 1, 2]
 func NewCitationEvaluator(name string) *rag.CitationEvaluator {
 	if name == "" {
 		name = "antfly_citation"
