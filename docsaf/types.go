@@ -15,7 +15,7 @@ type DocumentSection struct {
 	Type        string         // Document type (markdown_section, mdx_section, openapi_path, etc.)
 	URL         string         // URL to the document section (base URL + path + anchor)
 	SectionPath []string       // Heading hierarchy path (e.g., ["Getting Started", "Installation", "Prerequisites"])
-	Questions   []Question     // Questions associated with this section
+	Questions   []string       // Questions associated with this section (just the question text)
 	Metadata    map[string]any // Additional type-specific metadata
 }
 
@@ -37,11 +37,7 @@ func (ds *DocumentSection) ToDocument() map[string]any {
 		doc["section_path"] = ds.SectionPath
 	}
 	if len(ds.Questions) > 0 {
-		questions := make([]map[string]any, len(ds.Questions))
-		for i, q := range ds.Questions {
-			questions[i] = q.ToDocument()
-		}
-		doc["questions"] = questions
+		doc["questions"] = ds.Questions
 	}
 	return doc
 }

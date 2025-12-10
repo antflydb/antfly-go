@@ -451,10 +451,10 @@ func (mp *MarkdownProcessor) addQuestionsToSections(sections []DocumentSection, 
 		}
 
 		if bestIdx >= 0 {
-			sections[bestIdx].Questions = append(sections[bestIdx].Questions, q)
+			sections[bestIdx].Questions = append(sections[bestIdx].Questions, q.Text)
 		} else if len(sections) > 0 {
 			// If no match (e.g., frontmatter questions), add to first section
-			sections[0].Questions = append(sections[0].Questions, q)
+			sections[0].Questions = append(sections[0].Questions, q.Text)
 		}
 	}
 

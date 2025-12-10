@@ -696,6 +696,9 @@ func TestHTMLProcessor_Process_QuestionsInSections(t *testing.T) {
 	if len(authSection.Questions) != 2 {
 		t.Errorf("Expected 2 questions in Authentication section, got %d", len(authSection.Questions))
 	}
+	if authSection.Questions[0] != "How do I authenticate?" {
+		t.Errorf("Expected first question 'How do I authenticate?', got %q", authSection.Questions[0])
+	}
 
 	// Check that User API section has 1 question
 	userSection := sections[3] // User API is the fourth section
@@ -704,6 +707,9 @@ func TestHTMLProcessor_Process_QuestionsInSections(t *testing.T) {
 	}
 	if len(userSection.Questions) != 1 {
 		t.Errorf("Expected 1 question in User API section, got %d", len(userSection.Questions))
+	}
+	if userSection.Questions[0] != "How do I create a user?" {
+		t.Errorf("Expected question 'How do I create a user?', got %q", userSection.Questions[0])
 	}
 
 	// Check that Getting Started section has no questions

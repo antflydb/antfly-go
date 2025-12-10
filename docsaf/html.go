@@ -76,13 +76,13 @@ func (hp *HTMLProcessor) addQuestionsToSections(sections []DocumentSection, ques
 			}
 		}
 
-		// If we found a matching section, add the question to it
+		// If we found a matching section, add the question text to it
 		if bestIdx >= 0 {
-			sections[bestIdx].Questions = append(sections[bestIdx].Questions, q)
+			sections[bestIdx].Questions = append(sections[bestIdx].Questions, q.Text)
 		} else if len(sections) > 0 {
 			// If no match found but we have sections, add to the first section
 			// (this handles questions before any heading)
-			sections[0].Questions = append(sections[0].Questions, q)
+			sections[0].Questions = append(sections[0].Questions, q.Text)
 		}
 	}
 

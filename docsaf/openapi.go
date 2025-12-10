@@ -91,7 +91,7 @@ func (op *OpenAPIProcessor) extractV3SectionsWithQuestions(model *v3.Document, p
 		if model.Info.Extensions != nil {
 			ext := orderedMapToMap(model.Info.Extensions)
 			questions := extractor.ExtractFromOpenAPI(path, sourceURL, "openapi_info", model.Info.Title, ext)
-			section.Questions = questions
+			section.Questions = questionsToStrings(questions)
 		}
 
 		sections = append(sections, section)
@@ -147,7 +147,7 @@ func (op *OpenAPIProcessor) extractV3SectionsWithQuestions(model *v3.Document, p
 						context = operation.OperationId
 					}
 					questions := extractor.ExtractFromOpenAPI(path, sourceURL, "openapi_operation", context, ext)
-					section.Questions = questions
+					section.Questions = questionsToStrings(questions)
 				}
 
 				sections = append(sections, section)
@@ -193,7 +193,7 @@ func (op *OpenAPIProcessor) extractV3SectionsWithQuestions(model *v3.Document, p
 			if schema != nil && schema.Extensions != nil {
 				ext := orderedMapToMap(schema.Extensions)
 				questions := extractor.ExtractFromOpenAPI(path, sourceURL, "openapi_schema", schemaName, ext)
-				section.Questions = questions
+				section.Questions = questionsToStrings(questions)
 			}
 
 			sections = append(sections, section)
@@ -319,6 +319,18 @@ func (op *OpenAPIProcessor) extractV3Sections(model *v3.Document, path, sourceUR
 	}
 
 	return sections
+}
+
+// questionsToStrings extracts just the text from a slice of Questions.
+func questionsToStrings(questions []Question) []string {
+	if len(questions) == 0 {
+		return nil
+	}
+	result := make([]string, len(questions))
+	for i, q := range questions {
+		result[i] = q.Text
+	}
+	return result
 }
 
 func extractOperations(pathItem *v3.PathItem) map[string]*v3.Operation {
