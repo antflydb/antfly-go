@@ -99,3 +99,53 @@ type ProcessorRegistry interface {
 	// Processors returns all registered processors.
 	Processors() []ContentProcessor
 }
+
+// Question represents a question extracted from documentation.
+// Questions can come from MDX frontmatter, <Questions> MDX components,
+// or x-docsaf-questions OpenAPI extensions.
+type Question struct {
+	// ID is a unique identifier for the question (generated from source + question text)
+	ID string
+
+	// Text is the question text itself
+	Text string
+
+	// SourcePath is the file path where the question was found
+	SourcePath string
+
+	// SourceURL is the URL to the source document (if available)
+	SourceURL string
+
+	// SourceType indicates where the question came from:
+	// "frontmatter", "mdx_component", "openapi_info", "openapi_path", "openapi_schema"
+	SourceType string
+
+	// Context provides additional context about where the question appears
+	// For MDX: section title or document title
+	// For OpenAPI: operation ID, path, or schema name
+	Context string
+
+	// Metadata contains source-specific metadata
+	Metadata map[string]any
+}
+
+// ToDocument converts a Question to a document map suitable for storage.
+func (q *Question) ToDocument() map[string]any {
+	doc := map[string]any{
+		"id":          q.ID,
+		"text":        q.Text,
+		"source_path": q.SourcePath,
+		"source_type": q.SourceType,
+		"_type":       "question",
+	}
+	if q.SourceURL != "" {
+		doc["source_url"] = q.SourceURL
+	}
+	if q.Context != "" {
+		doc["context"] = q.Context
+	}
+	if len(q.Metadata) > 0 {
+		doc["metadata"] = q.Metadata
+	}
+	return doc
+}

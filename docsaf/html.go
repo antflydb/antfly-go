@@ -2,6 +2,7 @@ package docsaf
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -262,4 +263,96 @@ func (sc *slugCounter) unique(slug string) string {
 		return slug
 	}
 	return fmt.Sprintf("%s-%d", slug, count)
+}
+
+// ExtractQuestions extracts questions from HTML content.
+// It looks for questions in:
+// 1. data-docsaf-questions attributes (JSON array of strings or objects)
+// 2. Elements with class "docsaf-questions" (extracts li text content)
+func (hp *HTMLProcessor) ExtractQuestions(path, sourceURL string, content []byte) []Question {
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(content))
+	if err != nil {
+		return nil
+	}
+
+	var questions []Question
+
+	// Get document title for context
+	context := ""
+	if title := doc.Find("title").First().Text(); title != "" {
+		context = strings.TrimSpace(title)
+	}
+
+	// Extract from data-docsaf-questions attributes
+	doc.Find("[data-docsaf-questions]").Each(func(i int, s *goquery.Selection) {
+		if attr, exists := s.Attr("data-docsaf-questions"); exists {
+			questions = append(questions, hp.parseDataAttribute(path, sourceURL, context, attr)...)
+		}
+	})
+
+	// Extract from elements with class "docsaf-questions"
+	doc.Find(".docsaf-questions").Each(func(i int, s *goquery.Selection) {
+		// Look for li elements within the container
+		s.Find("li").Each(func(j int, li *goquery.Selection) {
+			questionText := strings.TrimSpace(li.Text())
+			if questionText != "" {
+				questions = append(questions, Question{
+					ID:         generateID(path, "html_class_q_"+questionText),
+					Text:       questionText,
+					SourcePath: path,
+					SourceURL:  sourceURL,
+					SourceType: "html_class",
+					Context:    context,
+				})
+			}
+		})
+	})
+
+	return questions
+}
+
+// parseDataAttribute parses questions from a data-docsaf-questions JSON attribute.
+func (hp *HTMLProcessor) parseDataAttribute(path, sourceURL, context, attr string) []Question {
+	var questions []Question
+
+	// Try to parse as JSON array
+	var items []any
+	if err := json.Unmarshal([]byte(attr), &items); err != nil {
+		return questions
+	}
+
+	for _, item := range items {
+		var questionText string
+		var metadata map[string]any
+
+		switch q := item.(type) {
+		case string:
+			questionText = strings.TrimSpace(q)
+		case map[string]any:
+			if text, ok := q["text"].(string); ok {
+				questionText = strings.TrimSpace(text)
+			}
+			// Copy other fields as metadata
+			metadata = make(map[string]any)
+			for k, v := range q {
+				if k != "text" {
+					metadata[k] = v
+				}
+			}
+		}
+
+		if questionText != "" {
+			questions = append(questions, Question{
+				ID:         generateID(path, "html_data_q_"+questionText),
+				Text:       questionText,
+				SourcePath: path,
+				SourceURL:  sourceURL,
+				SourceType: "html_data_attribute",
+				Context:    context,
+				Metadata:   metadata,
+			})
+		}
+	}
+
+	return questions
 }

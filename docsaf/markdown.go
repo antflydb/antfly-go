@@ -411,6 +411,19 @@ func transformURLPath(path string) string {
 	return path
 }
 
+// ExtractQuestions extracts questions from markdown/MDX content.
+// It looks for questions in:
+// 1. Frontmatter "questions" field
+// 2. <Questions> MDX components inline in the content
+func (mp *MarkdownProcessor) ExtractQuestions(path, sourceURL string, content []byte) []Question {
+	extractor := &QuestionsExtractor{}
+
+	// Extract frontmatter
+	frontmatter, contentWithoutFrontmatter := extractFrontmatter(content)
+
+	return extractor.ExtractFromMDXContent(path, sourceURL, contentWithoutFrontmatter, frontmatter)
+}
+
 // DetectContentType detects the MIME type from a file path.
 func DetectContentType(path string, content []byte) string {
 	ext := filepath.Ext(path)
