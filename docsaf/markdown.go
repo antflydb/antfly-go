@@ -193,51 +193,22 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 		}
 	}
 
-	// Create preamble section for content before first heading (if any)
+	// Merge preamble content into the first section (if any)
 	preambleContent := strings.TrimSpace(preambleBuffer.String())
 	if preambleContent != "" && len(sections) > 0 {
-		docType := "markdown_section"
-		if isMDX {
-			docType = "mdx_section"
-		}
+		// Prepend preamble content to the first section's content
+		sections[0].Content = preambleContent + "\n\n" + sections[0].Content
+		sections[0].Content = strings.TrimSpace(sections[0].Content)
 
-		// Use frontmatter title if available, otherwise use filename
-		title := filepath.Base(path)
+		// Mark that this section contains preamble content
+		sections[0].Metadata["has_preamble"] = true
+
+		// Use frontmatter title if available for the first section
 		if frontmatter != nil {
 			if fmTitle, ok := frontmatter["title"].(string); ok && fmTitle != "" {
-				title = fmTitle
+				sections[0].Title = fmTitle
 			}
 		}
-
-		metadata := map[string]any{
-			"is_mdx":   isMDX,
-			"preamble": true,
-		}
-		if frontmatter != nil {
-			metadata["frontmatter"] = frontmatter
-		}
-		if sourceURL != "" {
-			metadata["source_url"] = sourceURL
-		}
-
-		url := ""
-		if baseURL != "" {
-			cleanPath := transformURLPath(path)
-			url = baseURL + "/" + cleanPath
-		}
-
-		preambleSection := DocumentSection{
-			ID:       generateID(path, "_preamble"),
-			FilePath: path,
-			Title:    title,
-			Content:  preambleContent,
-			Type:     docType,
-			URL:      url,
-			Metadata: metadata,
-		}
-
-		// Prepend preamble section to the beginning
-		sections = append([]DocumentSection{preambleSection}, sections...)
 	}
 
 	// Merge small sections to ensure minimum token count
