@@ -52,9 +52,17 @@ func DownloadContent(
 		}
 		mimeType, data, err = downloadHTTPWithMime(ctx, uri, securityConfig)
 	case "file":
-		// For file:// we need to guess MIME type
-		mimeType, data, err = downloadFileWithMime(strings.TrimPrefix(uri, "file://"))
+		filePath := strings.TrimPrefix(uri, "file://")
+		if err := validatePathSecurity(filePath, securityConfig); err != nil {
+			return "", nil, fmt.Errorf("security validation failed: %w", err)
+		}
+		mimeType, data, err = downloadFileWithMime(filePath)
 	case "s3":
+		// S3 path format: /bucket/key - validate without leading slash for prefix matching
+		s3Path := strings.TrimPrefix(parsedURL.Path, "/")
+		if err := validatePathSecurity(s3Path, securityConfig); err != nil {
+			return "", nil, fmt.Errorf("security validation failed: %w", err)
+		}
 		creds := &s3.Credentials{}
 		if s3Creds != nil {
 			creds = s3Creds
@@ -267,6 +275,26 @@ func validateURLSecurity(uri string, config *ContentSecurityConfig) error {
 	}
 
 	return nil
+}
+
+// validatePathSecurity validates file and S3 paths against allowed path prefixes
+func validatePathSecurity(path string, config *ContentSecurityConfig) error {
+	if config == nil || len(config.AllowedPaths) == 0 {
+		return nil
+	}
+
+	// Clean the path to prevent traversal attacks
+	cleanPath := filepath.Clean(path)
+
+	// Check if path starts with any allowed prefix
+	for _, allowed := range config.AllowedPaths {
+		cleanAllowed := filepath.Clean(allowed)
+		if strings.HasPrefix(cleanPath, cleanAllowed) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("path %s not in allowed paths", path)
 }
 
 // isPrivateIP checks if a hostname resolves to a private IP address

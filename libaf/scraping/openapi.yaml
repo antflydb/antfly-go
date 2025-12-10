@@ -40,3 +40,11 @@ components:
           default: 2048
           minimum: 1
           example: 2048
+        allowed_paths:
+          type: array
+          description: "Whitelist of allowed path prefixes for file:// and s3:// URLs. If empty, all paths are allowed. For file:// use absolute paths (e.g., /Users/data/). For s3:// use bucket/prefix (e.g., my-bucket/uploads/)."
+          items:
+            type: string
+          example:
+            - "/Users/data/"
+            - "my-bucket/uploads/"

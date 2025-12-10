@@ -20,6 +20,9 @@ type ContentSecurityConfig struct {
 	// AllowedHosts Whitelist of allowed hostnames/IPs for link downloads. If empty, all hosts are allowed (except private IPs if block_private_ips is true).
 	AllowedHosts []string `json:"allowed_hosts,omitempty,omitzero"`
 
+	// AllowedPaths Whitelist of allowed path prefixes for file:// and s3:// URLs. If empty, all paths are allowed. For file:// use absolute paths (e.g., /Users/data/). For s3:// use bucket/prefix (e.g., my-bucket/uploads/).
+	AllowedPaths []string `json:"allowed_paths,omitempty,omitzero"`
+
 	// BlockPrivateIps Block requests to private IP ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16)
 	BlockPrivateIps bool `json:"block_private_ips,omitempty,omitzero"`
 
@@ -36,16 +39,18 @@ type ContentSecurityConfig struct {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/3yUzW7jOAzHX4XgqQVc107TNPVxe+phgQW6wB4WA0OxGYdTfY1EN8kUffeB7CR1Gswg",
-	"F5Em//nxQ3rHxhnvLFmJWL1jbDZk1HB8clbIygs1fWDZPzm75i598MF5CsI0hCmt3ZbaeuPiKNFSbAJ7",
-	"YWexwv82LKQ5Crg1HGIhxVplKN4+/xNh7QJotq/Quq3VTrUxh+c1kPGyz1LOEB9BBTopXNGuIS/gA78p",
-	"IUg6vIaVds1rfXDW7CNwBAk9XeeYIe2U8Zqw+v94zBtnMMOmtfm5p3yc5UU+y0v8liELmaE02XvCCqME",
-	"th1+ZEeHCkHtk33x/2ND1qrXglUCyb7056+UAYF+9JRqFDcpCYKyHUW4KmcPeZF+t8sMymJyfpjl5WKw",
-	"ylkGibpcLEd7kUG5eMxn9/ODfY0n4JVzmpRNyMem18KGXC91pMbZ9pz8rvjK/e8YPQyPbctv3PZKn0YI",
-	"aUVUio3AFo6akxkkScOWTW+wKk9kbIU6ConMqF19oov8k+rVXugcrCzmy/uHRXHB97faJWlIeWn1jkLU",
-	"QjMuduIaBSdUE70TXHEBl+HupnM3n97F/AjMRnVUt2zIxoFkAjsr5svfcQ55sOVWNrcb4m4z8HnekY5w",
-	"NXyNsGWtYUUQKJXVXk/JR/E/dfRzX93qOzWCH8nFdu0ur+142/txhDC+CsOsj82Lh2cBlG0/px5JhG0X",
-	"020TlsSFL01Qnm0HZ5qY4RuFsUWY9rlMHXSerPKMFd7lRX6HGXolm4iV7bX++BUAAP//pHRAPa0EAAA=",
+	"H4sIAAAAAAAC/5SUz27jNhDGX2XAkw0o+mM7jqNjAxQI0AJF06CHohBoaSRPQ5EsOYrtDfLuC0qWI8fY",
+	"xS50IUczn376Zsg3UZrWGo2avcjfhC932Mp++WA0o+YnLDtHfHwwuqYmvLDOWHRM2KdJpcweq2Jn/CBR",
+	"oS8dWSajRS7+3hGjIs9gajjlQsjVskWfPP7hoTYOFOkXqMxeKyMrH8NjDdhaPkahps/3IB2eFWZ4KNEy",
+	"WEevkhGCDtWwVaZ8KU7BgqwH8sCuw3ksIoEH2VqFIv9nXMalaUUkykrHl5HsfhGn8SLOxL+RIMa2/zU+",
+	"WhS58OxIN+I9GgPSOXkM+9EMK3n3o2aEXLAOazrgYEZNCvMkAakr8Muwev7ztytT+m9MTYnh10lx5xHk",
+	"1hvVMZ5yZxg3cQTJs0fnk0qyTOZD0fCVULLtyhfkZOAZK9rjzSne2b5ByWc/p5oiEtcFP+fjVR8HL2vZ",
+	"KRZ5aGj0ydpfQgU4/L/DMCtsJqMBTuoGPcyyxV2chifZRJClk/XdIs7W/S5bRBC6n603w34dQba+jxe3",
+	"q9N+Ls7AW2MUSh2Qx+EtmFo0HRceS6OrS/Jl+pn7ryG77zvpil6p6qQ6HwUIR02GXA+kYdSceB8kW9LU",
+	"dq3IszMZacYGXSBr5aE403n6gsX2yHgJlqWrze3dOr3i+10egjSEujC1oxBWUA4XROAaBCdUE70zXHoF",
+	"F4nDTWNuPqLr1QhMrWywqKhF7XuSCewiXW2+xdnXwZ4q3iU7pGbX81k6oPIw69962JNSsEVwGH6rmk/J",
+	"B/HvOfoxr2b7H5Ys3kOIdG2uT/xwa3ZDC2G4Xftej+b50/XaH/Zz1z0yk258OGVMHLjEU+mkJd3AhaaI",
+	"xCu6wSIR5jkLDhqLWloSuVjGabwUkTjdSLpT6v1rAAAA//81U/1/9QUAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
