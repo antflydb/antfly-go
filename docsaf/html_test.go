@@ -296,3 +296,236 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+func TestHTMLProcessor_ExtractQuestions_DataAttribute(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<head>
+	<title>FAQ Page</title>
+</head>
+<body>
+	<div data-docsaf-questions='["How do I sign up?", "What payment methods are accepted?"]'>
+		<h1>Getting Started</h1>
+		<p>Content here.</p>
+	</div>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("faq.html", "https://example.com/faq", htmlContent)
+
+	if len(questions) != 2 {
+		t.Fatalf("Expected 2 questions, got %d", len(questions))
+	}
+
+	if questions[0].Text != "How do I sign up?" {
+		t.Errorf("Expected 'How do I sign up?', got %q", questions[0].Text)
+	}
+	if questions[0].SourceType != "html_data_attribute" {
+		t.Errorf("Expected source type 'html_data_attribute', got %q", questions[0].SourceType)
+	}
+	if questions[0].Context != "FAQ Page" {
+		t.Errorf("Expected context 'FAQ Page', got %q", questions[0].Context)
+	}
+	if questions[0].SourcePath != "faq.html" {
+		t.Errorf("Expected source path 'faq.html', got %q", questions[0].SourcePath)
+	}
+
+	if questions[1].Text != "What payment methods are accepted?" {
+		t.Errorf("Expected 'What payment methods are accepted?', got %q", questions[1].Text)
+	}
+}
+
+func TestHTMLProcessor_ExtractQuestions_DataAttributeWithObjects(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<head><title>Test</title></head>
+<body>
+	<div data-docsaf-questions='[{"text": "How do I authenticate?", "category": "auth"}, {"text": "What are rate limits?"}]'>
+		<h1>API Docs</h1>
+	</div>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("api.html", "", htmlContent)
+
+	if len(questions) != 2 {
+		t.Fatalf("Expected 2 questions, got %d", len(questions))
+	}
+
+	if questions[0].Text != "How do I authenticate?" {
+		t.Errorf("Expected 'How do I authenticate?', got %q", questions[0].Text)
+	}
+	if questions[0].Metadata["category"] != "auth" {
+		t.Errorf("Expected metadata category 'auth', got %v", questions[0].Metadata["category"])
+	}
+
+	if questions[1].Text != "What are rate limits?" {
+		t.Errorf("Expected 'What are rate limits?', got %q", questions[1].Text)
+	}
+}
+
+func TestHTMLProcessor_ExtractQuestions_ClassContainer(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<head><title>Help Center</title></head>
+<body>
+	<h1>Frequently Asked Questions</h1>
+	<ul class="docsaf-questions">
+		<li>How do I reset my password?</li>
+		<li>Where can I find my API key?</li>
+		<li>How do I contact support?</li>
+	</ul>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("help.html", "https://help.example.com/faq", htmlContent)
+
+	if len(questions) != 3 {
+		t.Fatalf("Expected 3 questions, got %d", len(questions))
+	}
+
+	if questions[0].Text != "How do I reset my password?" {
+		t.Errorf("Expected 'How do I reset my password?', got %q", questions[0].Text)
+	}
+	if questions[0].SourceType != "html_class" {
+		t.Errorf("Expected source type 'html_class', got %q", questions[0].SourceType)
+	}
+	if questions[0].Context != "Help Center" {
+		t.Errorf("Expected context 'Help Center', got %q", questions[0].Context)
+	}
+
+	if questions[1].Text != "Where can I find my API key?" {
+		t.Errorf("Expected 'Where can I find my API key?', got %q", questions[1].Text)
+	}
+	if questions[2].Text != "How do I contact support?" {
+		t.Errorf("Expected 'How do I contact support?', got %q", questions[2].Text)
+	}
+}
+
+func TestHTMLProcessor_ExtractQuestions_MultipleSources(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<head><title>Docs</title></head>
+<body>
+	<div data-docsaf-questions='["Question from data attribute"]'>
+		<h1>Section 1</h1>
+	</div>
+	<ul class="docsaf-questions">
+		<li>Question from class</li>
+	</ul>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("docs.html", "", htmlContent)
+
+	if len(questions) != 2 {
+		t.Fatalf("Expected 2 questions (1 data + 1 class), got %d", len(questions))
+	}
+
+	// Check that both source types are present
+	sourceTypes := make(map[string]int)
+	for _, q := range questions {
+		sourceTypes[q.SourceType]++
+	}
+
+	if sourceTypes["html_data_attribute"] != 1 {
+		t.Errorf("Expected 1 question from data attribute, got %d", sourceTypes["html_data_attribute"])
+	}
+	if sourceTypes["html_class"] != 1 {
+		t.Errorf("Expected 1 question from class, got %d", sourceTypes["html_class"])
+	}
+}
+
+func TestHTMLProcessor_ExtractQuestions_NoQuestions(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<head><title>Regular Page</title></head>
+<body>
+	<h1>No Questions Here</h1>
+	<p>Just regular content.</p>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("regular.html", "", htmlContent)
+
+	if len(questions) != 0 {
+		t.Errorf("Expected 0 questions, got %d", len(questions))
+	}
+}
+
+func TestHTMLProcessor_ExtractQuestions_InvalidJSON(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<body>
+	<div data-docsaf-questions='not valid json'>
+		<h1>Test</h1>
+	</div>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("invalid.html", "", htmlContent)
+
+	// Should return empty slice for invalid JSON, not error
+	if len(questions) != 0 {
+		t.Errorf("Expected 0 questions for invalid JSON, got %d", len(questions))
+	}
+}
+
+func TestHTMLProcessor_ExtractQuestions_EmptyListItems(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<body>
+	<ul class="docsaf-questions">
+		<li>Valid question</li>
+		<li>   </li>
+		<li></li>
+		<li>Another valid question</li>
+	</ul>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("test.html", "", htmlContent)
+
+	// Empty/whitespace-only items should be skipped
+	if len(questions) != 2 {
+		t.Errorf("Expected 2 questions (skipping empty items), got %d", len(questions))
+	}
+}
+
+func TestHTMLProcessor_ExtractQuestions_NoTitle(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<body>
+	<div data-docsaf-questions='["Question here"]'>
+		<p>Content</p>
+	</div>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("notitle.html", "", htmlContent)
+
+	if len(questions) != 1 {
+		t.Fatalf("Expected 1 question, got %d", len(questions))
+	}
+
+	// Context should be empty when no title
+	if questions[0].Context != "" {
+		t.Errorf("Expected empty context when no title, got %q", questions[0].Context)
+	}
+}

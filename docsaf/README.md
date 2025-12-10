@@ -350,6 +350,169 @@ type DocumentSection struct {
 }
 ```
 
+## Questions Extraction
+
+docsaf can extract questions from documentation as a separate top-level concept. Questions are useful for building FAQ systems, search optimization, or understanding what users want to know about your documentation.
+
+### Question Type
+
+```go
+type Question struct {
+    ID         string         // Unique identifier
+    Text       string         // The question text
+    SourcePath string         // File path where found
+    SourceURL  string         // URL to the source document
+    SourceType string         // Origin: "frontmatter", "mdx_component", "openapi_info", etc.
+    Context    string         // Document title, operation ID, or schema name
+    Metadata   map[string]any // Additional source-specific data
+}
+```
+
+### Extracting Questions from MDX/Markdown
+
+Questions can be defined in two ways:
+
+**1. Frontmatter `questions` field:**
+
+```yaml
+---
+title: Installation Guide
+questions:
+  - How do I install on Windows?
+  - How do I install on macOS?
+  - text: What are the system requirements?
+    category: prerequisites
+---
+```
+
+**2. Inline `<Questions>` MDX components:**
+
+```mdx
+# Getting Started
+
+<Questions>
+- How do I install Antfly?
+- Where can I download the CLI?
+- What are the prerequisites?
+</Questions>
+
+Follow these steps to get started...
+```
+
+**Usage:**
+
+```go
+mp := &docsaf.MarkdownProcessor{}
+content, _ := os.ReadFile("guide.mdx")
+
+questions := mp.ExtractQuestions("guide.mdx", "https://docs.example.com/guide", content)
+
+for _, q := range questions {
+    fmt.Printf("[%s] %s\n", q.SourceType, q.Text)
+}
+// Output:
+// [frontmatter] How do I install on Windows?
+// [frontmatter] How do I install on macOS?
+// [mdx_component] How do I install Antfly?
+// [mdx_component] Where can I download the CLI?
+```
+
+### Extracting Questions from OpenAPI Specs
+
+Use the `x-docsaf-questions` extension at any level in your OpenAPI spec:
+
+```yaml
+openapi: "3.0.0"
+info:
+  title: User API
+  version: "1.0"
+  x-docsaf-questions:
+    - How do I authenticate with this API?
+    - What rate limits apply?
+
+paths:
+  /users:
+    x-docsaf-questions:
+      - How do I list all users?
+    get:
+      operationId: getUsers
+      summary: Get all users
+      x-docsaf-questions:
+        - Can I paginate results?
+        - How do I filter by status?
+
+components:
+  schemas:
+    User:
+      type: object
+      x-docsaf-questions:
+        - What fields are required?
+        - How do I format the date field?
+```
+
+**Usage:**
+
+```go
+op := &docsaf.OpenAPIProcessor{}
+content, _ := os.ReadFile("api.yaml")
+
+questions, err := op.ExtractQuestions("api.yaml", "https://api.example.com/spec", content)
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, q := range questions {
+    fmt.Printf("[%s] %s (context: %s)\n", q.SourceType, q.Text, q.Context)
+}
+// Output:
+// [openapi_info] How do I authenticate with this API? (context: User API)
+// [openapi_path] How do I list all users? (context: /users)
+// [openapi_operation] Can I paginate results? (context: getUsers)
+// [openapi_schema] What fields are required? (context: User)
+```
+
+### Extracting Questions from HTML
+
+Use `data-docsaf-questions` attributes or elements with the `docsaf-questions` class:
+
+```html
+<!-- Using data attribute with JSON array -->
+<div data-docsaf-questions='["How do I sign up?", "What payment methods are accepted?"]'>
+  <h1>Getting Started</h1>
+  ...
+</div>
+
+<!-- Using a dedicated questions container -->
+<ul class="docsaf-questions">
+  <li>How do I reset my password?</li>
+  <li>Where can I find my API key?</li>
+</ul>
+```
+
+**Usage:**
+
+```go
+hp := &docsaf.HTMLProcessor{}
+content, _ := os.ReadFile("page.html")
+
+questions := hp.ExtractQuestions("page.html", "https://docs.example.com/page", content)
+```
+
+### Question Metadata
+
+Questions can include additional metadata when using the object format:
+
+```yaml
+# In frontmatter or OpenAPI
+questions:
+  - text: How do I authenticate?
+    category: security
+    priority: high
+    related_to: /docs/auth
+```
+
+This metadata is preserved in the `Question.Metadata` field.
+
 ## URL Normalization
 
 When `NormalizeURLs` is enabled (default), URLs are canonicalized for consistent deduplication:
