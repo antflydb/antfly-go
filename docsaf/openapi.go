@@ -7,6 +7,8 @@ import (
 
 	"github.com/pb33f/libopenapi"
 	v3 "github.com/pb33f/libopenapi/datamodel/high/v3"
+	orderedmap "github.com/pb33f/libopenapi/orderedmap"
+	"go.yaml.in/yaml/v4"
 )
 
 // OpenAPIProcessor processes OpenAPI specification content using libopenapi.
@@ -192,4 +194,136 @@ func extractOperations(pathItem *v3.PathItem) map[string]*v3.Operation {
 		ops["head"] = pathItem.Head
 	}
 	return ops
+}
+
+// ExtractQuestions extracts x-docsaf-questions from OpenAPI extensions.
+// It looks for questions at:
+// 1. Top-level document info
+// 2. Individual paths/operations
+// 3. Component schemas
+func (op *OpenAPIProcessor) ExtractQuestions(path, sourceURL string, content []byte) ([]Question, error) {
+	doc, err := libopenapi.NewDocument(content)
+	if err != nil {
+		return nil, fmt.Errorf("not a valid OpenAPI document: %w", err)
+	}
+
+	v3Model, err := doc.BuildV3Model()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build OpenAPI v3 model: %w", err)
+	}
+
+	if v3Model == nil {
+		return nil, nil
+	}
+
+	return op.extractV3Questions(&v3Model.Model, path, sourceURL), nil
+}
+
+// extractV3Questions extracts questions from OpenAPI v3 extensions.
+func (op *OpenAPIProcessor) extractV3Questions(model *v3.Document, path, sourceURL string) []Question {
+	var questions []Question
+	extractor := &QuestionsExtractor{}
+
+	// Extract from document-level extensions
+	if model.Extensions != nil {
+		ext := orderedMapToMap(model.Extensions)
+		questions = append(questions, extractor.ExtractFromOpenAPI(
+			path, sourceURL, "openapi_document", "Document", ext,
+		)...)
+	}
+
+	// Extract from Info extensions
+	if model.Info != nil && model.Info.Extensions != nil {
+		ext := orderedMapToMap(model.Info.Extensions)
+		context := model.Info.Title
+		questions = append(questions, extractor.ExtractFromOpenAPI(
+			path, sourceURL, "openapi_info", context, ext,
+		)...)
+	}
+
+	// Extract from Paths extensions
+	if model.Paths != nil {
+		// Extract from Paths-level extensions
+		if model.Paths.Extensions != nil {
+			ext := orderedMapToMap(model.Paths.Extensions)
+			questions = append(questions, extractor.ExtractFromOpenAPI(
+				path, sourceURL, "openapi_paths", "Paths", ext,
+			)...)
+		}
+
+		// Extract from individual PathItems and Operations
+		if model.Paths.PathItems != nil {
+			for pathPair := model.Paths.PathItems.First(); pathPair != nil; pathPair = pathPair.Next() {
+				pathKey := pathPair.Key()
+				pathItem := pathPair.Value()
+
+				// Extract from PathItem extensions
+				if pathItem.Extensions != nil {
+					ext := orderedMapToMap(pathItem.Extensions)
+					questions = append(questions, extractor.ExtractFromOpenAPI(
+						path, sourceURL, "openapi_path", pathKey, ext,
+					)...)
+				}
+
+				// Extract from individual Operation extensions
+				operations := extractOperations(pathItem)
+				for method, operation := range operations {
+					if operation.Extensions != nil {
+						ext := orderedMapToMap(operation.Extensions)
+						context := fmt.Sprintf("%s %s", strings.ToUpper(method), pathKey)
+						if operation.OperationId != "" {
+							context = operation.OperationId
+						}
+						questions = append(questions, extractor.ExtractFromOpenAPI(
+							path, sourceURL, "openapi_operation", context, ext,
+						)...)
+					}
+				}
+			}
+		}
+	}
+
+	// Extract from Schema extensions
+	if model.Components != nil && model.Components.Schemas != nil {
+		for schemaPair := model.Components.Schemas.First(); schemaPair != nil; schemaPair = schemaPair.Next() {
+			schemaName := schemaPair.Key()
+			schemaProxy := schemaPair.Value()
+			schema := schemaProxy.Schema()
+
+			if schema != nil && schema.Extensions != nil {
+				ext := orderedMapToMap(schema.Extensions)
+				questions = append(questions, extractor.ExtractFromOpenAPI(
+					path, sourceURL, "openapi_schema", schemaName, ext,
+				)...)
+			}
+		}
+	}
+
+	return questions
+}
+
+// orderedMapToMap converts an orderedmap of yaml.Node to a regular map.
+// It extracts x-docsaf-questions and other extensions into a usable format.
+func orderedMapToMap(om *orderedmap.Map[string, *yaml.Node]) map[string]any {
+	if om == nil {
+		return nil
+	}
+
+	result := make(map[string]any)
+	for pair := om.First(); pair != nil; pair = pair.Next() {
+		key := pair.Key()
+		node := pair.Value()
+
+		if node == nil {
+			continue
+		}
+
+		// Decode the yaml.Node into a generic interface
+		var value any
+		if err := node.Decode(&value); err == nil {
+			result[key] = value
+		}
+	}
+
+	return result
 }
