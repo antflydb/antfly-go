@@ -25,6 +25,7 @@ func DownloadContent(
 	ctx context.Context,
 	uri string,
 	securityConfig *ContentSecurityConfig,
+	s3Creds *s3.Credentials,
 ) (string, []byte, error) {
 	// Parse data URIs
 	if strings.HasPrefix(uri, "data:") {
@@ -54,7 +55,12 @@ func DownloadContent(
 		// For file:// we need to guess MIME type
 		mimeType, data, err = downloadFileWithMime(strings.TrimPrefix(uri, "file://"))
 	case "s3":
-		mimeType, data, err = downloadS3WithMime(ctx, parsedURL)
+		creds := &s3.Credentials{}
+		if s3Creds != nil {
+			creds = s3Creds
+		}
+		creds.Endpoint = parsedURL.Host
+		mimeType, data, err = downloadS3WithMime(ctx, parsedURL.Path, *creds)
 	default:
 		return "", nil, fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
 	}
@@ -154,10 +160,9 @@ func downloadFileWithMime(path string) (string, []byte, error) {
 }
 
 // downloadS3WithMime downloads from S3 and returns full MIME type
-func downloadS3WithMime(ctx context.Context, parsedURL *url.URL) (string, []byte, error) {
+func downloadS3WithMime(ctx context.Context, path string, creds s3.Credentials) (string, []byte, error) {
 	// S3 URL format: s3://endpoint/bucket/key
-	endpoint := parsedURL.Host
-	path := strings.TrimPrefix(parsedURL.Path, "/")
+	path = strings.TrimPrefix(path, "/")
 	parts := strings.Split(path, "/")
 
 	if len(parts) < 2 {
@@ -167,7 +172,7 @@ func downloadS3WithMime(ctx context.Context, parsedURL *url.URL) (string, []byte
 	key := strings.Join(parts[1:], "/")
 
 	// Create MinIO client
-	client, err := s3.NewMinioClient(endpoint, true)
+	client, err := creds.NewMinioClient()
 	if err != nil {
 		return "", nil, fmt.Errorf("creating S3 client: %w", err)
 	}
