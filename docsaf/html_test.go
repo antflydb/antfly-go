@@ -529,3 +529,191 @@ func TestHTMLProcessor_ExtractQuestions_NoTitle(t *testing.T) {
 		t.Errorf("Expected empty context when no title, got %q", questions[0].Context)
 	}
 }
+
+func TestHTMLProcessor_ExtractQuestions_SectionPath(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<head><title>Docs</title></head>
+<body>
+	<h1>Getting Started</h1>
+	<p>Intro content</p>
+
+	<h2>Installation</h2>
+	<ul class="docsaf-questions">
+		<li>How do I install?</li>
+		<li>What are the requirements?</li>
+	</ul>
+
+	<h2>Configuration</h2>
+	<h3>Database Setup</h3>
+	<div data-docsaf-questions='["How do I configure the database?"]'>
+		<p>Database content</p>
+	</div>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("docs.html", "", htmlContent)
+
+	if len(questions) != 3 {
+		t.Fatalf("Expected 3 questions, got %d", len(questions))
+	}
+
+	// First two questions should be under "Getting Started > Installation"
+	expectedPath1 := []string{"Getting Started", "Installation"}
+	if !slicesEqual(questions[0].SectionPath, expectedPath1) {
+		t.Errorf("Expected section path %v, got %v", expectedPath1, questions[0].SectionPath)
+	}
+	if !slicesEqual(questions[1].SectionPath, expectedPath1) {
+		t.Errorf("Expected section path %v, got %v", expectedPath1, questions[1].SectionPath)
+	}
+
+	// Third question should be under "Getting Started > Configuration > Database Setup"
+	expectedPath2 := []string{"Getting Started", "Configuration", "Database Setup"}
+	if !slicesEqual(questions[2].SectionPath, expectedPath2) {
+		t.Errorf("Expected section path %v, got %v", expectedPath2, questions[2].SectionPath)
+	}
+}
+
+func TestHTMLProcessor_ExtractQuestions_NoHeadings(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<head><title>Simple Page</title></head>
+<body>
+	<div data-docsaf-questions='["Question without section"]'>
+		<p>Content</p>
+	</div>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("simple.html", "", htmlContent)
+
+	if len(questions) != 1 {
+		t.Fatalf("Expected 1 question, got %d", len(questions))
+	}
+
+	// Section path should be empty when there are no preceding headings
+	if len(questions[0].SectionPath) != 0 {
+		t.Errorf("Expected empty section path, got %v", questions[0].SectionPath)
+	}
+}
+
+func TestHTMLProcessor_ExtractQuestions_SectionPathReset(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	// Test that section path resets when a higher-level heading appears
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<head><title>Docs</title></head>
+<body>
+	<h1>Chapter 1</h1>
+	<h2>Section 1.1</h2>
+	<h3>Subsection 1.1.1</h3>
+	<ul class="docsaf-questions">
+		<li>Question in 1.1.1</li>
+	</ul>
+
+	<h1>Chapter 2</h1>
+	<ul class="docsaf-questions">
+		<li>Question in Chapter 2</li>
+	</ul>
+</body>
+</html>`)
+
+	questions := hp.ExtractQuestions("docs.html", "", htmlContent)
+
+	if len(questions) != 2 {
+		t.Fatalf("Expected 2 questions, got %d", len(questions))
+	}
+
+	// First question should have full path
+	expectedPath1 := []string{"Chapter 1", "Section 1.1", "Subsection 1.1.1"}
+	if !slicesEqual(questions[0].SectionPath, expectedPath1) {
+		t.Errorf("Expected section path %v, got %v", expectedPath1, questions[0].SectionPath)
+	}
+
+	// Second question should have reset path (only h1)
+	expectedPath2 := []string{"Chapter 2"}
+	if !slicesEqual(questions[1].SectionPath, expectedPath2) {
+		t.Errorf("Expected section path %v, got %v", expectedPath2, questions[1].SectionPath)
+	}
+}
+
+func slicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestHTMLProcessor_Process_QuestionsInSections(t *testing.T) {
+	hp := &HTMLProcessor{}
+
+	htmlContent := []byte(`<!DOCTYPE html>
+<html>
+<head><title>API Documentation</title></head>
+<body>
+	<h1>Getting Started</h1>
+	<p>Welcome to the API.</p>
+
+	<h2>Authentication</h2>
+	<ul class="docsaf-questions">
+		<li>How do I authenticate?</li>
+		<li>What auth methods are supported?</li>
+	</ul>
+
+	<h2>Endpoints</h2>
+	<h3>User API</h3>
+	<div data-docsaf-questions='["How do I create a user?"]'>
+		<p>User endpoint documentation.</p>
+	</div>
+</body>
+</html>`)
+
+	sections, err := hp.Process("api.html", "", "https://example.com", htmlContent)
+	if err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+
+	// Should have 4 sections: Getting Started, Authentication, Endpoints, User API
+	if len(sections) != 4 {
+		t.Fatalf("Expected 4 sections, got %d", len(sections))
+	}
+
+	// Check that Authentication section has 2 questions
+	authSection := sections[1] // Authentication is the second section
+	if authSection.Title != "Authentication" {
+		t.Errorf("Expected 'Authentication', got %q", authSection.Title)
+	}
+	if len(authSection.Questions) != 2 {
+		t.Errorf("Expected 2 questions in Authentication section, got %d", len(authSection.Questions))
+	}
+	if authSection.Questions[0] != "How do I authenticate?" {
+		t.Errorf("Expected first question 'How do I authenticate?', got %q", authSection.Questions[0])
+	}
+
+	// Check that User API section has 1 question
+	userSection := sections[3] // User API is the fourth section
+	if userSection.Title != "User API" {
+		t.Errorf("Expected 'User API', got %q", userSection.Title)
+	}
+	if len(userSection.Questions) != 1 {
+		t.Errorf("Expected 1 question in User API section, got %d", len(userSection.Questions))
+	}
+	if userSection.Questions[0] != "How do I create a user?" {
+		t.Errorf("Expected question 'How do I create a user?', got %q", userSection.Questions[0])
+	}
+
+	// Check that Getting Started section has no questions
+	if len(sections[0].Questions) != 0 {
+		t.Errorf("Expected 0 questions in Getting Started section, got %d", len(sections[0].Questions))
+	}
+}

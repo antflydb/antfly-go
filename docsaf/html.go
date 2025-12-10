@@ -26,6 +26,7 @@ func (hp *HTMLProcessor) CanProcess(contentType, path string) bool {
 }
 
 // Process processes HTML content and returns document sections.
+// Questions found in the HTML are associated with their containing sections.
 func (hp *HTMLProcessor) Process(path, sourceURL, baseURL string, content []byte) ([]DocumentSection, error) {
 	// Parse HTML with goquery
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(content))
@@ -42,7 +43,93 @@ func (hp *HTMLProcessor) Process(path, sourceURL, baseURL string, content []byte
 	// Extract sections by headings
 	sections := hp.extractSections(doc, path, baseURL, docMetadata)
 
+	// Extract questions and associate them with sections
+	questions := hp.ExtractQuestions(path, sourceURL, content)
+	sections = hp.addQuestionsToSections(sections, questions)
+
 	return sections, nil
+}
+
+// addQuestionsToSections associates questions with their containing sections.
+// Questions are matched to sections based on their SectionPath.
+func (hp *HTMLProcessor) addQuestionsToSections(sections []DocumentSection, questions []Question) []DocumentSection {
+	if len(questions) == 0 {
+		return sections
+	}
+
+	// Build a map of section path (as string) to section index
+	// Use the most specific match (longest matching prefix)
+	for i := range sections {
+		sections[i].Questions = nil // Initialize to avoid appending to nil
+	}
+
+	for _, q := range questions {
+		// Find the best matching section for this question
+		bestIdx := -1
+		bestMatchLen := -1
+
+		for i, section := range sections {
+			matchLen := matchSectionPath(section.SectionPath, q.SectionPath)
+			if matchLen > bestMatchLen {
+				bestMatchLen = matchLen
+				bestIdx = i
+			}
+		}
+
+		// If we found a matching section, add the question text to it
+		if bestIdx >= 0 {
+			sections[bestIdx].Questions = append(sections[bestIdx].Questions, q.Text)
+		} else if len(sections) > 0 {
+			// If no match found but we have sections, add to the first section
+			// (this handles questions before any heading)
+			sections[0].Questions = append(sections[0].Questions, q.Text)
+		}
+	}
+
+	return sections
+}
+
+// matchSectionPath returns the length of the matching prefix between two section paths.
+// Returns -1 if the paths don't match at all, 0 if both are empty,
+// or the number of matching elements from the start.
+func matchSectionPath(sectionPath, questionPath []string) int {
+	// If question has no section path, it matches any section
+	if len(questionPath) == 0 {
+		return 0
+	}
+
+	// If section has no path but question does, they don't match well
+	if len(sectionPath) == 0 {
+		return -1
+	}
+
+	// Count matching elements from the start
+	matchLen := 0
+	minLen := len(sectionPath)
+	if len(questionPath) < minLen {
+		minLen = len(questionPath)
+	}
+
+	for i := 0; i < minLen; i++ {
+		if sectionPath[i] == questionPath[i] {
+			matchLen++
+		} else {
+			break
+		}
+	}
+
+	// If no elements match, return -1
+	if matchLen == 0 {
+		return -1
+	}
+
+	// For a full match, the section path should be equal to or a prefix of the question path
+	// This ensures questions in deeper sections match those sections
+	if matchLen == len(sectionPath) && matchLen <= len(questionPath) {
+		return matchLen
+	}
+
+	return matchLen
 }
 
 // extractMetadata extracts metadata from the HTML <head> section.
@@ -269,6 +356,7 @@ func (sc *slugCounter) unique(slug string) string {
 // It looks for questions in:
 // 1. data-docsaf-questions attributes (JSON array of strings or objects)
 // 2. Elements with class "docsaf-questions" (extracts li text content)
+// Questions are associated with the section they appear in based on preceding headings.
 func (hp *HTMLProcessor) ExtractQuestions(path, sourceURL string, content []byte) []Question {
 	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(content))
 	if err != nil {
@@ -283,36 +371,73 @@ func (hp *HTMLProcessor) ExtractQuestions(path, sourceURL string, content []byte
 		context = strings.TrimSpace(title)
 	}
 
-	// Extract from data-docsaf-questions attributes
-	doc.Find("[data-docsaf-questions]").Each(func(i int, s *goquery.Selection) {
-		if attr, exists := s.Attr("data-docsaf-questions"); exists {
-			questions = append(questions, hp.parseDataAttribute(path, sourceURL, context, attr)...)
-		}
-	})
+	// Track heading hierarchy as we traverse elements in document order
+	var headingStack []headingStackEntry
 
-	// Extract from elements with class "docsaf-questions"
-	doc.Find(".docsaf-questions").Each(func(i int, s *goquery.Selection) {
-		// Look for li elements within the container
-		s.Find("li").Each(func(j int, li *goquery.Selection) {
-			questionText := strings.TrimSpace(li.Text())
-			if questionText != "" {
-				questions = append(questions, Question{
-					ID:         generateID(path, "html_class_q_"+questionText),
-					Text:       questionText,
-					SourcePath: path,
-					SourceURL:  sourceURL,
-					SourceType: "html_class",
-					Context:    context,
-				})
+	// Find all headings and question elements in document order
+	// This ensures questions are associated with the correct section
+	doc.Find("h1, h2, h3, h4, h5, h6, [data-docsaf-questions], .docsaf-questions").Each(func(i int, s *goquery.Selection) {
+		tagName := goquery.NodeName(s)
+
+		// If it's a heading, update the heading stack
+		if hp.isHeading(tagName) {
+			headingLevel := hp.getHeadingLevel(s)
+			headingText := strings.TrimSpace(s.Text())
+
+			// Pop entries with level >= current
+			for len(headingStack) > 0 && headingStack[len(headingStack)-1].level >= headingLevel {
+				headingStack = headingStack[:len(headingStack)-1]
 			}
-		})
+			// Push current heading onto stack
+			headingStack = append(headingStack, headingStackEntry{
+				level: headingLevel,
+				title: headingText,
+			})
+			return
+		}
+
+		// Build current section path from heading stack
+		sectionPath := make([]string, len(headingStack))
+		for j, entry := range headingStack {
+			sectionPath[j] = entry.title
+		}
+
+		// Check for data-docsaf-questions attribute
+		if attr, exists := s.Attr("data-docsaf-questions"); exists {
+			questions = append(questions, hp.parseDataAttributeWithSection(path, sourceURL, context, sectionPath, attr)...)
+		}
+
+		// Check for docsaf-questions class
+		if s.HasClass("docsaf-questions") {
+			s.Find("li").Each(func(j int, li *goquery.Selection) {
+				questionText := strings.TrimSpace(li.Text())
+				if questionText != "" {
+					questions = append(questions, Question{
+						ID:          generateID(path, "html_class_q_"+questionText),
+						Text:        questionText,
+						SourcePath:  path,
+						SourceURL:   sourceURL,
+						SourceType:  "html_class",
+						Context:     context,
+						SectionPath: sectionPath,
+					})
+				}
+			})
+		}
 	})
 
 	return questions
 }
 
 // parseDataAttribute parses questions from a data-docsaf-questions JSON attribute.
+// Deprecated: Use parseDataAttributeWithSection for section-aware parsing.
 func (hp *HTMLProcessor) parseDataAttribute(path, sourceURL, context, attr string) []Question {
+	return hp.parseDataAttributeWithSection(path, sourceURL, context, nil, attr)
+}
+
+// parseDataAttributeWithSection parses questions from a data-docsaf-questions JSON attribute
+// and associates them with the given section path.
+func (hp *HTMLProcessor) parseDataAttributeWithSection(path, sourceURL, context string, sectionPath []string, attr string) []Question {
 	var questions []Question
 
 	// Try to parse as JSON array
@@ -343,13 +468,14 @@ func (hp *HTMLProcessor) parseDataAttribute(path, sourceURL, context, attr strin
 
 		if questionText != "" {
 			questions = append(questions, Question{
-				ID:         generateID(path, "html_data_q_"+questionText),
-				Text:       questionText,
-				SourcePath: path,
-				SourceURL:  sourceURL,
-				SourceType: "html_data_attribute",
-				Context:    context,
-				Metadata:   metadata,
+				ID:          generateID(path, "html_data_q_"+questionText),
+				Text:        questionText,
+				SourcePath:  path,
+				SourceURL:   sourceURL,
+				SourceType:  "html_data_attribute",
+				Context:     context,
+				SectionPath: sectionPath,
+				Metadata:    metadata,
 			})
 		}
 	}
