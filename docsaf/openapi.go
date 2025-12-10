@@ -32,6 +32,7 @@ func (op *OpenAPIProcessor) CanProcess(contentType, path string) bool {
 
 // Process processes OpenAPI specification content and returns document sections.
 // Returns an error if the content is not a valid OpenAPI v3 specification.
+// Questions from x-docsaf-questions extensions are associated with their sections.
 func (op *OpenAPIProcessor) Process(path, sourceURL, baseURL string, content []byte) ([]DocumentSection, error) {
 	// Try to parse as OpenAPI
 	doc, err := libopenapi.NewDocument(content)
@@ -47,13 +48,163 @@ func (op *OpenAPIProcessor) Process(path, sourceURL, baseURL string, content []b
 	}
 
 	if v3Model != nil {
-		sections = append(sections, op.extractV3Sections(&v3Model.Model, path, sourceURL, baseURL)...)
+		sections = append(sections, op.extractV3SectionsWithQuestions(&v3Model.Model, path, sourceURL, baseURL)...)
 	}
 
 	return sections, nil
 }
 
+// extractV3SectionsWithQuestions extracts document sections with questions from an OpenAPI v3 document.
+func (op *OpenAPIProcessor) extractV3SectionsWithQuestions(model *v3.Document, path, sourceURL, baseURL string) []DocumentSection {
+	var sections []DocumentSection
+	extractor := &QuestionsExtractor{}
+
+	// Extract API info as a section with questions
+	if model.Info != nil {
+		infoJSON, _ := json.MarshalIndent(model.Info, "", "  ")
+
+		url := ""
+		if baseURL != "" {
+			url = baseURL + "/" + path + "#info"
+		}
+
+		metadata := map[string]any{
+			"openapi_version": model.Version,
+			"api_version":     model.Info.Version,
+			"api_title":       model.Info.Title,
+		}
+		if sourceURL != "" {
+			metadata["source_url"] = sourceURL
+		}
+
+		section := DocumentSection{
+			ID:       generateID(path, "info"),
+			FilePath: path,
+			Title:    fmt.Sprintf("%s (Info)", model.Info.Title),
+			Content:  string(infoJSON),
+			Type:     "openapi_info",
+			URL:      url,
+			Metadata: metadata,
+		}
+
+		// Extract questions from Info extensions
+		if model.Info.Extensions != nil {
+			ext := orderedMapToMap(model.Info.Extensions)
+			questions := extractor.ExtractFromOpenAPI(path, sourceURL, "openapi_info", model.Info.Title, ext)
+			section.Questions = questions
+		}
+
+		sections = append(sections, section)
+	}
+
+	// Extract paths as individual sections with questions
+	if model.Paths != nil && model.Paths.PathItems != nil {
+		for pathPair := model.Paths.PathItems.First(); pathPair != nil; pathPair = pathPair.Next() {
+			pathKey := pathPair.Key()
+			pathItem := pathPair.Value()
+
+			operations := extractOperations(pathItem)
+			for method, operation := range operations {
+				opJSON, _ := json.MarshalIndent(operation, "", "  ")
+				operationID := operation.OperationId
+				if operationID == "" {
+					operationID = fmt.Sprintf("%s_%s", method, strings.ReplaceAll(pathKey, "/", "_"))
+				}
+
+				url := ""
+				if baseURL != "" {
+					slug := strings.ToLower(method) + "-" + pathKey
+					url = baseURL + "/" + path + "#" + slug
+				}
+
+				metadata := map[string]any{
+					"http_method":  method,
+					"path":         pathKey,
+					"operation_id": operationID,
+					"summary":      operation.Summary,
+					"description":  operation.Description,
+					"tags":         operation.Tags,
+				}
+				if sourceURL != "" {
+					metadata["source_url"] = sourceURL
+				}
+
+				section := DocumentSection{
+					ID:       generateID(path, fmt.Sprintf("path_%s_%s", method, pathKey)),
+					FilePath: path,
+					Title:    fmt.Sprintf("%s %s", strings.ToUpper(method), pathKey),
+					Content:  string(opJSON),
+					Type:     "openapi_path",
+					URL:      url,
+					Metadata: metadata,
+				}
+
+				// Extract questions from operation extensions
+				if operation.Extensions != nil {
+					ext := orderedMapToMap(operation.Extensions)
+					context := fmt.Sprintf("%s %s", strings.ToUpper(method), pathKey)
+					if operation.OperationId != "" {
+						context = operation.OperationId
+					}
+					questions := extractor.ExtractFromOpenAPI(path, sourceURL, "openapi_operation", context, ext)
+					section.Questions = questions
+				}
+
+				sections = append(sections, section)
+			}
+		}
+	}
+
+	// Extract schemas as individual sections with questions
+	if model.Components != nil && model.Components.Schemas != nil {
+		for schemaPair := model.Components.Schemas.First(); schemaPair != nil; schemaPair = schemaPair.Next() {
+			schemaName := schemaPair.Key()
+			schemaProxy := schemaPair.Value()
+			schema := schemaProxy.Schema()
+
+			schemaJSON, _ := json.MarshalIndent(schema, "", "  ")
+
+			url := ""
+			if baseURL != "" {
+				slug := "schema-" + strings.ToLower(schemaName)
+				url = baseURL + "/" + path + "#" + slug
+			}
+
+			metadata := map[string]any{
+				"schema_name": schemaName,
+				"schema_type": schema.Type,
+				"description": schema.Description,
+			}
+			if sourceURL != "" {
+				metadata["source_url"] = sourceURL
+			}
+
+			section := DocumentSection{
+				ID:       generateID(path, fmt.Sprintf("schema_%s", schemaName)),
+				FilePath: path,
+				Title:    fmt.Sprintf("Schema: %s", schemaName),
+				Content:  string(schemaJSON),
+				Type:     "openapi_schema",
+				URL:      url,
+				Metadata: metadata,
+			}
+
+			// Extract questions from schema extensions
+			if schema != nil && schema.Extensions != nil {
+				ext := orderedMapToMap(schema.Extensions)
+				questions := extractor.ExtractFromOpenAPI(path, sourceURL, "openapi_schema", schemaName, ext)
+				section.Questions = questions
+			}
+
+			sections = append(sections, section)
+		}
+	}
+
+	return sections
+}
+
 // extractV3Sections extracts document sections from an OpenAPI v3 document.
+// Deprecated: Use extractV3SectionsWithQuestions instead.
 func (op *OpenAPIProcessor) extractV3Sections(model *v3.Document, path, sourceURL, baseURL string) []DocumentSection {
 	var sections []DocumentSection
 

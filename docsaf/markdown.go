@@ -292,7 +292,203 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 		})
 	}
 
+	// Extract questions and associate them with sections
+	questions := mp.ExtractQuestionsWithSections(path, sourceURL, content)
+	sections = mp.addQuestionsToSections(sections, questions)
+
 	return sections, nil
+}
+
+// ExtractQuestionsWithSections extracts questions with section path information.
+func (mp *MarkdownProcessor) ExtractQuestionsWithSections(path, sourceURL string, content []byte) []Question {
+	var questions []Question
+
+	// Extract frontmatter
+	frontmatter, contentWithoutFrontmatter := extractFrontmatter(content)
+
+	// Get document title for context
+	context := ""
+	if frontmatter != nil {
+		if title, ok := frontmatter["title"].(string); ok {
+			context = title
+		}
+	}
+
+	// Extract from frontmatter (applies to the whole document, no section path)
+	if frontmatter != nil {
+		extractor := &QuestionsExtractor{}
+		questions = append(questions, extractor.extractFromFrontmatter(path, sourceURL, frontmatter)...)
+	}
+
+	// Extract <Questions> components with section awareness
+	questions = append(questions, mp.extractQuestionsWithSectionPaths(path, sourceURL, context, contentWithoutFrontmatter)...)
+
+	return questions
+}
+
+// extractQuestionsWithSectionPaths extracts questions from <Questions> components,
+// tracking which section each component belongs to based on preceding headings.
+func (mp *MarkdownProcessor) extractQuestionsWithSectionPaths(path, sourceURL, context string, content []byte) []Question {
+	var questions []Question
+
+	// Parse markdown to find headings and their positions
+	md := goldmark.New()
+	reader := text.NewReader(content)
+	doc := md.Parser().Parse(reader)
+
+	// Build a list of heading positions and their section paths
+	type headingInfo struct {
+		startPos    int
+		level       int
+		sectionPath []string
+	}
+	var headings []headingInfo
+	var headingStack []headingStackEntry
+
+	ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if entering {
+			if heading, ok := n.(*ast.Heading); ok {
+				headingText := extractText(heading, content)
+
+				// Update heading stack
+				for len(headingStack) > 0 && headingStack[len(headingStack)-1].level >= heading.Level {
+					headingStack = headingStack[:len(headingStack)-1]
+				}
+				headingStack = append(headingStack, headingStackEntry{
+					level: heading.Level,
+					title: headingText,
+				})
+
+				// Build section path
+				sectionPath := make([]string, len(headingStack))
+				for i, entry := range headingStack {
+					sectionPath[i] = entry.title
+				}
+
+				// Get the position of this heading in the content
+				lines := heading.Lines()
+				if lines.Len() > 0 {
+					startPos := lines.At(0).Start
+					headings = append(headings, headingInfo{
+						startPos:    startPos,
+						level:       heading.Level,
+						sectionPath: sectionPath,
+					})
+				}
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+
+	// Find all <Questions> components and their positions
+	contentStr := string(content)
+	matches := questionsComponentRegex.FindAllStringSubmatchIndex(contentStr, -1)
+
+	for _, match := range matches {
+		if len(match) < 4 {
+			continue
+		}
+
+		componentStart := match[0]
+		componentContentStart := match[2]
+		componentContentEnd := match[3]
+		componentContent := contentStr[componentContentStart:componentContentEnd]
+
+		// Find the section path for this component position
+		var sectionPath []string
+		for i := len(headings) - 1; i >= 0; i-- {
+			if headings[i].startPos < componentStart {
+				sectionPath = headings[i].sectionPath
+				break
+			}
+		}
+
+		// Parse list items
+		lines := strings.Split(componentContent, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
+				questionText := strings.TrimSpace(line[2:])
+				if questionText != "" {
+					questions = append(questions, Question{
+						ID:          generateID(path, "mdx_component_q_"+questionText),
+						Text:        questionText,
+						SourcePath:  path,
+						SourceURL:   sourceURL,
+						SourceType:  "mdx_component",
+						Context:     context,
+						SectionPath: sectionPath,
+					})
+				}
+			}
+		}
+	}
+
+	return questions
+}
+
+// addQuestionsToSections associates questions with their containing sections.
+func (mp *MarkdownProcessor) addQuestionsToSections(sections []DocumentSection, questions []Question) []DocumentSection {
+	if len(questions) == 0 {
+		return sections
+	}
+
+	// Initialize Questions slices
+	for i := range sections {
+		sections[i].Questions = nil
+	}
+
+	for _, q := range questions {
+		bestIdx := -1
+		bestMatchLen := -1
+
+		for i, section := range sections {
+			matchLen := mp.matchSectionPath(section.SectionPath, q.SectionPath)
+			if matchLen > bestMatchLen {
+				bestMatchLen = matchLen
+				bestIdx = i
+			}
+		}
+
+		if bestIdx >= 0 {
+			sections[bestIdx].Questions = append(sections[bestIdx].Questions, q)
+		} else if len(sections) > 0 {
+			// If no match (e.g., frontmatter questions), add to first section
+			sections[0].Questions = append(sections[0].Questions, q)
+		}
+	}
+
+	return sections
+}
+
+// matchSectionPath returns the length of the matching prefix between two section paths.
+func (mp *MarkdownProcessor) matchSectionPath(sectionPath, questionPath []string) int {
+	if len(questionPath) == 0 {
+		return 0
+	}
+	if len(sectionPath) == 0 {
+		return -1
+	}
+
+	matchLen := 0
+	minLen := len(sectionPath)
+	if len(questionPath) < minLen {
+		minLen = len(questionPath)
+	}
+
+	for i := 0; i < minLen; i++ {
+		if sectionPath[i] == questionPath[i] {
+			matchLen++
+		} else {
+			break
+		}
+	}
+
+	if matchLen == 0 {
+		return -1
+	}
+
+	return matchLen
 }
 
 // extractText extracts text content from an AST node.
