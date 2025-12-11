@@ -2,13 +2,17 @@ module github.com/antflydb/antfly-go/libaf
 
 go 1.25
 
-require github.com/minio/minio-go/v7 v7.0.97
+require (
+	github.com/minio/minio-go/v7 v7.0.97
+	go.uber.org/zap v1.27.1
+)
 
 require (
 	github.com/go-openapi/swag/jsonname v0.25.4 // indirect
 	github.com/klauspost/crc32 v1.3.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/tinylib/msgp v1.6.1 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
 )
 
 require (
