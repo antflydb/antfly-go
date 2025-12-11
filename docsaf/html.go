@@ -404,7 +404,7 @@ func (hp *HTMLProcessor) ExtractQuestions(path, sourceURL string, content []byte
 
 		// Check for data-docsaf-questions attribute
 		if attr, exists := s.Attr("data-docsaf-questions"); exists {
-			questions = append(questions, hp.parseDataAttributeWithSection(path, sourceURL, context, sectionPath, attr)...)
+			questions = append(questions, hp.parseDataAttribute(path, sourceURL, context, sectionPath, attr)...)
 		}
 
 		// Check for docsaf-questions class
@@ -429,15 +429,9 @@ func (hp *HTMLProcessor) ExtractQuestions(path, sourceURL string, content []byte
 	return questions
 }
 
-// parseDataAttribute parses questions from a data-docsaf-questions JSON attribute.
-// Deprecated: Use parseDataAttributeWithSection for section-aware parsing.
-func (hp *HTMLProcessor) parseDataAttribute(path, sourceURL, context, attr string) []Question {
-	return hp.parseDataAttributeWithSection(path, sourceURL, context, nil, attr)
-}
-
-// parseDataAttributeWithSection parses questions from a data-docsaf-questions JSON attribute
+// parseDataAttribute parses questions from a data-docsaf-questions JSON attribute
 // and associates them with the given section path.
-func (hp *HTMLProcessor) parseDataAttributeWithSection(path, sourceURL, context string, sectionPath []string, attr string) []Question {
+func (hp *HTMLProcessor) parseDataAttribute(path, sourceURL, context string, sectionPath []string, attr string) []Question {
 	var questions []Question
 
 	// Try to parse as JSON array

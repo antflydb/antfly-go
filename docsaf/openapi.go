@@ -48,14 +48,14 @@ func (op *OpenAPIProcessor) Process(path, sourceURL, baseURL string, content []b
 	}
 
 	if v3Model != nil {
-		sections = append(sections, op.extractV3SectionsWithQuestions(&v3Model.Model, path, sourceURL, baseURL)...)
+		sections = append(sections, op.extractV3Sections(&v3Model.Model, path, sourceURL, baseURL)...)
 	}
 
 	return sections, nil
 }
 
-// extractV3SectionsWithQuestions extracts document sections with questions from an OpenAPI v3 document.
-func (op *OpenAPIProcessor) extractV3SectionsWithQuestions(model *v3.Document, path, sourceURL, baseURL string) []DocumentSection {
+// extractV3Sections extracts document sections with questions from an OpenAPI v3 document.
+func (op *OpenAPIProcessor) extractV3Sections(model *v3.Document, path, sourceURL, baseURL string) []DocumentSection {
 	var sections []DocumentSection
 	extractor := &QuestionsExtractor{}
 
@@ -197,124 +197,6 @@ func (op *OpenAPIProcessor) extractV3SectionsWithQuestions(model *v3.Document, p
 			}
 
 			sections = append(sections, section)
-		}
-	}
-
-	return sections
-}
-
-// extractV3Sections extracts document sections from an OpenAPI v3 document.
-// Deprecated: Use extractV3SectionsWithQuestions instead.
-func (op *OpenAPIProcessor) extractV3Sections(model *v3.Document, path, sourceURL, baseURL string) []DocumentSection {
-	var sections []DocumentSection
-
-	// Extract API info as a section
-	if model.Info != nil {
-		infoJSON, _ := json.MarshalIndent(model.Info, "", "  ")
-
-		url := ""
-		if baseURL != "" {
-			url = baseURL + "/" + path + "#info"
-		}
-
-		metadata := map[string]any{
-			"openapi_version": model.Version,
-			"api_version":     model.Info.Version,
-			"api_title":       model.Info.Title,
-		}
-		if sourceURL != "" {
-			metadata["source_url"] = sourceURL
-		}
-
-		sections = append(sections, DocumentSection{
-			ID:       generateID(path, "info"),
-			FilePath: path,
-			Title:    fmt.Sprintf("%s (Info)", model.Info.Title),
-			Content:  string(infoJSON),
-			Type:     "openapi_info",
-			URL:      url,
-			Metadata: metadata,
-		})
-	}
-
-	// Extract paths as individual sections
-	if model.Paths != nil && model.Paths.PathItems != nil {
-		for pathPair := model.Paths.PathItems.First(); pathPair != nil; pathPair = pathPair.Next() {
-			pathKey := pathPair.Key()
-			pathItem := pathPair.Value()
-
-			operations := extractOperations(pathItem)
-			for method, operation := range operations {
-				opJSON, _ := json.MarshalIndent(operation, "", "  ")
-				operationID := operation.OperationId
-				if operationID == "" {
-					operationID = fmt.Sprintf("%s_%s", method, strings.ReplaceAll(pathKey, "/", "_"))
-				}
-
-				url := ""
-				if baseURL != "" {
-					slug := strings.ToLower(method) + "-" + pathKey
-					url = baseURL + "/" + path + "#" + slug
-				}
-
-				metadata := map[string]any{
-					"http_method":  method,
-					"path":         pathKey,
-					"operation_id": operationID,
-					"summary":      operation.Summary,
-					"description":  operation.Description,
-					"tags":         operation.Tags,
-				}
-				if sourceURL != "" {
-					metadata["source_url"] = sourceURL
-				}
-
-				sections = append(sections, DocumentSection{
-					ID:       generateID(path, fmt.Sprintf("path_%s_%s", method, pathKey)),
-					FilePath: path,
-					Title:    fmt.Sprintf("%s %s", strings.ToUpper(method), pathKey),
-					Content:  string(opJSON),
-					Type:     "openapi_path",
-					URL:      url,
-					Metadata: metadata,
-				})
-			}
-		}
-	}
-
-	// Extract schemas as individual sections
-	if model.Components != nil && model.Components.Schemas != nil {
-		for schemaPair := model.Components.Schemas.First(); schemaPair != nil; schemaPair = schemaPair.Next() {
-			schemaName := schemaPair.Key()
-			schemaProxy := schemaPair.Value()
-			schema := schemaProxy.Schema()
-
-			schemaJSON, _ := json.MarshalIndent(schema, "", "  ")
-
-			url := ""
-			if baseURL != "" {
-				slug := "schema-" + strings.ToLower(schemaName)
-				url = baseURL + "/" + path + "#" + slug
-			}
-
-			metadata := map[string]any{
-				"schema_name": schemaName,
-				"schema_type": schema.Type,
-				"description": schema.Description,
-			}
-			if sourceURL != "" {
-				metadata["source_url"] = sourceURL
-			}
-
-			sections = append(sections, DocumentSection{
-				ID:       generateID(path, fmt.Sprintf("schema_%s", schemaName)),
-				FilePath: path,
-				Title:    fmt.Sprintf("Schema: %s", schemaName),
-				Content:  string(schemaJSON),
-				Type:     "openapi_schema",
-				URL:      url,
-				Metadata: metadata,
-			})
 		}
 	}
 
