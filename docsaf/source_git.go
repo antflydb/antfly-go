@@ -140,8 +140,8 @@ func deriveBaseURL(repoURL, ref string) string {
 		// Extract owner/repo from various URL formats
 		var ownerRepo string
 
-		if strings.HasPrefix(repoURL, "git@github.com:") {
-			ownerRepo = strings.TrimPrefix(repoURL, "git@github.com:")
+		if after, ok := strings.CutPrefix(repoURL, "git@github.com:"); ok {
+			ownerRepo = after
 		} else if strings.Contains(repoURL, "github.com/") {
 			parts := strings.SplitN(repoURL, "github.com/", 2)
 			if len(parts) == 2 {
@@ -165,8 +165,8 @@ func deriveBaseURL(repoURL, ref string) string {
 	if strings.Contains(repoURL, "gitlab.com") {
 		var ownerRepo string
 
-		if strings.HasPrefix(repoURL, "git@gitlab.com:") {
-			ownerRepo = strings.TrimPrefix(repoURL, "git@gitlab.com:")
+		if after, ok := strings.CutPrefix(repoURL, "git@gitlab.com:"); ok {
+			ownerRepo = after
 		} else if strings.Contains(repoURL, "gitlab.com/") {
 			parts := strings.SplitN(repoURL, "gitlab.com/", 2)
 			if len(parts) == 2 {

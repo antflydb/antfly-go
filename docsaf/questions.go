@@ -98,8 +98,8 @@ func (qe *QuestionsExtractor) extractFromQuestionsComponents(path, sourceURL str
 
 		componentContent := string(match[1])
 		// Parse list items (- or * at start of line)
-		lines := strings.Split(componentContent, "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(componentContent, "\n")
+		for line := range lines {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
 				questionText := strings.TrimSpace(line[2:])

@@ -128,10 +128,7 @@ func (rt *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// Don't sleep after last attempt
 		if attempt < rt.maxRetries {
-			delay := rt.baseDelay * time.Duration(1<<uint(attempt))
-			if delay > rt.maxDelay {
-				delay = rt.maxDelay
-			}
+			delay := min(rt.baseDelay*time.Duration(1<<uint(attempt)), rt.maxDelay)
 
 			select {
 			case <-time.After(delay):
@@ -311,8 +308,8 @@ type WebSourceConfig struct {
 type WebSource struct {
 	config       WebSourceConfig
 	normalizer   *urlNormalizer
-	cache        *responseCache    // Legacy simple cache
-	contentCache *ContentCache     // New advanced cache
+	cache        *responseCache // Legacy simple cache
+	contentCache *ContentCache  // New advanced cache
 	httpClient   *http.Client
 }
 

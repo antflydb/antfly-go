@@ -404,8 +404,8 @@ func (mp *MarkdownProcessor) extractQuestionsWithSectionPaths(path, sourceURL, c
 		}
 
 		// Parse list items
-		lines := strings.Split(componentContent, "\n")
-		for _, line := range lines {
+		lines := strings.SplitSeq(componentContent, "\n")
+		for line := range lines {
 			line = strings.TrimSpace(line)
 			if strings.HasPrefix(line, "- ") || strings.HasPrefix(line, "* ") {
 				questionText := strings.TrimSpace(line[2:])
@@ -471,12 +471,9 @@ func (mp *MarkdownProcessor) matchSectionPath(sectionPath, questionPath []string
 	}
 
 	matchLen := 0
-	minLen := len(sectionPath)
-	if len(questionPath) < minLen {
-		minLen = len(questionPath)
-	}
+	minLen := min(len(questionPath), len(sectionPath))
 
-	for i := 0; i < minLen; i++ {
+	for i := range minLen {
 		if sectionPath[i] == questionPath[i] {
 			matchLen++
 		} else {

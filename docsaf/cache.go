@@ -104,7 +104,7 @@ type ContentCache struct {
 	lruList []string // Simple LRU tracking
 
 	// Content deduplication: hash -> body
-	contentStore   map[string][]byte
+	contentStore    map[string][]byte
 	contentRefCount map[string]int
 
 	diskSize int64
@@ -197,12 +197,12 @@ func (c *ContentCache) GetWithContentHash(hash string) []byte {
 // Set stores a response in the cache.
 func (c *ContentCache) Set(url string, body []byte, headers http.Header, statusCode int) {
 	entry := &CacheEntry{
-		URL:         url,
-		StatusCode:  statusCode,
-		ContentType: headers.Get("Content-Type"),
-		ETag:        headers.Get("ETag"),
+		URL:          url,
+		StatusCode:   statusCode,
+		ContentType:  headers.Get("Content-Type"),
+		ETag:         headers.Get("ETag"),
 		LastModified: headers.Get("Last-Modified"),
-		CachedAt:    time.Now(),
+		CachedAt:     time.Now(),
 	}
 
 	// Parse cache headers to determine expiry
@@ -357,10 +357,10 @@ func (c *ContentCache) Stats() CacheStats {
 	}
 
 	return CacheStats{
-		MemoryEntries:   len(c.memory),
-		UniqueContents:  len(c.contentStore),
-		TotalSizeBytes:  totalSize,
-		DiskSizeBytes:   c.diskSize,
+		MemoryEntries:  len(c.memory),
+		UniqueContents: len(c.contentStore),
+		TotalSizeBytes: totalSize,
+		DiskSizeBytes:  c.diskSize,
 	}
 }
 
@@ -378,7 +378,7 @@ func (c *ContentCache) parseExpiry(headers http.Header) time.Time {
 	cacheControl := headers.Get("Cache-Control")
 	if cacheControl != "" {
 		// Parse max-age directive
-		for _, directive := range strings.Split(cacheControl, ",") {
+		for directive := range strings.SplitSeq(cacheControl, ",") {
 			directive = strings.TrimSpace(directive)
 
 			// no-store or no-cache means don't cache
@@ -387,8 +387,8 @@ func (c *ContentCache) parseExpiry(headers http.Header) time.Time {
 			}
 
 			// Parse max-age
-			if strings.HasPrefix(directive, "max-age=") {
-				seconds, err := strconv.ParseInt(strings.TrimPrefix(directive, "max-age="), 10, 64)
+			if after, ok := strings.CutPrefix(directive, "max-age="); ok {
+				seconds, err := strconv.ParseInt(after, 10, 64)
 				if err == nil && seconds > 0 {
 					return time.Now().Add(time.Duration(seconds) * time.Second)
 				}

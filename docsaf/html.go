@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"path/filepath"
 	"strings"
 
@@ -105,12 +106,9 @@ func matchSectionPath(sectionPath, questionPath []string) int {
 
 	// Count matching elements from the start
 	matchLen := 0
-	minLen := len(sectionPath)
-	if len(questionPath) < minLen {
-		minLen = len(questionPath)
-	}
+	minLen := min(len(questionPath), len(sectionPath))
 
-	for i := 0; i < minLen; i++ {
+	for i := range minLen {
 		if sectionPath[i] == questionPath[i] {
 			matchLen++
 		} else {
@@ -317,12 +315,8 @@ func (hp *HTMLProcessor) getHeadingLevel(s *goquery.Selection) int {
 
 func (hp *HTMLProcessor) mergeSectionMetadata(docMeta, sectionMeta map[string]any) map[string]any {
 	merged := make(map[string]any)
-	for k, v := range docMeta {
-		merged[k] = v
-	}
-	for k, v := range sectionMeta {
-		merged[k] = v
-	}
+	maps.Copy(merged, docMeta)
+	maps.Copy(merged, sectionMeta)
 	return merged
 }
 
