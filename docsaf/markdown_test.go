@@ -555,43 +555,47 @@ This is the getting started section.
 		t.Fatalf("Process failed: %v", err)
 	}
 
-	if len(sections) != 2 {
-		t.Fatalf("Expected 2 sections (preamble + heading), got %d", len(sections))
+	// Preamble is now merged into the first section
+	if len(sections) != 1 {
+		t.Fatalf("Expected 1 section (preamble merged into first heading), got %d", len(sections))
 	}
 
-	// First section should be the preamble with MDX component content
-	preamble := sections[0]
-	if preamble.Title != "My Guide" {
-		t.Errorf("Preamble title = %q, want %q", preamble.Title, "My Guide")
-	}
-	if !strings.Contains(preamble.Content, "What is Antfly?") {
-		t.Errorf("Preamble should contain MDX component text, got: %q", preamble.Content)
-	}
-	if !strings.Contains(preamble.Content, "How do I get started?") {
-		t.Errorf("Preamble should contain MDX component text, got: %q", preamble.Content)
-	}
-	if !strings.Contains(preamble.Content, "Some intro text here") {
-		t.Errorf("Preamble should contain intro text, got: %q", preamble.Content)
-	}
-	// Check preamble metadata
-	if preamble.Metadata["preamble"] != true {
-		t.Errorf("Preamble metadata should have preamble=true")
-	}
-	// Preamble URL should not have anchor
-	if preamble.URL != "https://example.com/test" {
-		t.Errorf("Preamble URL = %q, want %q", preamble.URL, "https://example.com/test")
+	// First section should have preamble content merged with heading content
+	section := sections[0]
+
+	// Title should be from frontmatter
+	if section.Title != "My Guide" {
+		t.Errorf("Section title = %q, want %q", section.Title, "My Guide")
 	}
 
-	// Second section should be the heading-based section
-	headingSection := sections[1]
-	if headingSection.Title != "Getting Started" {
-		t.Errorf("Heading section title = %q, want %q", headingSection.Title, "Getting Started")
+	// Should contain preamble content
+	if !strings.Contains(section.Content, "What is Antfly?") {
+		t.Errorf("Section should contain preamble MDX component text, got: %q", section.Content)
 	}
-	if !strings.Contains(headingSection.Content, "getting started section") {
-		t.Errorf("Heading section should contain its content, got: %q", headingSection.Content)
+	if !strings.Contains(section.Content, "How do I get started?") {
+		t.Errorf("Section should contain preamble MDX component text, got: %q", section.Content)
 	}
-	// Heading section should NOT contain the preamble content
-	if strings.Contains(headingSection.Content, "What is Antfly?") {
-		t.Errorf("Heading section should NOT contain preamble MDX content")
+	if !strings.Contains(section.Content, "Some intro text here") {
+		t.Errorf("Section should contain preamble intro text, got: %q", section.Content)
+	}
+
+	// Should also contain heading section content
+	if !strings.Contains(section.Content, "getting started section") {
+		t.Errorf("Section should contain heading content, got: %q", section.Content)
+	}
+
+	// Check has_preamble metadata
+	if section.Metadata["has_preamble"] != true {
+		t.Errorf("Section metadata should have has_preamble=true")
+	}
+
+	// URL should have the heading anchor (from the first heading)
+	if section.URL != "https://example.com/test#getting-started" {
+		t.Errorf("Section URL = %q, want %q", section.URL, "https://example.com/test#getting-started")
+	}
+
+	// Section path should be from the heading
+	if len(section.SectionPath) != 1 || section.SectionPath[0] != "Getting Started" {
+		t.Errorf("SectionPath = %v, want [Getting Started]", section.SectionPath)
 	}
 }
