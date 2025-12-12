@@ -26,6 +26,7 @@ const (
 // Defines values for Style.
 const (
 	StyleJson     Style = "json"
+	StyleLogfmt   Style = "logfmt"
 	StyleNoop     Style = "noop"
 	StyleTerminal Style = "terminal"
 )
@@ -35,14 +36,14 @@ type Config struct {
 	// Level Logging verbosity level
 	Level Level `json:"level,omitempty,omitzero"`
 
-	// Style Logging output format style. 'terminal' for colorized console, 'json' for structured JSON, 'noop' for silent.
+	// Style Logging output format style. 'terminal' for colorized console, 'json' for structured JSON, 'logfmt' for token-efficient key=value pairs, 'noop' for silent.
 	Style Style `json:"style,omitempty,omitzero"`
 }
 
 // Level Logging verbosity level
 type Level string
 
-// Style Logging output format style. 'terminal' for colorized console, 'json' for structured JSON, 'noop' for silent.
+// Style Logging output format style. 'terminal' for colorized console, 'json' for structured JSON, 'logfmt' for token-efficient key=value pairs, 'noop' for silent.
 type Style string
 
 // Base64 encoded, gzipped, json marshaled Swagger object
