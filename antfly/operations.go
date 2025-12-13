@@ -80,7 +80,7 @@ func (c *AntflyClient) Batch(ctx context.Context, tableName string, request Batc
 		return nil, fmt.Errorf("marshalling batch request: %w", err)
 	}
 
-	resp, err := c.client.BatchWithBody(ctx, tableName, "application/json", bytes.NewBuffer(batchBody))
+	resp, err := c.client.BatchWriteWithBody(ctx, tableName, "application/json", bytes.NewBuffer(batchBody))
 	if err != nil {
 		return nil, fmt.Errorf("batch operation failed: %w", err)
 	}
