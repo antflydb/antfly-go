@@ -18,8 +18,8 @@ func NewLogger(c *Config) *zap.Logger {
 	var logger *zap.Logger
 
 	// Determine logger type based on log style config
-	loggingStyle := StyleTerminal     // default
-	logLevel := zapcore.InfoLevel     // default
+	loggingStyle := StyleTerminal // default
+	logLevel := zapcore.InfoLevel // default
 
 	if c != nil {
 		if c.Style != "" {

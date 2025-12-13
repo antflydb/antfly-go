@@ -27,11 +27,11 @@ func NewAnswerAgentConfidenceEvaluator(name string, minConfidence float64) *agen
 
 // AnswerAgentResponse represents the structured response from Antfly's Answer Agent.
 type AnswerAgentResponse struct {
-	RouteType       string  `json:"route_type"`        // "question" or "search"
-	ImprovedQuery   string  `json:"improved_query"`    // Improved version of query
-	SemanticQuery   string  `json:"semantic_query"`    // Query optimized for semantic search
-	Confidence      float64 `json:"confidence"`        // Confidence score (0-1)
-	Answer          string  `json:"answer,omitempty"`  // Generated answer (for questions)
-	Reasoning       string  `json:"reasoning,omitempty"` // Reasoning (if enabled)
+	RouteType         string   `json:"route_type"`                    // "question" or "search"
+	ImprovedQuery     string   `json:"improved_query"`                // Improved version of query
+	SemanticQuery     string   `json:"semantic_query"`                // Query optimized for semantic search
+	Confidence        float64  `json:"confidence"`                    // Confidence score (0-1)
+	Answer            string   `json:"answer,omitempty"`              // Generated answer (for questions)
+	Reasoning         string   `json:"reasoning,omitempty"`           // Reasoning (if enabled)
 	FollowUpQuestions []string `json:"follow_up_questions,omitempty"` // Follow-up questions
 }

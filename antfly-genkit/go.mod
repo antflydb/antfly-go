@@ -5,7 +5,7 @@ go 1.25
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly-go/antfly v0.0.0-20251213001317-a84fffe476e6
+	github.com/antflydb/antfly-go/antfly v0.0.0-20251213002611-2a4513d3211c
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/firebase/genkit/go v1.2.0
 	github.com/stretchr/testify v1.11.1
@@ -32,7 +32,7 @@ require (
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kaptinlin/go-i18n v0.2.0 // indirect
-	github.com/kaptinlin/jsonpointer v0.4.6 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.7 // indirect
 	github.com/kaptinlin/jsonschema v0.6.3 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.6 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect

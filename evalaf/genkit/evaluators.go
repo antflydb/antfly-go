@@ -34,14 +34,14 @@ type LLMJudgeResponse struct {
 
 // GranularCompletenessResponse extends LLMJudgeResponse with detailed tracking.
 type GranularCompletenessResponse struct {
-	Pass              bool     `json:"pass"`
-	Score             float64  `json:"score"`
-	Reason            string   `json:"reason"`
-	Confidence        float64  `json:"confidence,omitempty"`
-	KeywordsCovered   []string `json:"keywords_covered,omitempty"`
-	KeywordsMissing   []string `json:"keywords_missing,omitempty"`
-	AspectsAddressed  []string `json:"aspects_addressed,omitempty"`
-	Gaps              []string `json:"gaps,omitempty"`
+	Pass             bool     `json:"pass"`
+	Score            float64  `json:"score"`
+	Reason           string   `json:"reason"`
+	Confidence       float64  `json:"confidence,omitempty"`
+	KeywordsCovered  []string `json:"keywords_covered,omitempty"`
+	KeywordsMissing  []string `json:"keywords_missing,omitempty"`
+	AspectsAddressed []string `json:"aspects_addressed,omitempty"`
+	Gaps             []string `json:"gaps,omitempty"`
 }
 
 // NewLLMJudge creates a new LLM judge evaluator with a code-defined prompt using Handlebars syntax.

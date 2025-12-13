@@ -9,40 +9,40 @@ import (
 
 // DashboardData represents evaluation data formatted for UI display.
 type DashboardData struct {
-	Summary   SummaryData       `json:"summary"`
-	Charts    []ChartData       `json:"charts"`
-	Results   []ResultData      `json:"results"`
-	Timestamp time.Time         `json:"timestamp"`
+	Summary   SummaryData  `json:"summary"`
+	Charts    []ChartData  `json:"charts"`
+	Results   []ResultData `json:"results"`
+	Timestamp time.Time    `json:"timestamp"`
 }
 
 // SummaryData contains high-level summary statistics.
 type SummaryData struct {
-	TotalExamples   int     `json:"total_examples"`
-	PassedExamples  int     `json:"passed_examples"`
-	FailedExamples  int     `json:"failed_examples"`
-	PassRate        float64 `json:"pass_rate"`
-	AverageScore    float64 `json:"average_score"`
-	Duration        string  `json:"duration"`
+	TotalExamples  int     `json:"total_examples"`
+	PassedExamples int     `json:"passed_examples"`
+	FailedExamples int     `json:"failed_examples"`
+	PassRate       float64 `json:"pass_rate"`
+	AverageScore   float64 `json:"average_score"`
+	Duration       string  `json:"duration"`
 }
 
 // ChartData represents data for visualization.
 type ChartData struct {
-	Type   string `json:"type"`   // "bar", "line", "pie", "gauge"
-	Title  string `json:"title"`
-	Labels []string `json:"labels,omitempty"`
+	Type   string    `json:"type"` // "bar", "line", "pie", "gauge"
+	Title  string    `json:"title"`
+	Labels []string  `json:"labels,omitempty"`
 	Values []float64 `json:"values"`
-	Color  string `json:"color,omitempty"`
+	Color  string    `json:"color,omitempty"`
 }
 
 // ResultData represents a single evaluation result for display.
 type ResultData struct {
-	ExampleID    int                      `json:"example_id"`
-	Input        string                   `json:"input"`
-	Output       string                   `json:"output"`
-	Reference    string                   `json:"reference,omitempty"`
-	Status       string                   `json:"status"` // "passed", "failed", "error"
-	Evaluations  map[string]EvaluationData `json:"evaluations"`
-	Duration     string                   `json:"duration"`
+	ExampleID   int                       `json:"example_id"`
+	Input       string                    `json:"input"`
+	Output      string                    `json:"output"`
+	Reference   string                    `json:"reference,omitempty"`
+	Status      string                    `json:"status"` // "passed", "failed", "error"
+	Evaluations map[string]EvaluationData `json:"evaluations"`
+	Duration    string                    `json:"duration"`
 }
 
 // EvaluationData represents a single evaluator's result.
@@ -189,10 +189,10 @@ func getColorForPassRate(passRate float64) string {
 
 // MetricTrend represents a metric's trend over time.
 type MetricTrend struct {
-	MetricName  string      `json:"metric_name"`
-	Timestamps  []time.Time `json:"timestamps"`
-	Values      []float64   `json:"values"`
-	Trend       string      `json:"trend"` // "improving", "declining", "stable"
+	MetricName string      `json:"metric_name"`
+	Timestamps []time.Time `json:"timestamps"`
+	Values     []float64   `json:"values"`
+	Trend      string      `json:"trend"` // "improving", "declining", "stable"
 }
 
 // CompareReports compares two evaluation reports.

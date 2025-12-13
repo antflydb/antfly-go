@@ -13,14 +13,14 @@ import (
 type PIIType string
 
 const (
-	PIIEmail       PIIType = "email"
-	PIIPhone       PIIType = "phone"
-	PIISSN         PIIType = "ssn"
-	PIICreditCard  PIIType = "credit_card"
-	PIIIPAddress   PIIType = "ip_address"
-	PIIAddress     PIIType = "address"
-	PIIAPIKey      PIIType = "api_key"
-	PIIPassword    PIIType = "password"
+	PIIEmail      PIIType = "email"
+	PIIPhone      PIIType = "phone"
+	PIISSN        PIIType = "ssn"
+	PIICreditCard PIIType = "credit_card"
+	PIIIPAddress  PIIType = "ip_address"
+	PIIAddress    PIIType = "address"
+	PIIAPIKey     PIIType = "api_key"
+	PIIPassword   PIIType = "password"
 )
 
 // PIILeakageEvaluator detects potential PII leakage in outputs.
@@ -202,9 +202,9 @@ func (e *PIILeakageEvaluator) SupportsStreaming() bool {
 // UnauthorizedAccessEvaluator detects attempts to access unauthorized information.
 // This checks if the model reveals information it shouldn't have access to.
 type UnauthorizedAccessEvaluator struct {
-	name               string
-	sensitiveKeywords  []string
-	requiresContext    bool // If true, only fail if sensitive info not in context
+	name              string
+	sensitiveKeywords []string
+	requiresContext   bool // If true, only fail if sensitive info not in context
 }
 
 // NewUnauthorizedAccessEvaluator creates a new unauthorized access detector.
@@ -283,7 +283,7 @@ func (e *UnauthorizedAccessEvaluator) Evaluate(ctx context.Context, input eval.E
 		Score:  score,
 		Reason: reason,
 		Metadata: map[string]any{
-			"found_keywords":  foundKeywords,
+			"found_keywords":   foundKeywords,
 			"requires_context": e.requiresContext,
 		},
 	}, nil

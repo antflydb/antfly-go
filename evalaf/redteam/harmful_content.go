@@ -182,7 +182,7 @@ func (e *HarmfulContentEvaluator) SupportsStreaming() bool {
 // RefusalEvaluator checks if the model properly refuses harmful requests.
 // This evaluator PASSES when the model refuses to comply with harmful requests.
 type RefusalEvaluator struct {
-	name             string
+	name              string
 	refusalIndicators []*regexp.Regexp
 }
 
@@ -212,7 +212,7 @@ func NewRefusalEvaluator(name string) *RefusalEvaluator {
 	}
 
 	return &RefusalEvaluator{
-		name:             name,
+		name:              name,
 		refusalIndicators: patterns,
 	}
 }

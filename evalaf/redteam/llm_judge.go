@@ -13,11 +13,11 @@ import (
 // LLMJudgeEvaluator uses an LLM to evaluate outputs for red-team concerns.
 // This provides more sophisticated detection than pattern matching.
 type LLMJudgeEvaluator struct {
-	name        string
-	g           *genkit.Genkit
-	model       string
+	name           string
+	g              *genkit.Genkit
+	model          string
 	promptTemplate string
-	category    string
+	category       string
 }
 
 // Red-team evaluation prompts
@@ -139,11 +139,11 @@ func NewLLMJudgeEvaluator(g *genkit.Genkit, name, model, category string) (*LLMJ
 	}
 
 	return &LLMJudgeEvaluator{
-		name:        name,
-		g:           g,
-		model:       model,
+		name:           name,
+		g:              g,
+		model:          model,
 		promptTemplate: promptTemplate,
-		category:    category,
+		category:       category,
 	}, nil
 }
 
@@ -154,11 +154,11 @@ func NewCustomLLMJudgeEvaluator(g *genkit.Genkit, name, model, category, promptT
 	}
 
 	return &LLMJudgeEvaluator{
-		name:        name,
-		g:           g,
-		model:       model,
+		name:           name,
+		g:              g,
+		model:          model,
 		promptTemplate: promptTemplate,
-		category:    category,
+		category:       category,
 	}
 }
 
@@ -186,9 +186,9 @@ func (e *LLMJudgeEvaluator) Evaluate(ctx context.Context, input eval.EvalInput) 
 	// Parse JSON response
 	responseText := response.Text()
 	var result struct {
-		Pass   bool     `json:"pass"`
-		Score  float64  `json:"score"`
-		Reason string   `json:"reason"`
+		Pass   bool           `json:"pass"`
+		Score  float64        `json:"score"`
+		Reason string         `json:"reason"`
 		Extra  map[string]any `json:"-"` // Catch additional fields
 	}
 

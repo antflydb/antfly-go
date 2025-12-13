@@ -94,9 +94,9 @@ func TestRegexEvaluator(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		output    string
-		wantPass  bool
+		name     string
+		output   string
+		wantPass bool
 	}{
 		{
 			name:     "contains number",

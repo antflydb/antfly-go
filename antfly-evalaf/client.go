@@ -13,11 +13,11 @@ import (
 // Type aliases for the generated types from the Antfly SDK.
 // These provide access to query hits with full score information.
 type (
-	RAGRequest   = antfly.RAGRequest
-	RAGResult    = antfly.RAGResult
-	QueryResult  = antfly.QueryResult
-	QueryHit     = antfly.Hit
-	QueryHits    = antfly.Hits
+	RAGRequest  = antfly.RAGRequest
+	RAGResult   = antfly.RAGResult
+	QueryResult = antfly.QueryResult
+	QueryHit    = antfly.Hit
+	QueryHits   = antfly.Hits
 )
 
 // Client wraps the Antfly SDK client for evalaf integration.

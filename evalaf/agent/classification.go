@@ -88,8 +88,8 @@ func (e *ClassificationEvaluator) Evaluate(ctx context.Context, input eval.EvalI
 		Score:  score,
 		Reason: reason,
 		Metadata: map[string]any{
-			"expected":     expectedClass,
-			"actual":       actualClass,
+			"expected":      expectedClass,
+			"actual":        actualClass,
 			"valid_classes": e.classes,
 		},
 	}, nil
@@ -232,8 +232,8 @@ func (e *ConfidenceEvaluator) Evaluate(ctx context.Context, input eval.EvalInput
 		Score:  score,
 		Reason: reason,
 		Metadata: map[string]any{
-			"confidence":      confidence,
-			"min_confidence":  e.minConfidence,
+			"confidence":     confidence,
+			"min_confidence": e.minConfidence,
 		},
 	}, nil
 }

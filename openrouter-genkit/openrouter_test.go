@@ -212,8 +212,8 @@ func TestConvertToolRequest(t *testing.T) {
 
 func TestTranslateResponse(t *testing.T) {
 	resp := &openrouter.ChatCompletionResponse{
-		ID:      "test-id",
-		Model:   "openai/gpt-4",
+		ID:    "test-id",
+		Model: "openai/gpt-4",
 		Choices: []openrouter.ChatCompletionChoice{
 			{
 				Index: 0,

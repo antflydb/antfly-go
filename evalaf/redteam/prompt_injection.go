@@ -222,7 +222,7 @@ func (e *JailbreakEvaluator) Evaluate(ctx context.Context, input eval.EvalInput)
 		Score:  score,
 		Reason: reason,
 		Metadata: map[string]any{
-			"matches":      matches,
+			"matches":     matches,
 			"match_count": len(matches),
 		},
 	}, nil
