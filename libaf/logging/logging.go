@@ -5,6 +5,7 @@ package logging
 
 import (
 	"log"
+	"os"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -49,9 +50,26 @@ func NewLogger(c *Config) *zap.Logger {
 			zap.AddCaller(),
 			zap.AddStacktrace(zap.ErrorLevel),
 		)
+	case StyleLogfmt:
+		// Token-efficient logfmt format: ts=15:04:05 lvl=info caller=file.go:42 msg="message" key=value
+		encoderConfig := zapcore.EncoderConfig{
+			TimeKey:       "ts",
+			LevelKey:      "lvl",
+			NameKey:       "logger",
+			CallerKey:     "caller",
+			MessageKey:    "msg",
+			StacktraceKey: "stacktrace",
+			LineEnding:    zapcore.DefaultLineEnding,
+		}
+		core := zapcore.NewCore(
+			NewLogfmtEncoder(encoderConfig),
+			zapcore.AddSync(os.Stderr),
+			logLevel,
+		)
+		logger = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zap.ErrorLevel))
 	default:
 		log.Fatalf(
-			"invalid logging style '%s': must be one of: terminal, json, noop",
+			"invalid logging style '%s': must be one of: terminal, json, logfmt, noop",
 			loggingStyle,
 		)
 	}
