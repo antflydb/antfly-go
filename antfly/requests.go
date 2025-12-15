@@ -248,8 +248,16 @@ type RAGRequest struct {
 	// Each link can specify retry configuration and a condition for trying the next generator.
 	Chain []ChainLink `json:"chain,omitempty,omitzero"`
 
+	// Prompt is a Handlebars template for customizing the user prompt sent to the generator.
+	// You can use Handlebars template syntax to customize the prompt, including loops and conditionals.
+	Prompt string `json:"prompt,omitempty"`
+
 	// SystemPrompt optional system prompt to guide the summarization
 	SystemPrompt string `json:"system_prompt,omitempty"`
+
+	// Eval optional evaluation configuration. When provided, runs evaluators on the query results
+	// and includes scores in the response.
+	Eval *oapi.EvalConfig `json:"eval,omitempty"`
 
 	// WithStreaming Enable SSE streaming of results instead of JSON response
 	WithStreaming bool `json:"with_streaming,omitempty,omitzero"`

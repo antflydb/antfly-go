@@ -77,7 +77,7 @@ func (c *Client) CreateRAGTargetFunc(tables []string) eval.TargetFunc {
 			return nil, err
 		}
 
-		return resp.SummaryResult.Summary, nil
+		return resp.GenerateResult.Text, nil
 	}
 }
 
