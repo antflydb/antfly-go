@@ -24,7 +24,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.4 // indirect
 	github.com/goccy/go-yaml v1.19.0 // indirect
-	github.com/google/dotprompt/go v0.0.0-20251212201238-92f6ee4b208a // indirect
+	github.com/google/dotprompt/go v0.0.0-20251215233048-d1097f5181d6 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
