@@ -228,3 +228,81 @@ func TestNewLogger_Logfmt(t *testing.T) {
 		t.Fatal("expected non-nil logger")
 	}
 }
+
+func TestLogfmtEncoder_StructEncoding(t *testing.T) {
+	// Test that structs are encoded using TOON format (token-efficient)
+	cfg := zapcore.EncoderConfig{
+		MessageKey: "msg",
+		LineEnding: "\n",
+	}
+
+	enc := NewLogfmtEncoder(cfg)
+	entry := zapcore.Entry{
+		Level:   zapcore.InfoLevel,
+		Time:    time.Now(),
+		Message: "struct test",
+	}
+
+	type StorageConfig struct {
+		DataDir string
+		MaxSize int
+	}
+
+	type RaftConfig struct {
+		URL      string
+		Replicas int
+	}
+
+	type TestConfig struct {
+		Host    string
+		Port    int
+		Enabled bool
+		Storage StorageConfig
+		Raft    RaftConfig
+		Tags    []string
+	}
+
+	config := TestConfig{
+		Host:    "localhost",
+		Port:    8080,
+		Enabled: true,
+		Storage: StorageConfig{
+			DataDir: "/var/data",
+			MaxSize: 1024,
+		},
+		Raft: RaftConfig{
+			URL:      "http://localhost:9000",
+			Replicas: 3,
+		},
+		Tags: []string{"prod", "us-west"},
+	}
+
+	fields := []zapcore.Field{
+		zap.Any("config", config),
+	}
+
+	buf, err := enc.EncodeEntry(entry, fields)
+	if err != nil {
+		t.Fatalf("EncodeEntry failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Dot notation should NOT produce Go struct format like "&{localhost 8080 true}"
+	if strings.Contains(output, "&{") {
+		t.Errorf("expected dot notation, got Go struct format: %s", output)
+	}
+
+	// Should use dot notation for nested fields
+	if !strings.Contains(output, "config.Host=localhost") {
+		t.Errorf("expected 'config.Host=localhost' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "config.Storage.DataDir=/var/data") {
+		t.Errorf("expected 'config.Storage.DataDir=/var/data' in output, got: %s", output)
+	}
+	if !strings.Contains(output, "config.Raft.URL=http://localhost:9000") {
+		t.Errorf("expected 'config.Raft.URL=http://localhost:9000' in output, got: %s", output)
+	}
+
+	t.Logf("Dot notation output: %s", output)
+}

@@ -3,6 +3,7 @@ package logging
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,148 @@ import (
 )
 
 var bufferPool = buffer.NewPool()
+
+// flattenValue converts a value to dot-notation key=value pairs.
+// This is the industry standard for representing nested structs in logfmt.
+// Example: config.raft.url=http://localhost config.raft.replicas=3
+func flattenValue(val interface{}) string {
+	var pairs []string
+	flatten("", reflect.ValueOf(val), &pairs)
+	return strings.Join(pairs, " ")
+}
+
+// flatten recursively walks a value and builds dot-notation key=value pairs.
+// Skips zero values to keep output concise.
+func flatten(prefix string, v reflect.Value, pairs *[]string) {
+	// Handle pointers and interfaces
+	for v.Kind() == reflect.Ptr || v.Kind() == reflect.Interface {
+		if v.IsNil() {
+			return
+		}
+		v = v.Elem()
+	}
+
+	switch v.Kind() {
+	case reflect.Struct:
+		// Special handling for time.Time
+		if v.Type() == reflect.TypeOf(time.Time{}) {
+			t := v.Interface().(time.Time)
+			if !t.IsZero() {
+				*pairs = append(*pairs, formatPair(prefix, t.Format(time.RFC3339)))
+			}
+			return
+		}
+		// Recurse into struct fields
+		t := v.Type()
+		for i := 0; i < v.NumField(); i++ {
+			field := t.Field(i)
+			if !field.IsExported() {
+				continue
+			}
+			fieldVal := v.Field(i)
+			key := field.Name
+			if prefix != "" {
+				key = prefix + "." + key
+			}
+			flatten(key, fieldVal, pairs)
+		}
+
+	case reflect.Map:
+		if v.Len() == 0 {
+			return
+		}
+		iter := v.MapRange()
+		for iter.Next() {
+			k := fmt.Sprintf("%v", iter.Key().Interface())
+			key := k
+			if prefix != "" {
+				key = prefix + "." + k
+			}
+			flatten(key, iter.Value(), pairs)
+		}
+
+	case reflect.Slice, reflect.Array:
+		if v.Len() == 0 {
+			return
+		}
+		// For simple types, join as comma-separated
+		if isSimpleSlice(v) {
+			var items []string
+			for i := 0; i < v.Len(); i++ {
+				items = append(items, fmt.Sprintf("%v", v.Index(i).Interface()))
+			}
+			*pairs = append(*pairs, formatPair(prefix, "["+strings.Join(items, ",")+"]"))
+			return
+		}
+		// For complex types, flatten each element with index
+		for i := 0; i < v.Len(); i++ {
+			key := fmt.Sprintf("%s[%d]", prefix, i)
+			flatten(key, v.Index(i), pairs)
+		}
+
+	case reflect.String:
+		s := v.String()
+		if s != "" {
+			*pairs = append(*pairs, formatPair(prefix, s))
+		}
+
+	case reflect.Bool:
+		if v.Bool() {
+			*pairs = append(*pairs, formatPair(prefix, "true"))
+		}
+
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		if v.Int() != 0 {
+			*pairs = append(*pairs, formatPair(prefix, strconv.FormatInt(v.Int(), 10)))
+		}
+
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		if v.Uint() != 0 {
+			*pairs = append(*pairs, formatPair(prefix, strconv.FormatUint(v.Uint(), 10)))
+		}
+
+	case reflect.Float32, reflect.Float64:
+		if v.Float() != 0 {
+			*pairs = append(*pairs, formatPair(prefix, strconv.FormatFloat(v.Float(), 'f', -1, 64)))
+		}
+
+	default:
+		// Fallback for other types
+		s := fmt.Sprintf("%v", v.Interface())
+		if s != "" && s != "<nil>" {
+			*pairs = append(*pairs, formatPair(prefix, s))
+		}
+	}
+}
+
+// isSimpleSlice returns true if the slice contains simple (non-struct) types.
+func isSimpleSlice(v reflect.Value) bool {
+	if v.Len() == 0 {
+		return true
+	}
+	elem := v.Index(0)
+	for elem.Kind() == reflect.Ptr || elem.Kind() == reflect.Interface {
+		if elem.IsNil() {
+			return true
+		}
+		elem = elem.Elem()
+	}
+	switch elem.Kind() {
+	case reflect.Struct, reflect.Map, reflect.Slice, reflect.Array:
+		return false
+	default:
+		return true
+	}
+}
+
+// formatPair formats a key=value pair, quoting the value if needed.
+func formatPair(key, value string) string {
+	if strings.ContainsAny(value, " \t\n\r\"=") {
+		// Quote and escape
+		value = `"` + strings.ReplaceAll(value, `"`, `\"`) + `"`
+	}
+	return key + "=" + value
+}
 
 // logfmtEncoder implements zapcore.Encoder for logfmt output.
 // Output format: ts=15:04:05 lvl=info caller=file.go:42 msg="message" key=value
@@ -153,22 +296,57 @@ func (e *logfmtEncoder) appendField(buf *buffer.Buffer, f zapcore.Field) {
 			e.appendString(buf, err.Error())
 		}
 	default:
-		// For complex types, use fmt
-		e.appendKey(buf, f.Key)
-		e.appendString(buf, fmt.Sprintf("%v", f.Interface))
+		// For complex types, flatten to dot-notation key=value pairs
+		if f.Interface != nil {
+			flattened := flattenValue(f.Interface)
+			if flattened != "" {
+				// Prefix each flattened key with the field key
+				parts := strings.Split(flattened, " ")
+				for _, part := range parts {
+					if part == "" {
+						continue
+					}
+					// part is "Key=value", prepend field name
+					buf.AppendByte(' ')
+					buf.AppendString(f.Key)
+					buf.AppendByte('.')
+					buf.AppendString(part)
+				}
+			}
+		}
 	}
 }
 
 // Implement ObjectEncoder interface for adding fields
 func (e *logfmtEncoder) AddArray(key string, arr zapcore.ArrayMarshaler) error {
-	e.appendKey(e.buf, key)
-	e.appendString(e.buf, fmt.Sprintf("%v", arr))
+	flattened := flattenValue(arr)
+	if flattened != "" {
+		for _, part := range strings.Split(flattened, " ") {
+			if part == "" {
+				continue
+			}
+			e.buf.AppendByte(' ')
+			e.buf.AppendString(key)
+			e.buf.AppendByte('.')
+			e.buf.AppendString(part)
+		}
+	}
 	return nil
 }
 
 func (e *logfmtEncoder) AddObject(key string, obj zapcore.ObjectMarshaler) error {
-	e.appendKey(e.buf, key)
-	e.appendString(e.buf, fmt.Sprintf("%v", obj))
+	flattened := flattenValue(obj)
+	if flattened != "" {
+		for _, part := range strings.Split(flattened, " ") {
+			if part == "" {
+				continue
+			}
+			e.buf.AppendByte(' ')
+			e.buf.AppendString(key)
+			e.buf.AppendByte('.')
+			e.buf.AppendString(part)
+		}
+	}
 	return nil
 }
 
@@ -274,8 +452,18 @@ func (e *logfmtEncoder) AddUintptr(key string, val uintptr) {
 }
 
 func (e *logfmtEncoder) AddReflected(key string, val interface{}) error {
-	e.appendKey(e.buf, key)
-	e.appendString(e.buf, fmt.Sprintf("%v", val))
+	flattened := flattenValue(val)
+	if flattened != "" {
+		for _, part := range strings.Split(flattened, " ") {
+			if part == "" {
+				continue
+			}
+			e.buf.AppendByte(' ')
+			e.buf.AppendString(key)
+			e.buf.AppendByte('.')
+			e.buf.AppendString(part)
+		}
+	}
 	return nil
 }
 
