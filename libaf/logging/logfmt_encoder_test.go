@@ -306,3 +306,47 @@ func TestLogfmtEncoder_StructEncoding(t *testing.T) {
 
 	t.Logf("Dot notation output: %s", output)
 }
+
+// testRange mimics types.Range for testing Stringer encoding
+type testRange [2][]byte
+
+func (r testRange) String() string {
+	return "[start,end)"
+}
+
+func TestLogfmtEncoder_Stringer(t *testing.T) {
+	cfg := zapcore.EncoderConfig{
+		MessageKey: "msg",
+		LineEnding: "\n",
+	}
+
+	enc := NewLogfmtEncoder(cfg)
+	entry := zapcore.Entry{
+		Level:   zapcore.InfoLevel,
+		Time:    time.Now(),
+		Message: "stringer test",
+	}
+
+	r := testRange{[]byte("start"), []byte("end")}
+
+	fields := []zapcore.Field{
+		zap.Stringer("range", r),
+	}
+
+	buf, err := enc.EncodeEntry(entry, fields)
+	if err != nil {
+		t.Fatalf("EncodeEntry failed: %v", err)
+	}
+
+	output := buf.String()
+
+	// Should use the String() method, not flatten the array
+	if !strings.Contains(output, "range=[start,end)") {
+		t.Errorf("expected 'range=[start,end)' in output, got: %s", output)
+	}
+
+	// Should NOT contain array index notation from flattening
+	if strings.Contains(output, "range.[0]") || strings.Contains(output, "range.[1]") {
+		t.Errorf("Stringer should not be flattened, got: %s", output)
+	}
+}

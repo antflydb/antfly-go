@@ -295,6 +295,9 @@ func (e *logfmtEncoder) appendField(buf *buffer.Buffer, f zapcore.Field) {
 			e.appendKey(buf, f.Key)
 			e.appendString(buf, err.Error())
 		}
+	case zapcore.StringerType:
+		e.appendKey(buf, f.Key)
+		e.appendString(buf, f.Interface.(fmt.Stringer).String())
 	default:
 		// For complex types, flatten to dot-notation key=value pairs
 		if f.Interface != nil {
