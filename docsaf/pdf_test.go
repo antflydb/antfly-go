@@ -190,7 +190,7 @@ func TestPDFProcessor_PageNumbers(t *testing.T) {
 	}
 }
 
-func TestPDFProcessor_ErrorHandling(t *testing.T) {
+func TestPDFProcessor_ErrHandling(t *testing.T) {
 	pp := &PDFProcessor{}
 
 	// Test with invalid PDF content

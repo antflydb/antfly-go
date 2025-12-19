@@ -97,7 +97,7 @@ func TestFromEvalafResult(t *testing.T) {
 	}
 }
 
-func TestFromEvalafResultWithError(t *testing.T) {
+func TestFromEvalafResultWithErr(t *testing.T) {
 	evalResult := &eval.EvalResult{
 		Pass:   false,
 		Score:  0.3,
