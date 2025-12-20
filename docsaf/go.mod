@@ -7,7 +7,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.9.1
 	github.com/gocolly/colly/v2 v2.3.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
-	github.com/pb33f/libopenapi v0.30.1
+	github.com/pb33f/libopenapi v0.30.4
 	github.com/yuin/goldmark v1.7.13
 	go.yaml.in/yaml/v4 v4.0.0-rc.3
 	gopkg.in/yaml.v3 v3.0.1
@@ -31,6 +31,7 @@ require (
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
 	github.com/temoto/robotstxt v1.1.2 // indirect
 	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
