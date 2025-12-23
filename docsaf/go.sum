@@ -47,8 +47,8 @@ github.com/nlnwa/whatwg-url v0.6.2 h1:jU61lU2ig4LANydbEJmA2nPrtCGiKdtgT0rmMd2VZ/
 github.com/nlnwa/whatwg-url v0.6.2/go.mod h1:x0FPXJzzOEieQtsBT/AKvbiBbQ46YlL6Xa7m02M1ECk=
 github.com/pb33f/jsonpath v0.7.0 h1:3oG6yu1RqNoMZpqnRjBMqi8fSIXWoDAKDrsB0QGTcoU=
 github.com/pb33f/jsonpath v0.7.0/go.mod h1:/+JlSIjWA2ijMVYGJ3IQPF4Q1nLMYbUTYNdk0exCDPQ=
-github.com/pb33f/libopenapi v0.30.4 h1:NDLNO5nYdgqNyj/XRfYDgE+kshvUh6TT9YS07Okwzt4=
-github.com/pb33f/libopenapi v0.30.4/go.mod h1:oaebeA5l58AFbZ7qRKTtMnu15JEiPlaBas1vLDcw9vs=
+github.com/pb33f/libopenapi v0.30.5 h1:M7t7OD1pTwCwwLCoijVYykNSV6dhfCNFNp942yhBn3o=
+github.com/pb33f/libopenapi v0.30.5/go.mod h1:oaebeA5l58AFbZ7qRKTtMnu15JEiPlaBas1vLDcw9vs=
 github.com/pb33f/ordered-map/v2 v2.3.0 h1:k2OhVEQkhTCQMhAicQ3Z6iInzoZNQ7L9MVomwKBZ5WQ=
 github.com/pb33f/ordered-map/v2 v2.3.0/go.mod h1:oe5ue+6ZNhy7QN9cPZvPA23Hx0vMHnNVeMg4fGdCANw=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
