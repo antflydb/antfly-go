@@ -12,7 +12,17 @@ import (
 
 // PDFProcessor processes PDF (.pdf) content using the ledongthuc/pdf library.
 // It chunks content into sections by pages and extracts metadata from the PDF Info dictionary.
-type PDFProcessor struct{}
+// Uses advanced layout analysis with column detection, table recognition, and font decoding.
+type PDFProcessor struct {
+	textCleaner *EnhancedTextCleaner
+}
+
+func (pp *PDFProcessor) getTextCleaner() *EnhancedTextCleaner {
+	if pp.textCleaner == nil {
+		pp.textCleaner = NewEnhancedTextCleaner()
+	}
+	return pp.textCleaner
+}
 
 // CanProcess returns true for PDF content types or .pdf extensions.
 func (pp *PDFProcessor) CanProcess(contentType, path string) bool {
@@ -49,14 +59,9 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 			continue
 		}
 
-		// Try both extraction methods and pick the better result
-		// GetPlainText works better for most text, but fails on tables
-		// extractTextByRow handles tables but can scramble some text
-		plainText, plainErr := page.GetPlainText(nil)
-		rowText := pp.extractTextByRow(page)
-
-		pageContent := pp.chooseBestExtraction(plainText, rowText, plainErr)
-		pageContent = cleanPDFText(pageContent)
+		// Use advanced layout analysis with column detection, table recognition,
+		// and improved font decoding
+		pageContent := pp.getTextCleaner().ExtractWithLayout(page)
 		pageContent = stripGarbledHeaders(pageContent)
 
 		if pageContent == "" {
@@ -180,264 +185,6 @@ func transformPDFPath(path string) string {
 	return strings.TrimSuffix(path, ".pdf")
 }
 
-// chooseBestExtraction picks the better extraction result between
-// GetPlainText and extractTextByRow methods.
-// - Uses rowText if plainText has concatenation issues (many long words without spaces)
-// - Uses plainText if rowText has scrambling issues (reversed character sequences)
-// - Falls back to plainText if rowText is empty or has obvious errors
-func (pp *PDFProcessor) chooseBestExtraction(plainText, rowText string, plainErr error) string {
-	// If row extraction failed, use plain text
-	if rowText == "" {
-		if plainErr != nil {
-			return ""
-		}
-		return plainText
-	}
-
-	// If plain text failed, use row text
-	if plainErr != nil || plainText == "" {
-		return rowText
-	}
-
-	// Check for concatenation issues in plain text (suggests table/column layout)
-	// Long stretches without spaces indicate missing word boundaries
-	plainHasConcatIssue := pp.hasConcatenationIssues(plainText)
-
-	// Check for scrambling issues in row text (reversed characters)
-	rowHasScrambling := pp.hasScrambledText(rowText)
-
-	// Decision logic:
-	// 1. If plain text has concatenation issues and row text doesn't have scrambling, use row
-	// 2. If row text has scrambling, prefer plain text
-	// 3. Default to plain text (it's usually more reliable)
-	if plainHasConcatIssue && !rowHasScrambling {
-		return rowText
-	}
-
-	return plainText
-}
-
-// hasConcatenationIssues checks if text has patterns indicating missing word boundaries.
-// This includes:
-// - Very long "words" (like concatenated table headers)
-// - Numbers stuck to words (like court transcript line numbers: "12led", "7York")
-func (pp *PDFProcessor) hasConcatenationIssues(text string) bool {
-	words := strings.Fields(text)
-	longWordCount := 0
-	numberStuckCount := 0
-
-	for _, word := range words {
-		// Strip punctuation for analysis
-		cleanWord := strings.Trim(word, ".,;:!?()[]{}\"'")
-
-		// Check for very long words (table concatenation)
-		if len(cleanWord) > 40 {
-			longWordCount++
-		}
-
-		// Check for numbers stuck to words (court transcript line numbers)
-		// Pattern: digit(s) followed by lowercase letter, or letter followed by digit(s)
-		if len(cleanWord) > 2 {
-			// Check for "12led", "13that" pattern (number prefix)
-			if pp.hasNumberWordConcat(cleanWord) {
-				numberStuckCount++
-			}
-		}
-	}
-
-	// Concatenation issues if:
-	// - 3+ very long words (tables), OR
-	// - 5+ number-stuck patterns (court transcripts)
-	return longWordCount > 3 || numberStuckCount > 5
-}
-
-// hasNumberWordConcat checks if a word has numbers concatenated with letters
-// like "12led", "7York", "fine2" (court transcript line numbers)
-func (pp *PDFProcessor) hasNumberWordConcat(word string) bool {
-	// Check for digit-to-letter transition (e.g., "12led")
-	for i := 0; i < len(word)-1; i++ {
-		curr := word[i]
-		next := word[i+1]
-
-		// Digit followed by lowercase letter
-		if curr >= '0' && curr <= '9' && next >= 'a' && next <= 'z' {
-			return true
-		}
-		// Letter followed by digit (but not common patterns like "v1", "2nd")
-		if (curr >= 'a' && curr <= 'z' || curr >= 'A' && curr <= 'Z') &&
-			next >= '0' && next <= '9' {
-			// Skip common patterns
-			rest := word[i+1:]
-			if rest == "1" || rest == "2" || rest == "3" || rest == "s" {
-				continue
-			}
-			return true
-		}
-	}
-	return false
-}
-
-// hasScrambledText checks for patterns that suggest text was
-// extracted in wrong order (reversed character sequences).
-func (pp *PDFProcessor) hasScrambledText(text string) bool {
-	// Common reversed patterns that indicate scrambling
-	// These are common English words that would appear reversed
-	scrambledPatterns := []string{
-		":morF",  // "From:"
-		"siht",   // "this"
-		"taht",   // "that"
-		"htiw",   // "with"
-		"eht ",   // "the "
-		" eht",   // " the"
-		"dna ",   // "and "
-		" dna",   // " and"
-		"rof ",   // "for "
-		" rof",   // " for"
-		"uoy ",   // "you "
-		" uoy",   // " you"
-		"saw ",   // "was "
-		" saw",   // " was"
-		"erew",   // "were"
-		"era ",   // "are "
-	}
-
-	lower := strings.ToLower(text)
-	matchCount := 0
-	for _, pattern := range scrambledPatterns {
-		if strings.Contains(lower, pattern) {
-			matchCount++
-		}
-	}
-
-	// If 2+ reversed patterns found, likely scrambled
-	return matchCount >= 2
-}
-
-// extractTextByRow extracts text from a page using Content().Text
-// with smart word boundary detection based on character X/Y coordinates.
-// This handles tables and multi-column layouts better than GetPlainText().
-func (pp *PDFProcessor) extractTextByRow(page pdf.Page) string {
-	content := page.Content()
-	if len(content.Text) == 0 {
-		return ""
-	}
-
-	// Group characters by Y coordinate (with tolerance) to form rows
-	rows := pp.groupTextByRows(content.Text, 3.0) // 3pt Y tolerance
-
-	var result strings.Builder
-	for i, row := range rows {
-		if i > 0 {
-			result.WriteRune('\n')
-		}
-		rowText := pp.buildRowText(row)
-		result.WriteString(rowText)
-	}
-
-	return result.String()
-}
-
-// groupTextByRows groups text elements by Y coordinate to form logical rows.
-// Returns rows sorted top-to-bottom, with elements within each row sorted left-to-right.
-func (pp *PDFProcessor) groupTextByRows(texts []pdf.Text, yTolerance float64) [][]pdf.Text {
-	if len(texts) == 0 {
-		return nil
-	}
-
-	// Build rows by grouping nearby Y coordinates
-	type rowBucket struct {
-		yMin, yMax float64
-		texts      []pdf.Text
-	}
-
-	var buckets []rowBucket
-
-	for _, t := range texts {
-		// Skip newline markers and empty strings
-		if t.S == "\n" || t.S == "" {
-			continue
-		}
-
-		// Find existing bucket or create new one
-		found := false
-		for i := range buckets {
-			if t.Y >= buckets[i].yMin-yTolerance && t.Y <= buckets[i].yMax+yTolerance {
-				buckets[i].texts = append(buckets[i].texts, t)
-				if t.Y < buckets[i].yMin {
-					buckets[i].yMin = t.Y
-				}
-				if t.Y > buckets[i].yMax {
-					buckets[i].yMax = t.Y
-				}
-				found = true
-				break
-			}
-		}
-		if !found {
-			buckets = append(buckets, rowBucket{yMin: t.Y, yMax: t.Y, texts: []pdf.Text{t}})
-		}
-	}
-
-	// Sort buckets by Y (top to bottom in PDF = higher Y first)
-	for i := 0; i < len(buckets)-1; i++ {
-		for j := i + 1; j < len(buckets); j++ {
-			if buckets[j].yMax > buckets[i].yMax {
-				buckets[i], buckets[j] = buckets[j], buckets[i]
-			}
-		}
-	}
-
-	// Sort texts within each bucket by X (left to right)
-	rows := make([][]pdf.Text, len(buckets))
-	for i, bucket := range buckets {
-		texts := bucket.texts
-		for a := 0; a < len(texts)-1; a++ {
-			for b := a + 1; b < len(texts); b++ {
-				if texts[b].X < texts[a].X {
-					texts[a], texts[b] = texts[b], texts[a]
-				}
-			}
-		}
-		rows[i] = texts
-	}
-
-	return rows
-}
-
-// buildRowText builds a string from a row of text elements,
-// inserting spaces based on X coordinate gaps.
-func (pp *PDFProcessor) buildRowText(texts []pdf.Text) string {
-	if len(texts) == 0 {
-		return ""
-	}
-
-	var result strings.Builder
-	const defaultSpaceThreshold = 3.0 // points
-
-	for i, t := range texts {
-		if i > 0 {
-			prev := texts[i-1]
-			prevEnd := prev.X + prev.W
-			gap := t.X - prevEnd
-
-			// Use font-based threshold if available, otherwise default
-			threshold := defaultSpaceThreshold
-			if prev.FontSize > 0 {
-				// Space is typically 0.2-0.3 of font size
-				threshold = prev.FontSize * 0.25
-			}
-
-			// Insert space if gap exceeds threshold
-			if gap > threshold {
-				result.WriteRune(' ')
-			}
-		}
-		result.WriteString(t.S)
-	}
-
-	return result.String()
-}
-
 // stripGarbledHeaders removes ROT3-encoded or otherwise garbled headers
 // that appear in some PDFs (e.g., court reporter watermarks).
 // These appear as random-looking letter sequences with spaces between characters.
@@ -541,70 +288,4 @@ func isGarbledLine(line string) bool {
 	}
 
 	return false
-}
-
-// cleanPDFText sanitizes text extracted from PDFs by:
-// - Replacing Unicode replacement characters (U+FFFD) with spaces (preserve word boundaries)
-// - Replacing Private Use Area characters with spaces
-// - Removing zero-width and formatting characters
-// - Replacing block/geometric shapes (redactions like ■, □) with spaces
-// - Collapsing excessive whitespace
-func cleanPDFText(text string) string {
-	var result strings.Builder
-	result.Grow(len(text))
-
-	prevSpace := false
-	for _, r := range text {
-		switch {
-		// Replace Unicode replacement character with space (preserves word boundaries)
-		case r == '\uFFFD':
-			if !prevSpace {
-				result.WriteRune(' ')
-				prevSpace = true
-			}
-		// Replace Private Use Area characters with space (often corrupted spaces/ligatures)
-		case r >= '\uE000' && r <= '\uF8FF':
-			if !prevSpace {
-				result.WriteRune(' ')
-				prevSpace = true
-			}
-		// Remove zero-width and formatting characters entirely (no visual impact)
-		case r == '\u200B' || // Zero-width space
-			r == '\u200C' || // Zero-width non-joiner
-			r == '\u200D' || // Zero-width joiner
-			r == '\uFEFF' || // Byte order mark / zero-width no-break space
-			r == '\u00AD' || // Soft hyphen
-			r == '\u2060' || // Word joiner
-			r == '\u180E': // Mongolian vowel separator
-			continue
-		// Replace block/geometric shapes with space (redactions often replace words)
-		case r >= '\u2580' && r <= '\u259F': // Block elements
-			if !prevSpace {
-				result.WriteRune(' ')
-				prevSpace = true
-			}
-		case r >= '\u25A0' && r <= '\u25FF': // Geometric shapes (includes ■ □ ▪ ▫ etc.)
-			if !prevSpace {
-				result.WriteRune(' ')
-				prevSpace = true
-			}
-		// Skip control characters except newline and tab
-		case r < ' ' && r != '\n' && r != '\t':
-			continue
-		// Normalize whitespace (collapse multiple spaces)
-		case r == ' ' || r == '\t':
-			if !prevSpace {
-				result.WriteRune(' ')
-				prevSpace = true
-			}
-		case r == '\n':
-			result.WriteRune('\n')
-			prevSpace = true
-		default:
-			result.WriteRune(r)
-			prevSpace = false
-		}
-	}
-
-	return strings.TrimSpace(result.String())
 }
