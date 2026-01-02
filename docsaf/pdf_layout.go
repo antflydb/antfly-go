@@ -227,22 +227,23 @@ func (la *LayoutAnalyzer) detectColumns(texts []pdf.Text, pageLeft, pageRight fl
 	}
 	columns[len(mergedBoundaries)] = Column{Left: mergedBoundaries[len(mergedBoundaries)-1], Right: pageRight}
 
-	// Assign texts to columns
+	// Collect texts for each column
+	columnTexts := make([][]pdf.Text, len(columns))
 	for _, t := range texts {
 		centerX := t.X + t.W/2
 		for i := range columns {
 			if centerX >= columns[i].Left && centerX <= columns[i].Right {
-				columns[i].Blocks = append(columns[i].Blocks, TextBlock{
-					X:        t.X,
-					Y:        t.Y,
-					Width:    t.W,
-					Height:   t.FontSize,
-					Text:     t.S,
-					FontSize: t.FontSize,
-					Chars:    []pdf.Text{t},
-				})
+				columnTexts[i] = append(columnTexts[i], t)
 				break
 			}
+		}
+	}
+
+	// Convert texts to blocks for each column using textsToBlocks
+	// This properly groups characters into words and handles interleaved rows
+	for i := range columns {
+		if len(columnTexts[i]) > 0 {
+			columns[i].Blocks = la.textsToBlocks(columnTexts[i])
 		}
 	}
 
@@ -286,22 +287,39 @@ func (la *LayoutAnalyzer) fixMirroredTextByRow(texts []pdf.Text) []pdf.Text {
 }
 
 // isMirroredRun checks if a sequence of Text elements appears to be a mirrored run.
-// Mirrored runs have compressed X positions (characters stacked on top of each other)
-// because they were rendered with reversed glyph order.
+// Mirrored runs have compressed X positions AND X decreases in stream order.
 //
-// Detection is based on the compressed X spacing pattern:
-// - Normal text: spacing between chars is ~30-100% of font size
-// - Mirrored text: spacing is < 5% of font size (chars stacked at same X)
+// Key insight: Mirrored text has characters in the correct visual order in the stream,
+// but with X positions that DECREASE (rendered right-to-left). Normal text has
+// characters with X positions that INCREASE (rendered left-to-right).
+//
+// For all runs (2+ characters):
+// 1. Compressed spacing: chars at nearly same X (< 4% of font size)
+// 2. X decreasing: X positions decrease in stream order (right-to-left rendering)
+//
+// Some PDFs have compressed X coordinates but correct stream order (X increasing).
+// These should NOT be reversed - they're just tightly spaced normal text.
 func (la *LayoutAnalyzer) isMirroredRun(texts []pdf.Text) bool {
-	if len(texts) < 3 {
+	if len(texts) < 2 {
 		return false
 	}
 
-	// Calculate average spacing between consecutive characters
+	// Calculate average spacing and check X direction in original (stream) order
 	totalSpacing := 0.0
+	xIncreasing := 0
+	xDecreasing := 0
+
 	for i := 1; i < len(texts); i++ {
-		spacing := math.Abs(texts[i].X - texts[i-1].X)
-		totalSpacing += spacing
+		spacing := texts[i].X - texts[i-1].X
+
+		// Track X direction
+		if spacing > 0 {
+			xIncreasing++
+		} else if spacing < 0 {
+			xDecreasing++
+		}
+
+		totalSpacing += math.Abs(spacing)
 	}
 	avgSpacing := totalSpacing / float64(len(texts)-1)
 
@@ -311,69 +329,92 @@ func (la *LayoutAnalyzer) isMirroredRun(texts []pdf.Text) bool {
 		totalFontSize += t.FontSize
 	}
 	avgFontSize := totalFontSize / float64(len(texts))
-
-	// Mirrored text has very compressed spacing (< 5% of font size)
-	// Normal text has spacing roughly equal to character width (30-100% of font size)
 	if avgFontSize == 0 {
 		avgFontSize = 10.0
 	}
 
-	return avgSpacing < avgFontSize*0.05
+	// Must be compressed spacing (< 4% of font size)
+	isCompressed := avgSpacing < avgFontSize*0.04
+
+	// Must have X decreasing in stream order (mirrored rendering)
+	// For 2-char runs: X must be strictly decreasing (xDecreasing == 1, xIncreasing == 0)
+	// For 3+ char runs: X must be mostly decreasing (xDecreasing > xIncreasing)
+	var isMirrored bool
+	if len(texts) == 2 {
+		// For 2-char, require strict decrease (the one transition must be decreasing)
+		isMirrored = xDecreasing == 1 && xIncreasing == 0
+	} else {
+		// For 3+ chars, majority must be decreasing
+		isMirrored = xDecreasing > xIncreasing
+	}
+
+	return isCompressed && isMirrored
 }
 
 // reverseMirroredRuns reverses the order of characters in mirrored runs
 // and fixes their X positions to be in proper reading order.
 // This should be called on a slice of Text elements from the same row.
+//
+// The algorithm works in stream order (original PDF order) to detect runs
+// where X positions decrease (indicating right-to-left rendering).
 func (la *LayoutAnalyzer) reverseMirroredRuns(texts []pdf.Text) []pdf.Text {
 	if len(texts) == 0 {
 		return texts
 	}
 
-	// Sort by X position first
-	sorted := make([]pdf.Text, len(texts))
-	copy(sorted, texts)
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].X < sorted[j].X
-	})
-
-	// Find runs of compressed-spacing text (potential mirrored runs)
-	result := make([]pdf.Text, 0, len(sorted))
+	// Work in stream order to detect runs with decreasing X
+	result := make([]pdf.Text, 0, len(texts))
 	i := 0
 
-	for i < len(sorted) {
-		// Find extent of this potential run (chars with compressed spacing)
+	for i < len(texts) {
+		// Find extent of this potential mirrored run in stream order
+		// A mirrored run has compressed spacing AND mostly decreasing X
 		runStart := i
 		runEnd := i + 1
 
-		for runEnd < len(sorted) {
-			spacing := math.Abs(sorted[runEnd].X - sorted[runEnd-1].X)
-			fontSize := sorted[runEnd].FontSize
+		for runEnd < len(texts) {
+			spacing := texts[runEnd].X - texts[runEnd-1].X
+			fontSize := texts[runEnd].FontSize
 			if fontSize == 0 {
 				fontSize = 10.0
 			}
 
-			// Compressed spacing threshold: < 5% of font size (very conservative)
-			if spacing > fontSize*0.05 {
+			// Check for compressed spacing (absolute value < 4% of font size)
+			// This includes both slightly increasing and decreasing X
+			if math.Abs(spacing) > fontSize*0.04 {
 				break // Normal spacing, end of potential run
 			}
 			runEnd++
 		}
 
-		run := sorted[runStart:runEnd]
+		run := texts[runStart:runEnd]
 
 		// Check if this run should be reversed
-		if len(run) >= 3 && la.isMirroredRun(run) {
-			// Reverse the characters
-			reversed := make([]pdf.Text, len(run))
-			for j := 0; j < len(run); j++ {
-				reversed[j] = run[len(run)-1-j]
+		// isMirroredRun handles both 2-char (strict compression) and 3+ char (compression + X direction)
+		if len(run) >= 2 && la.isMirroredRun(run) {
+			// Sort by X to get correct left-to-right order
+			sorted := make([]pdf.Text, len(run))
+			copy(sorted, run)
+			sort.Slice(sorted, func(a, b int) bool {
+				return sorted[a].X < sorted[b].X
+			})
+
+			// Reverse the sorted order to correct the mirroring
+			reversed := make([]pdf.Text, len(sorted))
+			for j := 0; j < len(sorted); j++ {
+				reversed[j] = sorted[len(sorted)-1-j]
 			}
 
-			// Fix X positions: redistribute evenly based on the run's span
-			startX := run[0].X
-			avgWidth := run[0].FontSize * 0.6 // Approximate character width
+			// Fix X positions: redistribute with tight spacing so chars merge into words
+			// 20% of font size ensures chars are treated as same word (threshold is 30%)
+			startX := sorted[0].X
+			charSpacing := sorted[0].FontSize * 0.2
+			if charSpacing == 0 {
+				charSpacing = 2.0
+			}
 			for j := range reversed {
-				reversed[j].X = startX + float64(j)*avgWidth
+				reversed[j].X = startX + float64(j)*charSpacing
+				reversed[j].W = charSpacing
 			}
 
 			result = append(result, reversed...)
@@ -420,17 +461,125 @@ func (la *LayoutAnalyzer) groupIntoRows(texts []pdf.Text) [][]pdf.Text {
 		}
 	}
 
+	// Post-process: split buckets that have multiple distinct Y clusters.
+	// This handles cases where two rows at similar Y (e.g., Y=767 and Y=769.5)
+	// get merged but would interleave when sorted by X.
+	var finalBuckets []rowBucket
+	for _, bucket := range buckets {
+		split := la.splitInterleavedRows(bucket.texts)
+		for _, row := range split {
+			if len(row) == 0 {
+				continue
+			}
+			yMin, yMax := row[0].Y, row[0].Y
+			for _, t := range row[1:] {
+				if t.Y < yMin {
+					yMin = t.Y
+				}
+				if t.Y > yMax {
+					yMax = t.Y
+				}
+			}
+			finalBuckets = append(finalBuckets, rowBucket{yMin: yMin, yMax: yMax, texts: row})
+		}
+	}
+
 	// Sort buckets by Y (top to bottom = higher Y first)
-	sort.Slice(buckets, func(i, j int) bool {
-		return buckets[i].yMax > buckets[j].yMax
+	sort.Slice(finalBuckets, func(i, j int) bool {
+		return finalBuckets[i].yMax > finalBuckets[j].yMax
 	})
 
-	rows := make([][]pdf.Text, len(buckets))
-	for i, bucket := range buckets {
+	rows := make([][]pdf.Text, len(finalBuckets))
+	for i, bucket := range finalBuckets {
 		rows[i] = bucket.texts
 	}
 
 	return rows
+}
+
+// splitInterleavedRows checks if a row has multiple distinct Y values that would
+// cause interleaving when sorted by X. If so, it splits them into separate rows.
+// This handles PDFs with multiple header lines at similar Y positions.
+func (la *LayoutAnalyzer) splitInterleavedRows(texts []pdf.Text) [][]pdf.Text {
+	if len(texts) < 4 {
+		return [][]pdf.Text{texts}
+	}
+
+	// Find distinct Y values
+	yValues := make(map[float64][]pdf.Text)
+	for _, t := range texts {
+		// Round Y to 0.1 precision to group very close values
+		roundedY := math.Round(t.Y*10) / 10
+		yValues[roundedY] = append(yValues[roundedY], t)
+	}
+
+	// If only one distinct Y, no splitting needed
+	if len(yValues) <= 1 {
+		return [][]pdf.Text{texts}
+	}
+
+	// Check if this would cause interleaving:
+	// If different Y values have overlapping X ranges, they'll interleave when sorted by X
+	type yRange struct {
+		y        float64
+		xMin     float64
+		xMax     float64
+		texts    []pdf.Text
+		charCount int
+	}
+
+	var ranges []yRange
+	for y, yTexts := range yValues {
+		if len(yTexts) < 3 {
+			// Very few chars at this Y, probably noise
+			continue
+		}
+		xMin, xMax := yTexts[0].X, yTexts[0].X
+		for _, t := range yTexts[1:] {
+			if t.X < xMin {
+				xMin = t.X
+			}
+			if t.X > xMax {
+				xMax = t.X
+			}
+		}
+		ranges = append(ranges, yRange{y: y, xMin: xMin, xMax: xMax, texts: yTexts, charCount: len(yTexts)})
+	}
+
+	if len(ranges) <= 1 {
+		return [][]pdf.Text{texts}
+	}
+
+	// Check for X overlap between any two Y ranges
+	hasOverlap := false
+	for i := 0; i < len(ranges) && !hasOverlap; i++ {
+		for j := i + 1; j < len(ranges); j++ {
+			// Check if ranges overlap: NOT (r1.max < r2.min OR r2.max < r1.min)
+			if !(ranges[i].xMax < ranges[j].xMin || ranges[j].xMax < ranges[i].xMin) {
+				// They overlap - check if both have some content
+				// Use low threshold (3) since column detection may split rows
+				if ranges[i].charCount >= 3 && ranges[j].charCount >= 3 {
+					hasOverlap = true
+					break
+				}
+			}
+		}
+	}
+
+	if !hasOverlap {
+		// No significant overlap, keep as single row
+		return [][]pdf.Text{texts}
+	}
+
+	// Split into separate rows by rounded Y value
+	result := make([][]pdf.Text, 0, len(yValues))
+	for _, yTexts := range yValues {
+		if len(yTexts) > 0 {
+			result = append(result, yTexts)
+		}
+	}
+
+	return result
 }
 
 // textsToBlocks converts pdf.Text elements to TextBlocks, merging adjacent chars into words.
