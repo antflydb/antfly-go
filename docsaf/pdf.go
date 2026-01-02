@@ -57,6 +57,7 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 
 		pageContent := pp.chooseBestExtraction(plainText, rowText, plainErr)
 		pageContent = cleanPDFText(pageContent)
+		pageContent = stripGarbledHeaders(pageContent)
 
 		if pageContent == "" {
 			continue
@@ -216,23 +217,64 @@ func (pp *PDFProcessor) chooseBestExtraction(plainText, rowText string, plainErr
 	return plainText
 }
 
-// hasConcatenationIssues checks if text has suspiciously long "words"
-// without spaces, which indicates missing word boundaries.
+// hasConcatenationIssues checks if text has patterns indicating missing word boundaries.
+// This includes:
+// - Very long "words" (like concatenated table headers)
+// - Numbers stuck to words (like court transcript line numbers: "12led", "7York")
 func (pp *PDFProcessor) hasConcatenationIssues(text string) bool {
-	// Look for words longer than 40 characters (unusual in English)
-	// This suggests concatenated words like "LogIDEmailSentDateEmailFrom"
 	words := strings.Fields(text)
 	longWordCount := 0
+	numberStuckCount := 0
+
 	for _, word := range words {
-		// Strip punctuation for length check
+		// Strip punctuation for analysis
 		cleanWord := strings.Trim(word, ".,;:!?()[]{}\"'")
+
+		// Check for very long words (table concatenation)
 		if len(cleanWord) > 40 {
 			longWordCount++
 		}
+
+		// Check for numbers stuck to words (court transcript line numbers)
+		// Pattern: digit(s) followed by lowercase letter, or letter followed by digit(s)
+		if len(cleanWord) > 2 {
+			// Check for "12led", "13that" pattern (number prefix)
+			if pp.hasNumberWordConcat(cleanWord) {
+				numberStuckCount++
+			}
+		}
 	}
 
-	// If more than 3 very long words, likely has concatenation issues
-	return longWordCount > 3
+	// Concatenation issues if:
+	// - 3+ very long words (tables), OR
+	// - 5+ number-stuck patterns (court transcripts)
+	return longWordCount > 3 || numberStuckCount > 5
+}
+
+// hasNumberWordConcat checks if a word has numbers concatenated with letters
+// like "12led", "7York", "fine2" (court transcript line numbers)
+func (pp *PDFProcessor) hasNumberWordConcat(word string) bool {
+	// Check for digit-to-letter transition (e.g., "12led")
+	for i := 0; i < len(word)-1; i++ {
+		curr := word[i]
+		next := word[i+1]
+
+		// Digit followed by lowercase letter
+		if curr >= '0' && curr <= '9' && next >= 'a' && next <= 'z' {
+			return true
+		}
+		// Letter followed by digit (but not common patterns like "v1", "2nd")
+		if (curr >= 'a' && curr <= 'z' || curr >= 'A' && curr <= 'Z') &&
+			next >= '0' && next <= '9' {
+			// Skip common patterns
+			rest := word[i+1:]
+			if rest == "1" || rest == "2" || rest == "3" || rest == "s" {
+				continue
+			}
+			return true
+		}
+	}
+	return false
 }
 
 // hasScrambledText checks for patterns that suggest text was
@@ -394,6 +436,111 @@ func (pp *PDFProcessor) buildRowText(texts []pdf.Text) string {
 	}
 
 	return result.String()
+}
+
+// stripGarbledHeaders removes ROT3-encoded or otherwise garbled headers
+// that appear in some PDFs (e.g., court reporter watermarks).
+// These appear as random-looking letter sequences with spaces between characters.
+func stripGarbledHeaders(text string) string {
+	// First, try to strip garbled prefix from beginning of text
+	text = stripGarbledPrefix(text)
+
+	// Then filter out entirely garbled lines
+	lines := strings.Split(text, "\n")
+	var result []string
+
+	for _, line := range lines {
+		if isGarbledLine(line) {
+			continue // skip this line
+		}
+		result = append(result, line)
+	}
+
+	return strings.Join(result, "\n")
+}
+
+// stripGarbledPrefix removes garbled text from the start of content
+// Pattern: sequences of single chars with spaces like "$ J U H Q % O D Q G R"
+func stripGarbledPrefix(text string) string {
+	// Look for pattern of single-char words at start
+	// e.g., "$ J U H Q % O D Q G R ... actual content"
+	words := strings.Fields(text)
+	if len(words) < 10 {
+		return text
+	}
+
+	// Count consecutive single-character words at start
+	singleCharRun := 0
+	for _, word := range words {
+		if len(word) == 1 || (len(word) <= 3 && containsOnlySpecialChars(word)) {
+			singleCharRun++
+		} else {
+			break
+		}
+	}
+
+	// If we found a significant run of single chars (>10), strip them
+	if singleCharRun >= 10 {
+		// Find the position after the garbled prefix
+		// We'll skip past the single-char words
+		remaining := words[singleCharRun:]
+		return strings.Join(remaining, " ")
+	}
+
+	return text
+}
+
+// containsOnlySpecialChars checks if string has only special/symbol chars
+func containsOnlySpecialChars(s string) bool {
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			if len(s) > 1 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// isGarbledLine detects lines that appear to be garbled/encoded text
+func isGarbledLine(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if len(trimmed) < 10 {
+		return false
+	}
+
+	// Count single-character "words" (like "J U H Q")
+	words := strings.Fields(trimmed)
+	if len(words) < 5 {
+		return false
+	}
+
+	singleCharCount := 0
+	replacementCount := 0
+
+	for _, word := range words {
+		if len(word) == 1 {
+			singleCharCount++
+		}
+		for _, r := range word {
+			if r == '\uFFFD' || r == '�' {
+				replacementCount++
+			}
+		}
+	}
+
+	// If >60% of words are single characters, likely garbled
+	singleCharRatio := float64(singleCharCount) / float64(len(words))
+	if singleCharRatio > 0.6 {
+		return true
+	}
+
+	// If many replacement characters, likely garbled
+	if replacementCount > 3 {
+		return true
+	}
+
+	return false
 }
 
 // cleanPDFText sanitizes text extracted from PDFs by:
