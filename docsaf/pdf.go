@@ -12,7 +12,36 @@ import (
 
 // PDFProcessor processes PDF (.pdf) content using the ledongthuc/pdf library.
 // It chunks content into sections by pages and extracts metadata from the PDF Info dictionary.
-type PDFProcessor struct{}
+type PDFProcessor struct {
+	// UseAdvancedLayout enables column detection, table recognition, and
+	// improved reading order reconstruction. Default is true.
+	UseAdvancedLayout bool
+
+	// layoutAnalyzer is initialized lazily
+	layoutAnalyzer *LayoutAnalyzer
+	textCleaner    *EnhancedTextCleaner
+}
+
+// NewPDFProcessor creates a PDFProcessor with advanced layout analysis enabled.
+func NewPDFProcessor() *PDFProcessor {
+	return &PDFProcessor{
+		UseAdvancedLayout: true,
+	}
+}
+
+func (pp *PDFProcessor) getLayoutAnalyzer() *LayoutAnalyzer {
+	if pp.layoutAnalyzer == nil {
+		pp.layoutAnalyzer = NewLayoutAnalyzer()
+	}
+	return pp.layoutAnalyzer
+}
+
+func (pp *PDFProcessor) getTextCleaner() *EnhancedTextCleaner {
+	if pp.textCleaner == nil {
+		pp.textCleaner = NewEnhancedTextCleaner()
+	}
+	return pp.textCleaner
+}
 
 // CanProcess returns true for PDF content types or .pdf extensions.
 func (pp *PDFProcessor) CanProcess(contentType, path string) bool {
@@ -49,15 +78,23 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 			continue
 		}
 
-		// Try both extraction methods and pick the better result
-		// GetPlainText works better for most text, but fails on tables
-		// extractTextByRow handles tables but can scramble some text
-		plainText, plainErr := page.GetPlainText(nil)
-		rowText := pp.extractTextByRow(page)
+		var pageContent string
+		if pp.UseAdvancedLayout {
+			// Use advanced layout analysis with column detection, table recognition,
+			// and improved font decoding
+			pageContent = pp.getTextCleaner().ExtractWithLayout(page)
+			pageContent = stripGarbledHeaders(pageContent)
+		} else {
+			// Legacy extraction: try both methods and pick the better result
+			// GetPlainText works better for most text, but fails on tables
+			// extractTextByRow handles tables but can scramble some text
+			plainText, plainErr := page.GetPlainText(nil)
+			rowText := pp.extractTextByRow(page)
 
-		pageContent := pp.chooseBestExtraction(plainText, rowText, plainErr)
-		pageContent = cleanPDFText(pageContent)
-		pageContent = stripGarbledHeaders(pageContent)
+			pageContent = pp.chooseBestExtraction(plainText, rowText, plainErr)
+			pageContent = cleanPDFText(pageContent)
+			pageContent = stripGarbledHeaders(pageContent)
+		}
 
 		if pageContent == "" {
 			continue
