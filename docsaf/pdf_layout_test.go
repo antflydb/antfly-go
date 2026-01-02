@@ -464,19 +464,3 @@ func TestLayoutAnalyzer_FormatBlocks(t *testing.T) {
 	}
 }
 
-func TestNewPDFProcessor(t *testing.T) {
-	pp := NewPDFProcessor()
-
-	if !pp.UseAdvancedLayout {
-		t.Error("NewPDFProcessor should enable advanced layout by default")
-	}
-}
-
-func TestPDFProcessor_LegacyMode(t *testing.T) {
-	// Test that legacy mode still works
-	pp := &PDFProcessor{UseAdvancedLayout: false}
-
-	if pp.UseAdvancedLayout {
-		t.Error("Legacy mode should have UseAdvancedLayout = false")
-	}
-}
