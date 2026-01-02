@@ -75,6 +75,9 @@ func (la *LayoutAnalyzer) ExtractWithLayout(page pdf.Page) string {
 		return ""
 	}
 
+	// Fix mirrored text (reversed character order due to PDF rendering issues)
+	texts = la.fixMirroredTextByRow(texts)
+
 	// Detect page boundaries
 	pageLeft, pageRight, _, _ := la.getPageBounds(texts)
 
@@ -156,7 +159,7 @@ func (la *LayoutAnalyzer) detectColumns(texts []pdf.Text, pageLeft, pageRight fl
 	}
 	gapCounts := make(map[int]int) // Bucketed X position -> count
 
-	bucketSize := 5.0 // 5pt buckets for gap positions
+	bucketSize := 20.0 // 20pt buckets for gap positions (tolerates variable column widths)
 
 	for _, row := range rows {
 		// Sort row by X position
@@ -259,6 +262,129 @@ func (la *LayoutAnalyzer) detectColumns(texts []pdf.Text, pageLeft, pageRight fl
 	}
 
 	return nonEmptyColumns
+}
+
+// fixMirroredTextByRow processes texts row by row and fixes mirrored runs.
+// Mirrored text appears when PDFs use negative horizontal scaling or
+// reversed glyph ordering, causing text like "PALM BEACH" to appear as "MLAP HCAEB".
+func (la *LayoutAnalyzer) fixMirroredTextByRow(texts []pdf.Text) []pdf.Text {
+	if len(texts) == 0 {
+		return texts
+	}
+
+	// Group texts into rows
+	rows := la.groupIntoRows(texts)
+
+	// Fix mirrored runs in each row and collect results
+	var result []pdf.Text
+	for _, row := range rows {
+		fixed := la.reverseMirroredRuns(row)
+		result = append(result, fixed...)
+	}
+
+	return result
+}
+
+// isMirroredRun checks if a sequence of Text elements appears to be a mirrored run.
+// Mirrored runs have compressed X positions (characters stacked on top of each other)
+// because they were rendered with reversed glyph order.
+//
+// Detection is based on the compressed X spacing pattern:
+// - Normal text: spacing between chars is ~30-100% of font size
+// - Mirrored text: spacing is < 5% of font size (chars stacked at same X)
+func (la *LayoutAnalyzer) isMirroredRun(texts []pdf.Text) bool {
+	if len(texts) < 3 {
+		return false
+	}
+
+	// Calculate average spacing between consecutive characters
+	totalSpacing := 0.0
+	for i := 1; i < len(texts); i++ {
+		spacing := math.Abs(texts[i].X - texts[i-1].X)
+		totalSpacing += spacing
+	}
+	avgSpacing := totalSpacing / float64(len(texts)-1)
+
+	// Calculate average font size
+	totalFontSize := 0.0
+	for _, t := range texts {
+		totalFontSize += t.FontSize
+	}
+	avgFontSize := totalFontSize / float64(len(texts))
+
+	// Mirrored text has very compressed spacing (< 5% of font size)
+	// Normal text has spacing roughly equal to character width (30-100% of font size)
+	if avgFontSize == 0 {
+		avgFontSize = 10.0
+	}
+
+	return avgSpacing < avgFontSize*0.05
+}
+
+// reverseMirroredRuns reverses the order of characters in mirrored runs
+// and fixes their X positions to be in proper reading order.
+// This should be called on a slice of Text elements from the same row.
+func (la *LayoutAnalyzer) reverseMirroredRuns(texts []pdf.Text) []pdf.Text {
+	if len(texts) == 0 {
+		return texts
+	}
+
+	// Sort by X position first
+	sorted := make([]pdf.Text, len(texts))
+	copy(sorted, texts)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].X < sorted[j].X
+	})
+
+	// Find runs of compressed-spacing text (potential mirrored runs)
+	result := make([]pdf.Text, 0, len(sorted))
+	i := 0
+
+	for i < len(sorted) {
+		// Find extent of this potential run (chars with compressed spacing)
+		runStart := i
+		runEnd := i + 1
+
+		for runEnd < len(sorted) {
+			spacing := math.Abs(sorted[runEnd].X - sorted[runEnd-1].X)
+			fontSize := sorted[runEnd].FontSize
+			if fontSize == 0 {
+				fontSize = 10.0
+			}
+
+			// Compressed spacing threshold: < 5% of font size (very conservative)
+			if spacing > fontSize*0.05 {
+				break // Normal spacing, end of potential run
+			}
+			runEnd++
+		}
+
+		run := sorted[runStart:runEnd]
+
+		// Check if this run should be reversed
+		if len(run) >= 3 && la.isMirroredRun(run) {
+			// Reverse the characters
+			reversed := make([]pdf.Text, len(run))
+			for j := 0; j < len(run); j++ {
+				reversed[j] = run[len(run)-1-j]
+			}
+
+			// Fix X positions: redistribute evenly based on the run's span
+			startX := run[0].X
+			avgWidth := run[0].FontSize * 0.6 // Approximate character width
+			for j := range reversed {
+				reversed[j].X = startX + float64(j)*avgWidth
+			}
+
+			result = append(result, reversed...)
+		} else {
+			result = append(result, run...)
+		}
+
+		i = runEnd
+	}
+
+	return result
 }
 
 // groupIntoRows groups text elements by Y coordinate.
@@ -702,7 +828,7 @@ func NewFontDecoder() *FontDecoder {
 			'\u2023': '>',  // triangular bullet
 			'\u2043': '-', // hyphen bullet
 			'\u00B7': '.', // middle dot
-			'\u2026': '...', // This one is handled specially below
+			// Note: '\u2026' (ellipsis) is handled specially in Decode()
 		},
 	}
 }
