@@ -42,12 +42,14 @@ type (
 	GoogleEmbedderConfig     = oapi.GoogleEmbedderConfig
 	BedrockEmbedderConfig    = oapi.BedrockEmbedderConfig
 	VertexEmbedderConfig     = oapi.VertexEmbedderConfig
+	TermiteEmbedderConfig    = oapi.TermiteEmbedderConfig
 	OllamaGeneratorConfig    = oapi.OllamaGeneratorConfig
 	OpenAIGeneratorConfig    = oapi.OpenAIGeneratorConfig
 	GoogleGeneratorConfig    = oapi.GoogleGeneratorConfig
 	BedrockGeneratorConfig   = oapi.BedrockGeneratorConfig
 	VertexGeneratorConfig    = oapi.VertexGeneratorConfig
 	AnthropicGeneratorConfig = oapi.AnthropicGeneratorConfig
+	TermiteGeneratorConfig   = oapi.TermiteGeneratorConfig
 	RerankerConfig           = oapi.RerankerConfig
 	OllamaRerankerConfig     = oapi.OllamaRerankerConfig
 	TermiteRerankerConfig    = oapi.TermiteRerankerConfig
@@ -61,12 +63,13 @@ type (
 	AntflyChunkerConfig  = oapi.AntflyChunkerConfig
 
 	// Query response types
-	QueryResponses = oapi.QueryResponses
-	QueryResult    = oapi.QueryResult
-	Hits           = oapi.QueryHits
-	Hit            = oapi.QueryHit
-	FacetOption    = oapi.FacetOption
-	FacetResult    = oapi.FacetResult
+	QueryResponses     = oapi.QueryResponses
+	QueryResult        = oapi.QueryResult
+	Hits               = oapi.QueryHits
+	Hit                = oapi.QueryHit
+	AggregationRequest = oapi.AggregationRequest
+	AggregationOption  = oapi.AggregationBucket
+	AggregationResult  = oapi.AggregationResult
 
 	// RAG response types
 	RAGResult      = oapi.RAGResult
@@ -132,6 +135,7 @@ const (
 	EmbedderProviderGemini     = oapi.EmbedderProviderGemini
 	EmbedderProviderBedrock    = oapi.EmbedderProviderBedrock
 	EmbedderProviderVertex     = oapi.EmbedderProviderVertex
+	EmbedderProviderTermite    = oapi.EmbedderProviderTermite
 	EmbedderProviderMock       = oapi.EmbedderProviderMock
 	GeneratorProviderOllama    = oapi.GeneratorProviderOllama
 	GeneratorProviderOpenai    = oapi.GeneratorProviderOpenai
@@ -139,6 +143,7 @@ const (
 	GeneratorProviderBedrock   = oapi.GeneratorProviderBedrock
 	GeneratorProviderVertex    = oapi.GeneratorProviderVertex
 	GeneratorProviderAnthropic = oapi.GeneratorProviderAnthropic
+	GeneratorProviderTermite   = oapi.GeneratorProviderTermite
 	GeneratorProviderMock      = oapi.GeneratorProviderMock
 	RerankerProviderOllama     = oapi.RerankerProviderOllama
 	RerankerProviderTermite    = oapi.RerankerProviderTermite

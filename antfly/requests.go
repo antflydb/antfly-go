@@ -86,8 +86,8 @@ type QueryRequest struct {
 	// ExclusionQuery strongly-typed Bleve search query for exclusions
 	ExclusionQuery *query.Query `json:"-"`
 
-	// Facets to compute
-	Facets map[string]FacetOption `json:"facets,omitempty"`
+	// Aggregations to compute
+	Aggregations map[string]AggregationRequest `json:"aggregations,omitempty"`
 
 	// Fields list of fields to include in the results
 	Fields []string `json:"fields,omitempty"`
@@ -143,7 +143,7 @@ func (q QueryRequest) MarshalJSON() ([]byte, error) {
 		DistanceOver:     q.DistanceOver,
 		DistanceUnder:    q.DistanceUnder,
 		Embeddings:       q.Embeddings,
-		Facets:           q.Facets,
+		Aggregations:     q.Aggregations,
 		Fields:           q.Fields,
 		FilterPrefix:     q.FilterPrefix,
 		Indexes:          q.Indexes,
@@ -197,7 +197,7 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 	q.DistanceOver = oapiReq.DistanceOver
 	q.DistanceUnder = oapiReq.DistanceUnder
 	q.Embeddings = oapiReq.Embeddings
-	q.Facets = oapiReq.Facets
+	q.Aggregations = oapiReq.Aggregations
 	q.Fields = oapiReq.Fields
 	q.FilterPrefix = oapiReq.FilterPrefix
 	q.Indexes = oapiReq.Indexes

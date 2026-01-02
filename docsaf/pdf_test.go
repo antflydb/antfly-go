@@ -245,3 +245,86 @@ func hasSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+func TestCleanPDFText(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "replacement characters preserve word boundaries",
+			input: "Hello\uFFFDWorld\uFFFD\uFFFDTest",
+			want:  "Hello World Test",
+		},
+		{
+			name:  "black squares (redactions) become space",
+			input: "Name: ■■■■■■ was present",
+			want:  "Name: was present",
+		},
+		{
+			name:  "geometric shapes become spaces",
+			input: "See □ option ▪ here ▫ end",
+			want:  "See option here end",
+		},
+		{
+			name:  "zero-width characters removed entirely",
+			input: "Hello\u200BWorld\u200C\u200DTest\uFEFF",
+			want:  "HelloWorldTest",
+		},
+		{
+			name:  "private use area becomes space",
+			input: "Text\uE000with\uF8FFprivate",
+			want:  "Text with private",
+		},
+		{
+			name:  "block elements become space",
+			input: "Before▀▁▂▃After",
+			want:  "Before After",
+		},
+		{
+			name:  "collapse whitespace",
+			input: "Hello    World\t\tTest",
+			want:  "Hello World Test",
+		},
+		{
+			name:  "preserve newlines",
+			input: "Line1\nLine2\n\nLine3",
+			want:  "Line1\nLine2\n\nLine3",
+		},
+		{
+			name:  "control characters",
+			input: "Hello\x00\x01\x02World",
+			want:  "HelloWorld",
+		},
+		{
+			name:  "mixed problematic chars preserve words",
+			input: "TABLE\uFFFD\uFFFDOF■■■CONTENTS\u200B\u200C",
+			want:  "TABLE OF CONTENTS",
+		},
+		{
+			name:  "soft hyphen removal",
+			input: "docu\u00ADment",
+			want:  "document",
+		},
+		{
+			name:  "normal text unchanged",
+			input: "This is normal text with punctuation! And numbers: 123.",
+			want:  "This is normal text with punctuation! And numbers: 123.",
+		},
+		{
+			name:  "table of contents example",
+			input: "i\uFFFD\uFFFDTABLE OF CONTENTS \uFFFD\uFFFDTABLE OF CONTENTS",
+			want:  "i TABLE OF CONTENTS TABLE OF CONTENTS",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cleanPDFText(tt.input)
+			if got != tt.want {
+				t.Errorf("cleanPDFText(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

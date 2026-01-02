@@ -41,6 +41,9 @@ func NewEmbedderConfig(config any) (*EmbedderConfig, error) {
 	case VertexEmbedderConfig:
 		provider = EmbedderProviderVertex
 		modelConfig.FromVertexEmbedderConfig(v)
+	case TermiteEmbedderConfig:
+		provider = EmbedderProviderTermite
+		modelConfig.FromTermiteEmbedderConfig(v)
 	default:
 		return nil, fmt.Errorf("unknown model config type: %T", v)
 	}
@@ -71,6 +74,9 @@ func NewGeneratorConfig(config any) (*GeneratorConfig, error) {
 	case oapi.AnthropicGeneratorConfig:
 		provider = oapi.GeneratorProviderAnthropic
 		modelConfig.FromAnthropicGeneratorConfig(v)
+	case oapi.TermiteGeneratorConfig:
+		provider = oapi.GeneratorProviderTermite
+		modelConfig.FromTermiteGeneratorConfig(v)
 	default:
 		return nil, fmt.Errorf("unknown model config type: %T", v)
 	}
