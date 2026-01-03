@@ -15,6 +15,16 @@ import (
 // Uses advanced layout analysis with column detection, table recognition, and font decoding.
 type PDFProcessor struct {
 	textCleaner *EnhancedTextCleaner
+	textRepair  *TextRepair
+
+	// EnableHeaderFooterDetection enables cross-page header/footer detection.
+	// When enabled, the processor makes two passes: first to detect patterns,
+	// then to extract text with headers/footers removed.
+	EnableHeaderFooterDetection bool
+
+	// EnableMirroredTextRepair enables automatic detection and repair of mirrored/reversed text.
+	// Uses bigram frequency analysis to detect text that has been horizontally flipped.
+	EnableMirroredTextRepair bool
 }
 
 func (pp *PDFProcessor) getTextCleaner() *EnhancedTextCleaner {
@@ -22,6 +32,13 @@ func (pp *PDFProcessor) getTextCleaner() *EnhancedTextCleaner {
 		pp.textCleaner = NewEnhancedTextCleaner()
 	}
 	return pp.textCleaner
+}
+
+func (pp *PDFProcessor) getTextRepair() *TextRepair {
+	if pp.textRepair == nil {
+		pp.textRepair = NewTextRepair()
+	}
+	return pp.textRepair
 }
 
 // CanProcess returns true for PDF content types or .pdf extensions.
@@ -49,8 +66,26 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 		docMetadata["source_url"] = sourceURL
 	}
 
-	// Process each page
 	totalPages := reader.NumPage()
+	textRepair := pp.getTextRepair()
+	textCleaner := pp.getTextCleaner()
+
+	// If header/footer detection is enabled, make a first pass to collect page patterns
+	var headers, footers []string
+	if pp.EnableHeaderFooterDetection && totalPages >= 3 {
+		for pageNum := 1; pageNum <= totalPages; pageNum++ {
+			page := reader.Page(pageNum)
+			if page.V.IsNull() {
+				continue
+			}
+			pageContent := textCleaner.ExtractWithLayout(page)
+			textRepair.RecordPageContent(pageContent)
+		}
+		headers = textRepair.GetDetectedHeaders()
+		footers = textRepair.GetDetectedFooters()
+	}
+
+	// Process each page
 	sections := make([]DocumentSection, 0, totalPages)
 
 	for pageNum := 1; pageNum <= totalPages; pageNum++ {
@@ -61,8 +96,19 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 
 		// Use advanced layout analysis with column detection, table recognition,
 		// and improved font decoding
-		pageContent := pp.getTextCleaner().ExtractWithLayout(page)
+		pageContent := textCleaner.ExtractWithLayout(page)
+
+		// Remove detected headers and footers
+		if len(headers) > 0 || len(footers) > 0 {
+			pageContent = textRepair.RemoveHeadersFooters(pageContent, headers, footers)
+		}
+
 		pageContent = stripGarbledHeaders(pageContent)
+
+		// Repair mirrored/reversed text if enabled
+		if pp.EnableMirroredTextRepair {
+			pageContent, _ = textRepair.AutoRepairMirroredText(pageContent)
+		}
 
 		if pageContent == "" {
 			continue

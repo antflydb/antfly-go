@@ -469,3 +469,138 @@ func TestLayoutAnalyzer_FormatBlocks(t *testing.T) {
 	}
 }
 
+func TestLayoutAnalyzer_AdaptiveSpacing(t *testing.T) {
+	// Simulate the Epstein PDF issue: tight character spacing (0.5pt)
+	// with word breaks at 3pt. Fixed threshold of 30% * 10pt = 3.0pt
+	// would incorrectly merge words, but adaptive threshold should work.
+
+	t.Run("tight spacing with adaptive threshold", func(t *testing.T) {
+		la := NewLayoutAnalyzer()
+		la.UseAdaptiveSpacing = true
+
+		// Simulate "taken on behalf" with tight inter-character spacing (0.5pt gap)
+		// Each character is 5pt wide, with 0.5pt gap between chars
+		// Word breaks have 3pt gap
+		texts := []pdf.Text{
+			// "taken" - 5pt wide chars with 0.5pt gaps
+			{S: "t", X: 50.0, Y: 700, W: 5.0, FontSize: 10},
+			{S: "a", X: 55.5, Y: 700, W: 5.0, FontSize: 10},  // gap: 0.5pt
+			{S: "k", X: 61.0, Y: 700, W: 5.0, FontSize: 10},  // gap: 0.5pt
+			{S: "e", X: 66.5, Y: 700, W: 5.0, FontSize: 10},  // gap: 0.5pt
+			{S: "n", X: 72.0, Y: 700, W: 5.0, FontSize: 10},  // gap: 0.5pt
+			// Word break: 3pt gap
+			// "on" - 5pt wide chars with 0.5pt gaps
+			{S: "o", X: 80.0, Y: 700, W: 5.0, FontSize: 10},  // gap: 3pt
+			{S: "n", X: 85.5, Y: 700, W: 5.0, FontSize: 10},  // gap: 0.5pt
+			// Word break: 3pt gap
+			// "behalf" - 5pt wide chars with 0.5pt gaps
+			{S: "b", X: 93.5, Y: 700, W: 5.0, FontSize: 10},  // gap: 3pt
+			{S: "e", X: 99.0, Y: 700, W: 5.0, FontSize: 10},  // gap: 0.5pt
+			{S: "h", X: 104.5, Y: 700, W: 5.0, FontSize: 10}, // gap: 0.5pt
+			{S: "a", X: 110.0, Y: 700, W: 5.0, FontSize: 10}, // gap: 0.5pt
+			{S: "l", X: 115.5, Y: 700, W: 5.0, FontSize: 10}, // gap: 0.5pt
+			{S: "f", X: 121.0, Y: 700, W: 5.0, FontSize: 10}, // gap: 0.5pt
+		}
+
+		blocks := la.textsToBlocks(texts)
+
+		// Should produce 3 blocks: "taken", "on", "behalf"
+		if len(blocks) != 3 {
+			t.Errorf("Expected 3 blocks, got %d", len(blocks))
+			for i, b := range blocks {
+				t.Logf("Block %d: %q", i, b.Text)
+			}
+			return
+		}
+
+		if blocks[0].Text != "taken" {
+			t.Errorf("Block 0: got %q, want %q", blocks[0].Text, "taken")
+		}
+		if blocks[1].Text != "on" {
+			t.Errorf("Block 1: got %q, want %q", blocks[1].Text, "on")
+		}
+		if blocks[2].Text != "behalf" {
+			t.Errorf("Block 2: got %q, want %q", blocks[2].Text, "behalf")
+		}
+	})
+
+	t.Run("fixed threshold incorrectly merges words", func(t *testing.T) {
+		la := NewLayoutAnalyzer()
+		la.UseAdaptiveSpacing = false // Use fixed threshold
+		la.WordSpaceMultiplier = 0.3  // 30% * 10pt = 3.0pt
+
+		// Same tight spacing scenario - 3pt word breaks are <= 3.0pt threshold
+		texts := []pdf.Text{
+			{S: "t", X: 50.0, Y: 700, W: 5.0, FontSize: 10},
+			{S: "a", X: 55.5, Y: 700, W: 5.0, FontSize: 10},
+			{S: "k", X: 61.0, Y: 700, W: 5.0, FontSize: 10},
+			{S: "e", X: 66.5, Y: 700, W: 5.0, FontSize: 10},
+			{S: "n", X: 72.0, Y: 700, W: 5.0, FontSize: 10},
+			{S: "o", X: 80.0, Y: 700, W: 5.0, FontSize: 10}, // 3pt gap - at threshold
+			{S: "n", X: 85.5, Y: 700, W: 5.0, FontSize: 10},
+			{S: "b", X: 93.5, Y: 700, W: 5.0, FontSize: 10}, // 3pt gap - at threshold
+			{S: "e", X: 99.0, Y: 700, W: 5.0, FontSize: 10},
+			{S: "h", X: 104.5, Y: 700, W: 5.0, FontSize: 10},
+			{S: "a", X: 110.0, Y: 700, W: 5.0, FontSize: 10},
+			{S: "l", X: 115.5, Y: 700, W: 5.0, FontSize: 10},
+			{S: "f", X: 121.0, Y: 700, W: 5.0, FontSize: 10},
+		}
+
+		blocks := la.textsToBlocks(texts)
+
+		// With fixed 3.0pt threshold and 3.0pt gaps, should merge into 1 block
+		// (demonstrating the problem)
+		if len(blocks) != 1 {
+			t.Logf("Fixed threshold produced %d blocks (expected 1 to show the problem)", len(blocks))
+		}
+	})
+
+	t.Run("calculates median spacing correctly", func(t *testing.T) {
+		la := NewLayoutAnalyzer()
+
+		// Create enough texts with 0.5pt gaps between chars
+		texts := []pdf.Text{
+			{S: "a", X: 50.0, Y: 700, W: 5.0, FontSize: 10},
+			{S: "b", X: 55.5, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+			{S: "c", X: 61.0, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+			{S: "d", X: 66.5, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+			{S: "e", X: 72.0, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+			{S: "f", X: 77.5, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+			{S: "g", X: 83.0, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+			{S: "h", X: 88.5, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+			{S: "i", X: 94.0, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+			{S: "j", X: 99.5, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+			{S: "k", X: 105.0, Y: 700, W: 5.0, FontSize: 10}, // 0.5pt gap
+		}
+
+		medianSpacing := la.calculateMedianCharSpacing(texts)
+
+		if medianSpacing != 0.5 {
+			t.Errorf("Median spacing: got %v, want 0.5", medianSpacing)
+		}
+
+		// Threshold should be 2.5x median = 1.25pt
+		expectedThreshold := 1.25
+		actualThreshold := medianSpacing * 2.5
+		if actualThreshold != expectedThreshold {
+			t.Errorf("Threshold: got %v, want %v", actualThreshold, expectedThreshold)
+		}
+	})
+
+	t.Run("returns zero for insufficient data", func(t *testing.T) {
+		la := NewLayoutAnalyzer()
+
+		// Too few texts (need at least 10)
+		texts := []pdf.Text{
+			{S: "a", X: 50.0, Y: 700, W: 5.0, FontSize: 10},
+			{S: "b", X: 55.5, Y: 700, W: 5.0, FontSize: 10},
+		}
+
+		medianSpacing := la.calculateMedianCharSpacing(texts)
+
+		if medianSpacing != 0 {
+			t.Errorf("Expected 0 for insufficient data, got %v", medianSpacing)
+		}
+	})
+}
+

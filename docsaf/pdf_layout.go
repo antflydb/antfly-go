@@ -17,6 +17,12 @@ type LayoutAnalyzer struct {
 	RowTolerance        float64 // Y-coordinate tolerance for grouping into rows
 	TableCellMinWidth   float64 // Minimum cell width to consider for table detection
 	WordSpaceMultiplier float64 // Multiplier of font size to detect word boundaries
+
+	// Extended options
+	MinRowsForColumnPct int  // Minimum percentage of rows that must have gap for column detection (default 25)
+	FilterLineNumbers   bool // Whether to filter out line number columns (for depositions)
+	AutoDetectLayout    bool // Automatically detect and use optimal layout settings
+	UseAdaptiveSpacing  bool // Use dynamic spacing threshold based on actual character spacing (default true)
 }
 
 // NewLayoutAnalyzer creates a LayoutAnalyzer with sensible defaults.
@@ -26,7 +32,38 @@ func NewLayoutAnalyzer() *LayoutAnalyzer {
 		RowTolerance:        3.0,  // 3pt Y tolerance for same row
 		TableCellMinWidth:   20.0, // 20pt minimum cell width
 		WordSpaceMultiplier: 0.3,  // 30% of font size = space
+		MinRowsForColumnPct: 25,   // 25% of rows must have gap
+		FilterLineNumbers:   false,
+		AutoDetectLayout:    true, // Enable auto-detection by default
+		UseAdaptiveSpacing:  true, // Enable adaptive spacing by default
 	}
+}
+
+// NewLayoutAnalyzerWithConfig creates a LayoutAnalyzer with custom configuration.
+// Note: UseAdaptiveSpacing defaults to false when using explicit configuration.
+// Set it to true manually if you want adaptive spacing with custom settings.
+func NewLayoutAnalyzerWithConfig(cfg LayoutConfig) *LayoutAnalyzer {
+	return &LayoutAnalyzer{
+		ColumnGapThreshold:  cfg.ColumnGapThreshold,
+		RowTolerance:        cfg.RowTolerance,
+		TableCellMinWidth:   20.0,
+		WordSpaceMultiplier: 0.3,
+		MinRowsForColumnPct: cfg.MinRowsForColumnPct,
+		FilterLineNumbers:   cfg.FilterLineNumbers,
+		AutoDetectLayout:    false, // Explicit config disables auto-detect
+		UseAdaptiveSpacing:  false, // Explicit config uses fixed threshold
+	}
+}
+
+// WithDepositionMode configures the analyzer for deposition transcript extraction.
+// This uses tighter column detection and filters out line number columns.
+func (la *LayoutAnalyzer) WithDepositionMode() *LayoutAnalyzer {
+	la.ColumnGapThreshold = 12.0  // Narrow gaps for line number columns
+	la.RowTolerance = 2.0         // Tight row grouping
+	la.MinRowsForColumnPct = 75   // Line numbers on most rows
+	la.FilterLineNumbers = true   // Remove line number column from output
+	la.AutoDetectLayout = false   // Explicit mode
+	return la
 }
 
 // TextBlock represents a block of text with position and content.
@@ -63,6 +100,8 @@ type Table struct {
 
 // ExtractWithLayout performs advanced text extraction with layout analysis.
 // It detects columns, tables, and reconstructs proper reading order.
+// When AutoDetectLayout is enabled, it automatically detects document type
+// (e.g., deposition transcripts) and adjusts settings accordingly.
 func (la *LayoutAnalyzer) ExtractWithLayout(page pdf.Page) string {
 	content := page.Content()
 	if len(content.Text) == 0 {
@@ -73,6 +112,24 @@ func (la *LayoutAnalyzer) ExtractWithLayout(page pdf.Page) string {
 	texts := la.filterTexts(content.Text)
 	if len(texts) == 0 {
 		return ""
+	}
+
+	// Auto-detect document type and adjust settings if enabled
+	if la.AutoDetectLayout {
+		tr := NewTextRepair()
+		if tr.DetectDepositionLayout(texts) {
+			// Switch to deposition mode for this extraction
+			la.ColumnGapThreshold = 12.0
+			la.RowTolerance = 2.0
+			la.MinRowsForColumnPct = 75
+			la.FilterLineNumbers = true
+		}
+	}
+
+	// Filter out line number columns for deposition transcripts
+	if la.FilterLineNumbers {
+		tr := NewTextRepair()
+		texts = tr.FilterLineNumberColumn(texts)
 	}
 
 	// Fix mirrored text (reversed character order due to PDF rendering issues)
@@ -186,7 +243,12 @@ func (la *LayoutAnalyzer) detectColumns(texts []pdf.Text, pageLeft, pageRight fl
 	}
 
 	// Find gaps that appear in many rows (consistent column boundaries)
-	minRowsForColumn := len(rows) / 4 // Gap must appear in at least 25% of rows
+	// Use configurable percentage (default 25%, deposition mode uses 75%)
+	pct := la.MinRowsForColumnPct
+	if pct <= 0 {
+		pct = 25
+	}
+	minRowsForColumn := len(rows) * pct / 100
 	if minRowsForColumn < 3 {
 		minRowsForColumn = 3
 	}
@@ -582,10 +644,52 @@ func (la *LayoutAnalyzer) splitInterleavedRows(texts []pdf.Text) [][]pdf.Text {
 	return result
 }
 
+// calculateMedianCharSpacing calculates the median spacing between consecutive characters
+// on the same row. This provides a data-driven baseline for determining word boundaries.
+// Returns 0 if there's insufficient data to calculate a reliable median.
+func (la *LayoutAnalyzer) calculateMedianCharSpacing(texts []pdf.Text) float64 {
+	if len(texts) < 10 {
+		return 0
+	}
+
+	var spacings []float64
+	for i := 1; i < len(texts); i++ {
+		// Only consider characters on the same row (within Y tolerance)
+		if math.Abs(texts[i].Y-texts[i-1].Y) < la.RowTolerance {
+			spacing := texts[i].X - (texts[i-1].X + texts[i-1].W)
+			// Only consider positive spacings under a reasonable limit
+			// (10x font size covers even very wide letter spacing)
+			if spacing > 0 && spacing < texts[i].FontSize*10 {
+				spacings = append(spacings, spacing)
+			}
+		}
+	}
+
+	if len(spacings) < 5 {
+		return 0
+	}
+
+	// Return median spacing (more robust than mean)
+	sort.Float64s(spacings)
+	return spacings[len(spacings)/2]
+}
+
 // textsToBlocks converts pdf.Text elements to TextBlocks, merging adjacent chars into words.
 func (la *LayoutAnalyzer) textsToBlocks(texts []pdf.Text) []TextBlock {
 	if len(texts) == 0 {
 		return nil
+	}
+
+	// Calculate adaptive word spacing threshold if enabled
+	var adaptiveThreshold float64
+	if la.UseAdaptiveSpacing {
+		medianSpacing := la.calculateMedianCharSpacing(texts)
+		if medianSpacing > 0 {
+			// Use 5x median character spacing as word break threshold
+			// This adapts to the actual character spacing in the document
+			// Higher multiplier needed for PDFs with variable intra-word spacing
+			adaptiveThreshold = medianSpacing * 5.0
+		}
 	}
 
 	// Group into rows first
@@ -616,9 +720,16 @@ func (la *LayoutAnalyzer) textsToBlocks(texts []pdf.Text) []TextBlock {
 
 			// Check if this character should be part of the current block
 			gap := t.X - (currentBlock.X + currentBlock.Width)
-			threshold := la.WordSpaceMultiplier * currentBlock.FontSize
-			if currentBlock.FontSize == 0 {
-				threshold = 3.0 // fallback
+
+			// Use adaptive threshold if available, otherwise fall back to font-based threshold
+			var threshold float64
+			if adaptiveThreshold > 0 {
+				threshold = adaptiveThreshold
+			} else {
+				threshold = la.WordSpaceMultiplier * currentBlock.FontSize
+				if currentBlock.FontSize == 0 {
+					threshold = 3.0 // fallback
+				}
 			}
 
 			if gap <= threshold {
@@ -1267,9 +1378,10 @@ func (tm *ToUnicodeMapper) Map(text string) string {
 
 // EnhancedTextCleaner provides more aggressive text cleanup.
 type EnhancedTextCleaner struct {
-	fontDecoder  *FontDecoder
-	glyphMapper  *GlyphMapper
+	fontDecoder    *FontDecoder
+	glyphMapper    *GlyphMapper
 	layoutAnalyzer *LayoutAnalyzer
+	textRepair     *TextRepair
 }
 
 // NewEnhancedTextCleaner creates a cleaner with all components initialized.
@@ -1278,6 +1390,7 @@ func NewEnhancedTextCleaner() *EnhancedTextCleaner {
 		fontDecoder:    NewFontDecoder(),
 		glyphMapper:    NewGlyphMapper(),
 		layoutAnalyzer: NewLayoutAnalyzer(),
+		textRepair:     NewTextRepair(),
 	}
 }
 
@@ -1289,12 +1402,22 @@ func (etc *EnhancedTextCleaner) Clean(text string) string {
 	// Step 2: Handle PUA characters
 	text = etc.glyphMapper.Map(text)
 
-	// Step 3: Check for and decode ROT3 if detected
-	if etc.fontDecoder.IsLikelyROT3(text) {
+	// Step 3: Auto-detect and fix encoding issues (ROT-N, symbol substitution)
+	// Uses frequency analysis for more accurate detection than pattern matching
+	decoded, fixType := etc.textRepair.AutoDecodeText(text)
+	if fixType != "" {
+		text = decoded
+	} else if etc.fontDecoder.IsLikelyROT3(text) {
+		// Fallback to pattern-based ROT3 detection
 		text = etc.fontDecoder.DecodeROT3(text)
 	}
 
-	// Step 4: Final cleanup
+	// Step 4: Repair fragmented text (single-char word sequences)
+	if etc.textRepair.DetectFragmentedText(text) {
+		text = etc.textRepair.RepairFragmentedText(text)
+	}
+
+	// Step 5: Final cleanup
 	text = etc.normalizeWhitespace(text)
 
 	return text
