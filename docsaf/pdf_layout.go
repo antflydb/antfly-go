@@ -674,6 +674,83 @@ func (la *LayoutAnalyzer) calculateMedianCharSpacing(texts []pdf.Text) float64 {
 	return spacings[len(spacings)/2]
 }
 
+// calculateWordSpacingThreshold analyzes gap distribution to find the optimal word boundary.
+// It looks for a bimodal distribution (intra-word gaps vs inter-word gaps) and returns
+// the threshold that separates them. Returns 0 if no clear separation is found.
+func (la *LayoutAnalyzer) calculateWordSpacingThreshold(texts []pdf.Text) float64 {
+	if len(texts) < 20 {
+		return 0
+	}
+
+	// Collect all gaps with font size context
+	type gapInfo struct {
+		gap      float64
+		fontSize float64
+	}
+	var gaps []gapInfo
+
+	for i := 1; i < len(texts); i++ {
+		if math.Abs(texts[i].Y-texts[i-1].Y) < la.RowTolerance {
+			spacing := texts[i].X - (texts[i-1].X + texts[i-1].W)
+			fontSize := texts[i].FontSize
+			if fontSize == 0 {
+				fontSize = 10.0
+			}
+			// Normalize to font size for comparison
+			if spacing > 0 && spacing < fontSize*5 {
+				gaps = append(gaps, gapInfo{gap: spacing, fontSize: fontSize})
+			}
+		}
+	}
+
+	if len(gaps) < 10 {
+		return 0
+	}
+
+	// Sort gaps by size
+	sort.Slice(gaps, func(i, j int) bool {
+		return gaps[i].gap < gaps[j].gap
+	})
+
+	// Look for a significant jump in gap sizes (bimodal distribution)
+	// The largest relative increase between consecutive gaps likely marks the word boundary
+	bestRatio := 0.0
+	bestThreshold := 0.0
+
+	for i := len(gaps) / 4; i < len(gaps)*3/4; i++ { // Skip extremes
+		if gaps[i].gap > 0 {
+			ratio := gaps[i+1].gap / gaps[i].gap
+			if ratio > bestRatio && ratio > 1.5 { // Need at least 1.5x jump
+				bestRatio = ratio
+				// Use midpoint as threshold
+				bestThreshold = (gaps[i].gap + gaps[i+1].gap) / 2
+			}
+		}
+	}
+
+	// If we found a clear bimodal separation, use it
+	if bestRatio > 1.5 {
+		return bestThreshold
+	}
+
+	// Fallback: use percentile-based approach
+	// Word spaces are typically larger than 75th percentile of gaps
+	p75 := gaps[len(gaps)*3/4].gap
+	avgFontSize := 0.0
+	for _, g := range gaps {
+		avgFontSize += g.fontSize
+	}
+	avgFontSize /= float64(len(gaps))
+
+	// If 75th percentile is very small relative to font, spacing is uniform
+	// This indicates the PDF has no clear word boundaries in positioning
+	if p75 < avgFontSize*0.15 {
+		return 0 // Signal that post-processing word segmentation may be needed
+	}
+
+	return p75 * 1.5
+}
+
 // textsToBlocks converts pdf.Text elements to TextBlocks, merging adjacent chars into words.
 func (la *LayoutAnalyzer) textsToBlocks(texts []pdf.Text) []TextBlock {
 	if len(texts) == 0 {
@@ -683,12 +760,17 @@ func (la *LayoutAnalyzer) textsToBlocks(texts []pdf.Text) []TextBlock {
 	// Calculate adaptive word spacing threshold if enabled
 	var adaptiveThreshold float64
 	if la.UseAdaptiveSpacing {
-		medianSpacing := la.calculateMedianCharSpacing(texts)
-		if medianSpacing > 0 {
-			// Use 5x median character spacing as word break threshold
-			// This adapts to the actual character spacing in the document
-			// Higher multiplier needed for PDFs with variable intra-word spacing
-			adaptiveThreshold = medianSpacing * 5.0
+		// Try bimodal gap analysis first (more accurate for varied documents)
+		adaptiveThreshold = la.calculateWordSpacingThreshold(texts)
+
+		// If bimodal analysis returns 0, it indicates uniform spacing (no clear word boundaries)
+		// Fall back to median-based approach
+		if adaptiveThreshold == 0 {
+			medianSpacing := la.calculateMedianCharSpacing(texts)
+			if medianSpacing > 0 {
+				// Use 5x median character spacing as word break threshold
+				adaptiveThreshold = medianSpacing * 5.0
+			}
 		}
 	}
 
@@ -753,6 +835,39 @@ func (la *LayoutAnalyzer) textsToBlocks(texts []pdf.Text) []TextBlock {
 		}
 		if currentBlock != nil {
 			blocks = append(blocks, *currentBlock)
+		}
+	}
+
+	// Apply post-processing word segmentation to blocks that look like merged words
+	// This runs regardless of needsPostProcessingSegmentation because even with bimodal
+	// threshold detection, some blocks may have internal zero-gaps that merge words
+	if len(blocks) > 0 {
+		tr := NewTextRepair()
+		for i := range blocks {
+			text := blocks[i].Text
+			// Skip short blocks and blocks that already have spaces
+			if len(text) < 15 {
+				continue
+			}
+			// Check if block looks like merged words: long text with no spaces
+			// and contains lowercase letters (not just abbreviations/codes)
+			hasSpace := false
+			hasLower := false
+			for _, r := range text {
+				if r == ' ' {
+					hasSpace = true
+					break
+				}
+				if r >= 'a' && r <= 'z' {
+					hasLower = true
+				}
+			}
+			if !hasSpace && hasLower {
+				segmented := tr.SegmentWords(text)
+				if segmented != text {
+					blocks[i].Text = segmented
+				}
+			}
 		}
 	}
 
@@ -1178,9 +1293,37 @@ func NewGlyphMapper() *GlyphMapper {
 		puaToASCII: make(map[rune]string),
 	}
 
-	// Common patterns for Symbol/Wingdings/custom fonts
-	// These are heuristic - actual mappings vary by document
-	// We detect and learn mappings dynamically
+	// Pre-populate with common Symbol font PUA mappings
+	// Some PDFs map Symbol font to U+F000 + original code point
+	// Add Greek letters and math symbols from Symbol encoding
+	symbolMappings := map[rune]rune{
+		0xF041: 0x0391, // Alpha
+		0xF042: 0x0392, // Beta
+		0xF047: 0x0393, // Gamma
+		0xF044: 0x0394, // Delta
+		0xF053: 0x03A3, // Sigma
+		0xF057: 0x03A9, // Omega
+		0xF061: 0x03B1, // alpha
+		0xF062: 0x03B2, // beta
+		0xF067: 0x03B3, // gamma
+		0xF064: 0x03B4, // delta
+		0xF070: 0x03C0, // pi
+		0xF073: 0x03C3, // sigma
+		0xF077: 0x03C9, // omega
+		// Common math symbols
+		0xF0B1: 0x00B1, // plus-minus
+		0xF0B4: 0x00D7, // multiplication
+		0xF0B8: 0x00F7, // division
+		0xF0B9: 0x2260, // not equal
+		0xF0A3: 0x2264, // less than or equal
+		0xF0B3: 0x2265, // greater than or equal
+		0xF0A5: 0x221E, // infinity
+		0xF0D6: 0x221A, // square root
+	}
+
+	for pua, unicode := range symbolMappings {
+		gm.puaToASCII[pua] = string(unicode)
+	}
 
 	return gm
 }
@@ -1239,6 +1382,23 @@ func (gm *GlyphMapper) Map(text string) string {
 		if gm.isPUA(r) {
 			if mapped, ok := gm.puaToASCII[r]; ok {
 				result.WriteString(mapped)
+			} else if r >= 0xF000 && r <= 0xF0FF {
+				// Try Symbol encoding table for F0XX range
+				// These are often Symbol font chars mapped to PUA
+				idx := int(r - 0xF000)
+				if idx < len(SymbolEncoding) && SymbolEncoding[idx] != 0 {
+					result.WriteRune(SymbolEncoding[idx])
+				} else {
+					result.WriteRune(' ') // Unknown Symbol char -> space
+				}
+			} else if r >= 0xF100 && r <= 0xF1FF {
+				// Try ZapfDingbats encoding for F1XX range
+				idx := int(r - 0xF100)
+				if idx < len(ZapfDingbatsEncoding) && ZapfDingbatsEncoding[idx] != 0 {
+					result.WriteRune(ZapfDingbatsEncoding[idx])
+				} else {
+					result.WriteRune(' ') // Unknown Dingbats char -> space
+				}
 			} else {
 				result.WriteRune(' ') // Unknown PUA -> space
 			}
@@ -1250,159 +1410,39 @@ func (gm *GlyphMapper) Map(text string) string {
 	return result.String()
 }
 
-// ToUnicodeMapper handles PDF ToUnicode CMap parsing.
-// This is a simplified version - full CMap parsing is complex.
-type ToUnicodeMapper struct {
-	// CID to Unicode mappings
-	mappings map[uint16]rune
-}
-
-// NewToUnicodeMapper creates an empty ToUnicode mapper.
-func NewToUnicodeMapper() *ToUnicodeMapper {
-	return &ToUnicodeMapper{
-		mappings: make(map[uint16]rune),
-	}
-}
-
-// ParseCMap attempts to parse a ToUnicode CMap stream.
-// This handles the most common CMap formats.
-func (tm *ToUnicodeMapper) ParseCMap(data string) {
-	// Look for beginbfchar...endbfchar sections
-	// Format: <CID> <Unicode>
-	// Example: <0001> <0041>  (CID 1 = 'A')
-
-	lines := strings.Split(data, "\n")
-	inBfChar := false
-	inBfRange := false
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-
-		if strings.Contains(line, "beginbfchar") {
-			inBfChar = true
-			continue
-		}
-		if strings.Contains(line, "endbfchar") {
-			inBfChar = false
-			continue
-		}
-		if strings.Contains(line, "beginbfrange") {
-			inBfRange = true
-			continue
-		}
-		if strings.Contains(line, "endbfrange") {
-			inBfRange = false
-			continue
-		}
-
-		if inBfChar {
-			// Parse: <XXXX> <YYYY>
-			tm.parseBfCharLine(line)
-		}
-		if inBfRange {
-			// Parse: <XXXX> <YYYY> <ZZZZ>
-			tm.parseBfRangeLine(line)
-		}
-	}
-}
-
-func (tm *ToUnicodeMapper) parseBfCharLine(line string) {
-	// Format: <0001> <0041>
-	parts := strings.Fields(line)
-	if len(parts) != 2 {
-		return
-	}
-
-	cid := tm.parseHexValue(parts[0])
-	unicode := tm.parseHexValue(parts[1])
-
-	if cid > 0 && unicode > 0 {
-		tm.mappings[uint16(cid)] = rune(unicode)
-	}
-}
-
-func (tm *ToUnicodeMapper) parseBfRangeLine(line string) {
-	// Format: <0001> <0010> <0041>
-	// Maps CIDs 0001-0010 to Unicode starting at 0041
-	parts := strings.Fields(line)
-	if len(parts) != 3 {
-		return
-	}
-
-	startCID := tm.parseHexValue(parts[0])
-	endCID := tm.parseHexValue(parts[1])
-	startUnicode := tm.parseHexValue(parts[2])
-
-	if startCID > 0 && endCID >= startCID && startUnicode > 0 {
-		for cid := startCID; cid <= endCID; cid++ {
-			tm.mappings[uint16(cid)] = rune(startUnicode + (cid - startCID))
-		}
-	}
-}
-
-func (tm *ToUnicodeMapper) parseHexValue(s string) int {
-	s = strings.Trim(s, "<>")
-	var val int
-	for _, c := range s {
-		val <<= 4
-		if c >= '0' && c <= '9' {
-			val |= int(c - '0')
-		} else if c >= 'A' && c <= 'F' {
-			val |= int(c - 'A' + 10)
-		} else if c >= 'a' && c <= 'f' {
-			val |= int(c - 'a' + 10)
-		}
-	}
-	return val
-}
-
-// Map applies the ToUnicode mapping to text.
-func (tm *ToUnicodeMapper) Map(text string) string {
-	if len(tm.mappings) == 0 {
-		return text
-	}
-
-	var result strings.Builder
-	result.Grow(len(text))
-
-	for _, r := range text {
-		if mapped, ok := tm.mappings[uint16(r)]; ok {
-			result.WriteRune(mapped)
-		} else {
-			result.WriteRune(r)
-		}
-	}
-
-	return result.String()
-}
-
 // EnhancedTextCleaner provides more aggressive text cleanup.
 type EnhancedTextCleaner struct {
-	fontDecoder    *FontDecoder
-	glyphMapper    *GlyphMapper
-	layoutAnalyzer *LayoutAnalyzer
-	textRepair     *TextRepair
+	fontDecoder     *FontDecoder
+	glyphMapper     *GlyphMapper
+	layoutAnalyzer  *LayoutAnalyzer
+	textRepair      *TextRepair
+	encodingDecoder *EncodingFallbackDecoder
 }
 
 // NewEnhancedTextCleaner creates a cleaner with all components initialized.
 func NewEnhancedTextCleaner() *EnhancedTextCleaner {
 	return &EnhancedTextCleaner{
-		fontDecoder:    NewFontDecoder(),
-		glyphMapper:    NewGlyphMapper(),
-		layoutAnalyzer: NewLayoutAnalyzer(),
-		textRepair:     NewTextRepair(),
+		fontDecoder:     NewFontDecoder(),
+		glyphMapper:     NewGlyphMapper(),
+		layoutAnalyzer:  NewLayoutAnalyzer(),
+		textRepair:      NewTextRepair(),
+		encodingDecoder: NewEncodingFallbackDecoder(),
 	}
 }
 
 // Clean applies all cleaning steps to extracted text.
 func (etc *EnhancedTextCleaner) Clean(text string) string {
-	// Step 1: Decode ligatures and normalize characters
+	// Step 1: Remove zero-width and invisible characters early
+	// These can interfere with word boundary detection
+	text = CleanZeroWidthChars(text)
+
+	// Step 2: Decode ligatures and normalize characters
 	text = etc.fontDecoder.Decode(text)
 
-	// Step 2: Handle PUA characters
+	// Step 3: Handle PUA characters
 	text = etc.glyphMapper.Map(text)
 
-	// Step 3: Auto-detect and fix encoding issues (ROT-N, symbol substitution)
+	// Step 4: Auto-detect and fix encoding issues (ROT-N, symbol substitution)
 	// Uses frequency analysis for more accurate detection than pattern matching
 	decoded, fixType := etc.textRepair.AutoDecodeText(text)
 	if fixType != "" {
@@ -1412,13 +1452,126 @@ func (etc *EnhancedTextCleaner) Clean(text string) string {
 		text = etc.fontDecoder.DecodeROT3(text)
 	}
 
-	// Step 4: Repair fragmented text (single-char word sequences)
+	// Step 5: Try PDF standard encoding fallback for remaining issues
+	// This handles fonts that use StandardEncoding, SymbolEncoding, or ZapfDingbats
+	decoded, _ = etc.encodingDecoder.DecodeWithFallback(text)
+	text = decoded
+
+	// Step 6: Remove interleaved U+FFFD characters (pattern: char, FFFD, char, FFFD)
+	// This fixes pages where font encoding produced "C·O·N·F·I·D·E·N·T·I·A·L" patterns
+	text = etc.textRepair.RemoveInterleavedReplacements(text)
+
+	// Step 7: Repair Symbol font Greek letters back to Latin
+	// This handles PDFs where Symbol font was used to encode English text
+	text = RepairSymbolGreekText(text)
+
+	// Step 8: Clean box drawing characters that appear as artifacts
+	text = CleanBoxDrawingChars(text)
+
+	// Step 9: Repair fragmented text (single-char word sequences)
 	if etc.textRepair.DetectFragmentedText(text) {
 		text = etc.textRepair.RepairFragmentedText(text)
 	}
 
-	// Step 5: Final cleanup
+	// Step 10: Join hyphenated words split across lines
+	// Example: "state-\nment" → "statement"
+	text = JoinHyphenatedWords(text)
+
+	// Step 11: Apply Unicode NFC normalization for consistency
+	// Converts combining character sequences to composed forms
+	text = NormalizeUnicode(text)
+
+	// Step 12: Final whitespace cleanup
 	text = etc.normalizeWhitespace(text)
+
+	return text
+}
+
+// CleanWithParagraphs applies all cleaning steps plus paragraph detection.
+// Use this when semantic paragraph structure is desired.
+func (etc *EnhancedTextCleaner) CleanWithParagraphs(text string) string {
+	// Apply standard cleaning
+	text = etc.Clean(text)
+
+	// Detect and mark paragraph boundaries
+	text = DetectParagraphBreaks(text)
+
+	return text
+}
+
+// CleanWithEnhancedParagraphs applies cleaning with sophisticated paragraph detection.
+// Uses ML-like heuristics to detect headers, lists, indentation, and spacing patterns.
+func (etc *EnhancedTextCleaner) CleanWithEnhancedParagraphs(text string) string {
+	// Apply standard cleaning
+	text = etc.Clean(text)
+
+	// Apply enhanced paragraph detection with default config
+	text = EnhancedParagraphDetection(text, DefaultParagraphConfig())
+
+	return text
+}
+
+// CleanWithEnhancedParagraphsConfig applies cleaning with configurable paragraph detection.
+func (etc *EnhancedTextCleaner) CleanWithEnhancedParagraphsConfig(text string, config ParagraphConfig) string {
+	// Apply standard cleaning
+	text = etc.Clean(text)
+
+	// Apply enhanced paragraph detection
+	text = EnhancedParagraphDetection(text, config)
+
+	return text
+}
+
+// CleanForSearch applies all cleaning steps plus normalization for text search.
+// This normalizes subscripts/superscripts so that H₂O matches H2O.
+func (etc *EnhancedTextCleaner) CleanForSearch(text string) string {
+	// Apply standard cleaning
+	text = etc.Clean(text)
+
+	// Normalize subscripts and superscripts for search indexing
+	text = NormalizeSubSuperscripts(text)
+
+	return text
+}
+
+// CleanWithFootnotes applies all cleaning and expands footnote references.
+// Example: "statement¹" → "statement[1]"
+func (etc *EnhancedTextCleaner) CleanWithFootnotes(text string) string {
+	// Apply standard cleaning
+	text = etc.Clean(text)
+
+	// Expand footnote superscripts to bracketed format
+	text = ExpandFootnoteReferences(text)
+
+	return text
+}
+
+// CleanWithLists applies cleaning and normalizes list formatting.
+// Ensures consistent bullet styles and indentation.
+func (etc *EnhancedTextCleaner) CleanWithLists(text string) string {
+	// Apply standard cleaning
+	text = etc.Clean(text)
+
+	// Detect and normalize list formatting
+	text = DetectAndFormatLists(text)
+
+	return text
+}
+
+// CleanFull applies all Phase 1 and Phase 2 cleaning for maximum text quality.
+// Includes: basic cleaning, enhanced paragraphs, list formatting, and footnote expansion.
+func (etc *EnhancedTextCleaner) CleanFull(text string) string {
+	// Apply standard cleaning
+	text = etc.Clean(text)
+
+	// Normalize list formatting
+	text = DetectAndFormatLists(text)
+
+	// Expand footnote references
+	text = ExpandFootnoteReferences(text)
+
+	// Apply enhanced paragraph detection
+	text = EnhancedParagraphDetection(text, DefaultParagraphConfig())
 
 	return text
 }

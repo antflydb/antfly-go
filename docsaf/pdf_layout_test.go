@@ -298,73 +298,6 @@ func TestGlyphMapper_PUA(t *testing.T) {
 	}
 }
 
-func TestToUnicodeMapper_ParseCMap(t *testing.T) {
-	tm := NewToUnicodeMapper()
-
-	cmap := `
-/CIDInit /ProcSet findresource begin
-12 dict begin
-begincmap
-beginbfchar
-<0001> <0041>
-<0002> <0042>
-<0003> <0043>
-endbfchar
-endcmap
-`
-	tm.ParseCMap(cmap)
-
-	tests := []struct {
-		input rune
-		want  rune
-	}{
-		{0x0001, 'A'},
-		{0x0002, 'B'},
-		{0x0003, 'C'},
-	}
-
-	for _, tt := range tests {
-		got, ok := tm.mappings[uint16(tt.input)]
-		if !ok {
-			t.Errorf("Mapping for %04X not found", tt.input)
-			continue
-		}
-		if got != tt.want {
-			t.Errorf("Mapping for %04X = %c, want %c", tt.input, got, tt.want)
-		}
-	}
-}
-
-func TestToUnicodeMapper_ParseBfRange(t *testing.T) {
-	tm := NewToUnicodeMapper()
-
-	cmap := `
-beginbfrange
-<0010> <0013> <0041>
-endbfrange
-`
-	tm.ParseCMap(cmap)
-
-	// Should map 0010->A, 0011->B, 0012->C, 0013->D
-	expected := map[uint16]rune{
-		0x0010: 'A',
-		0x0011: 'B',
-		0x0012: 'C',
-		0x0013: 'D',
-	}
-
-	for input, want := range expected {
-		got, ok := tm.mappings[input]
-		if !ok {
-			t.Errorf("Mapping for %04X not found", input)
-			continue
-		}
-		if got != want {
-			t.Errorf("Mapping for %04X = %c, want %c", input, got, want)
-		}
-	}
-}
-
 func TestEnhancedTextCleaner_Clean(t *testing.T) {
 	etc := NewEnhancedTextCleaner()
 
@@ -602,5 +535,335 @@ func TestLayoutAnalyzer_AdaptiveSpacing(t *testing.T) {
 			t.Errorf("Expected 0 for insufficient data, got %v", medianSpacing)
 		}
 	})
+}
+
+// ========== Phase 2 Tests: Subscript/Superscript Detection ==========
+
+func TestNormalizeSuperscripts(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "superscript digits",
+			input: "x² + y³ = z⁴",
+			want:  "x2 + y3 = z4",
+		},
+		{
+			name:  "superscript letters",
+			input: "aⁿ + bᵐ",
+			want:  "an + bm",
+		},
+		{
+			name:  "mixed text and superscripts",
+			input: "E=mc²",
+			want:  "E=mc2",
+		},
+		{
+			name:  "normal text unchanged",
+			input: "Hello World",
+			want:  "Hello World",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NormalizeSuperscripts(tt.input)
+			if got != tt.want {
+				t.Errorf("NormalizeSuperscripts(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeSubscripts(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "subscript digits",
+			input: "H₂O",
+			want:  "H2O",
+		},
+		{
+			name:  "subscript letters",
+			input: "Cₙ + Oₘ",
+			want:  "Cn + Om",
+		},
+		{
+			name:  "chemical formula",
+			input: "C₆H₁₂O₆",
+			want:  "C6H12O6",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := NormalizeSubscripts(tt.input)
+			if got != tt.want {
+				t.Errorf("NormalizeSubscripts(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNormalizeSubSuperscripts(t *testing.T) {
+	input := "H₂O has a boiling point of 100°C at sea level (10⁵ Pa)"
+	got := NormalizeSubSuperscripts(input)
+
+	if !strings.Contains(got, "H2O") {
+		t.Errorf("Should normalize H₂O to H2O, got: %s", got)
+	}
+	if !strings.Contains(got, "105") {
+		t.Errorf("Should normalize 10⁵ to 105, got: %s", got)
+	}
+}
+
+func TestExpandFootnoteReferences(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "single footnote",
+			input: "statement¹",
+			want:  "statement[1]",
+		},
+		{
+			name:  "multiple footnotes",
+			input: "fact¹ and claim²",
+			want:  "fact[1] and claim[2]",
+		},
+		{
+			name:  "double digit footnote",
+			input: "reference¹²",
+			want:  "reference[12]",
+		},
+		{
+			name:  "footnote after punctuation",
+			input: "end of sentence.¹",
+			want:  "end of sentence.[1]",
+		},
+		{
+			name:  "superscript not footnote (math)",
+			input: "x² = 4",
+			want:  "x2 = 4", // Not treated as footnote since preceded by letter
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ExpandFootnoteReferences(tt.input)
+			if got != tt.want {
+				t.Errorf("ExpandFootnoteReferences(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// ========== Phase 2 Tests: Enhanced Paragraph Detection ==========
+
+func TestIsBulletLine(t *testing.T) {
+	tests := []struct {
+		line string
+		want bool
+	}{
+		{"• Item one", true},
+		{"- List item", true},
+		{"* Star item", true},
+		{"→ Arrow item", true},
+		{"Regular line", false},
+		{"1. Numbered", false}, // Numbered, not bullet
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		got := isBulletLine(tt.line)
+		if got != tt.want {
+			t.Errorf("isBulletLine(%q) = %v, want %v", tt.line, got, tt.want)
+		}
+	}
+}
+
+func TestIsNumberedLine(t *testing.T) {
+	tests := []struct {
+		line string
+		want bool
+	}{
+		{"1. First item", true},
+		{"10. Tenth item", true},
+		{"a. Alpha item", true},
+		{"(1) Parenthetical", true},
+		{"i. Roman numeral", true},
+		{"Regular line", false},
+		{"• Bullet", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		got := isNumberedLine(tt.line)
+		if got != tt.want {
+			t.Errorf("isNumberedLine(%q) = %v, want %v", tt.line, got, tt.want)
+		}
+	}
+}
+
+func TestIsHeaderLine(t *testing.T) {
+	tests := []struct {
+		line string
+		want bool
+	}{
+		{"INTRODUCTION", true},
+		{"Section 1 Overview", true},
+		{"CHAPTER ONE", true},
+		{"1.1 Subsection Title", true},
+		{"This is a normal sentence.", false},
+		{"The quick brown fox jumps over the lazy dog.", false},
+		{"", false},
+	}
+
+	for _, tt := range tests {
+		got := isHeaderLine(tt.line)
+		if got != tt.want {
+			t.Errorf("isHeaderLine(%q) = %v, want %v", tt.line, got, tt.want)
+		}
+	}
+}
+
+func TestEnhancedParagraphDetection(t *testing.T) {
+	config := DefaultParagraphConfig()
+
+	t.Run("detects header followed by content", func(t *testing.T) {
+		input := "INTRODUCTION\nThis is the first paragraph."
+		got := EnhancedParagraphDetection(input, config)
+
+		if !strings.Contains(got, "\n\n") {
+			t.Error("Should insert paragraph break after header")
+		}
+	})
+
+	t.Run("detects bullet list boundaries", func(t *testing.T) {
+		input := "Consider the following:\n• Item one\n• Item two\nAfter the list."
+		got := EnhancedParagraphDetection(input, config)
+
+		// Should have breaks before and after list
+		if strings.Count(got, "\n\n") < 2 {
+			t.Errorf("Should have at least 2 paragraph breaks, got: %q", got)
+		}
+	})
+
+	t.Run("preserves existing blank lines", func(t *testing.T) {
+		input := "First paragraph.\n\nSecond paragraph."
+		got := EnhancedParagraphDetection(input, config)
+
+		if !strings.Contains(got, "\n\n") {
+			t.Error("Should preserve existing blank lines")
+		}
+	})
+}
+
+func TestAnalyzeLine(t *testing.T) {
+	t.Run("detects bullet line", func(t *testing.T) {
+		info := AnalyzeLine("• This is a bullet point", 50)
+		if !info.IsBullet {
+			t.Error("Should detect bullet line")
+		}
+	})
+
+	t.Run("detects numbered line", func(t *testing.T) {
+		info := AnalyzeLine("1. First item", 50)
+		if !info.IsNumbered {
+			t.Error("Should detect numbered line")
+		}
+	})
+
+	t.Run("detects empty line", func(t *testing.T) {
+		info := AnalyzeLine("   ", 50)
+		if !info.IsEmpty {
+			t.Error("Should detect empty line")
+		}
+	})
+
+	t.Run("detects short line", func(t *testing.T) {
+		info := AnalyzeLine("Short.", 100)
+		if !info.IsShort {
+			t.Error("Should detect short line")
+		}
+	})
+
+	t.Run("calculates indent", func(t *testing.T) {
+		info := AnalyzeLine("    Indented text", 50)
+		if info.Indent != 4 {
+			t.Errorf("Indent = %d, want 4", info.Indent)
+		}
+	})
+}
+
+func TestDetectAndFormatLists(t *testing.T) {
+	input := "Before list:\n▪ First item\n▪ Second item\nAfter list."
+	got := DetectAndFormatLists(input)
+
+	// Should normalize fancy bullets to standard bullet
+	if !strings.Contains(got, "• First item") {
+		t.Errorf("Should normalize bullets, got: %q", got)
+	}
+}
+
+// ========== Phase 2 Tests: EnhancedTextCleaner Methods ==========
+
+func TestEnhancedTextCleaner_CleanForSearch(t *testing.T) {
+	etc := NewEnhancedTextCleaner()
+
+	input := "H₂O has a boiling point at 100°C. E=mc²"
+	got := etc.CleanForSearch(input)
+
+	if strings.Contains(got, "₂") || strings.Contains(got, "²") {
+		t.Errorf("CleanForSearch should normalize subscripts/superscripts, got: %q", got)
+	}
+	if !strings.Contains(got, "H2O") {
+		t.Errorf("Should contain 'H2O', got: %q", got)
+	}
+}
+
+func TestEnhancedTextCleaner_CleanWithFootnotes(t *testing.T) {
+	etc := NewEnhancedTextCleaner()
+
+	input := "The evidence shows¹ that claims² are valid."
+	got := etc.CleanWithFootnotes(input)
+
+	if !strings.Contains(got, "[1]") || !strings.Contains(got, "[2]") {
+		t.Errorf("CleanWithFootnotes should expand footnotes, got: %q", got)
+	}
+}
+
+func TestEnhancedTextCleaner_CleanWithEnhancedParagraphs(t *testing.T) {
+	etc := NewEnhancedTextCleaner()
+
+	input := "SUMMARY\nThis is the content of the summary section."
+	got := etc.CleanWithEnhancedParagraphs(input)
+
+	if !strings.Contains(got, "\n\n") {
+		t.Error("CleanWithEnhancedParagraphs should insert paragraph break after header")
+	}
+}
+
+func TestEnhancedTextCleaner_CleanFull(t *testing.T) {
+	etc := NewEnhancedTextCleaner()
+
+	input := "INTRODUCTION\n• First point¹\n• Second point\nConclusion."
+	got := etc.CleanFull(input)
+
+	// Should have paragraph breaks
+	if !strings.Contains(got, "\n\n") {
+		t.Error("CleanFull should have paragraph breaks")
+	}
+	// Should expand footnotes
+	if !strings.Contains(got, "[1]") {
+		t.Error("CleanFull should expand footnotes")
+	}
 }
 

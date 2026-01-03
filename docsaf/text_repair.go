@@ -797,6 +797,49 @@ func isAllLetters(s string) bool {
 }
 
 // -------------------------------------------------------------------------
+// Interleaved Character Removal
+// -------------------------------------------------------------------------
+
+// RemoveInterleavedReplacements removes U+FFFD replacement characters that appear
+// to be interleaved with real text (pattern: char, FFFD, char, FFFD, ...).
+// This fixes PDFs where font encoding issues produce "C·O·N·F·I·D·E·N·T·I·A·L"
+// patterns where · is U+FFFD.
+func (tr *TextRepair) RemoveInterleavedReplacements(text string) string {
+	// Quick check - if no replacement chars, return as-is
+	if !strings.ContainsRune(text, unicode.ReplacementChar) {
+		return text
+	}
+
+	runes := []rune(text)
+	if len(runes) < 3 {
+		return text
+	}
+
+	// Check for interleaved pattern: real char followed by replacement char
+	interleavedCount := 0
+	for i := 0; i < len(runes)-1; i++ {
+		if runes[i] != unicode.ReplacementChar && runes[i+1] == unicode.ReplacementChar {
+			interleavedCount++
+		}
+	}
+
+	// If we see significant interleaving (>20% of chars), remove replacements
+	replacementCount := strings.Count(text, string(unicode.ReplacementChar))
+	if replacementCount > 0 && float64(interleavedCount)/float64(replacementCount) > 0.3 {
+		var result strings.Builder
+		result.Grow(len(text))
+		for _, r := range runes {
+			if r != unicode.ReplacementChar {
+				result.WriteRune(r)
+			}
+		}
+		return result.String()
+	}
+
+	return text
+}
+
+// -------------------------------------------------------------------------
 // Deposition Transcript Detection
 // -------------------------------------------------------------------------
 
@@ -877,6 +920,8 @@ func (tr *TextRepair) DetectDepositionLayout(texts []pdf.Text) bool {
 }
 
 // FilterLineNumberColumn removes the leftmost column if it contains only line numbers.
+// It identifies line numbers (1-25) in the left margin and filters them out along with
+// any other content in that narrow column, preserving the main text content.
 func (tr *TextRepair) FilterLineNumberColumn(texts []pdf.Text) []pdf.Text {
 	if len(texts) == 0 {
 		return texts
@@ -890,44 +935,839 @@ func (tr *TextRepair) FilterLineNumberColumn(texts []pdf.Text) []pdf.Text {
 		}
 	}
 
-	// Determine column boundary (find gap after line numbers)
-	// Sort by X to find natural gap
-	type xCount struct {
-		x     float64
-		count int
-	}
+	// First, identify which texts are actually line numbers (1-25)
+	lineNumberPattern := regexp.MustCompile(`^[1-9]$|^1[0-9]$|^2[0-5]$`)
+	var lineNumberXPositions []float64
 
-	xCounts := make(map[int]int)
 	for _, t := range texts {
-		bucket := int(t.X / 5) // 5pt buckets
-		xCounts[bucket]++
-	}
-
-	// Find the first significant gap (line number column is usually 20-40pt wide)
-	var buckets []int
-	for b := range xCounts {
-		buckets = append(buckets, b)
-	}
-	sort.Ints(buckets)
-
-	lineNumColumnEnd := minX + 40 // Default assumption
-
-	for i := 0; i < len(buckets)-1; i++ {
-		gap := (buckets[i+1] - buckets[i]) * 5
-		if gap >= 10 && float64(buckets[i])*5+minX < 60 {
-			// Found a gap near the left margin
-			lineNumColumnEnd = float64(buckets[i]+1) * 5
-			break
+		s := strings.TrimSpace(t.S)
+		if lineNumberPattern.MatchString(s) {
+			// Only count if it's in the left portion (within 50pt of min X)
+			if t.X-minX < 50 {
+				lineNumberXPositions = append(lineNumberXPositions, t.X)
+			}
 		}
 	}
 
-	// Filter out texts in the line number column
+	// Need a significant number of line numbers to justify filtering
+	if len(lineNumberXPositions) < 10 {
+		return texts // Not enough line numbers found, don't filter
+	}
+
+	// Find the max X position of line numbers - this defines the column boundary
+	maxLineNumX := lineNumberXPositions[0]
+	for _, x := range lineNumberXPositions {
+		if x > maxLineNumX {
+			maxLineNumX = x
+		}
+	}
+
+	// Find the gap: look for significant space between line numbers and main text
+	// Sort all X positions and find the first big gap after the line number column
+	type textWithX struct {
+		t pdf.Text
+		x float64
+	}
+	var allTexts []textWithX
+	for _, t := range texts {
+		allTexts = append(allTexts, textWithX{t: t, x: t.X})
+	}
+	sort.Slice(allTexts, func(i, j int) bool {
+		return allTexts[i].x < allTexts[j].x
+	})
+
+	// Look for a gap > 15pt after the line number column
+	lineNumColumnEnd := maxLineNumX + 5 // Small buffer after last line number
+	for i := 0; i < len(allTexts)-1; i++ {
+		if allTexts[i].x <= maxLineNumX+10 && allTexts[i+1].x > maxLineNumX {
+			gap := allTexts[i+1].x - allTexts[i].x
+			if gap >= 15 {
+				// Found a clear gap - use the midpoint as boundary
+				lineNumColumnEnd = (allTexts[i].x + allTexts[i+1].x) / 2
+				break
+			}
+		}
+	}
+
+	// Filter out texts in the line number column only if they're before the boundary
+	// and within a reasonable distance from minX (line numbers are typically within 40pt)
 	var filtered []pdf.Text
 	for _, t := range texts {
-		if t.X > lineNumColumnEnd || t.X-minX > 40 {
+		// Keep text if:
+		// 1. It's beyond the line number column boundary, OR
+		// 2. It's not in the left margin region (> 50pt from minX)
+		if t.X > lineNumColumnEnd || t.X-minX > 50 {
 			filtered = append(filtered, t)
 		}
 	}
 
 	return filtered
+}
+
+// -------------------------------------------------------------------------
+// Word Segmentation (for zero-gap PDFs)
+// -------------------------------------------------------------------------
+
+// CommonEnglishWords contains top 10000 common English words for word segmentation.
+// This is a subset - in production, you'd want the full list.
+var CommonEnglishWords = map[string]bool{
+	// Top 100 most common words
+	"the": true, "be": true, "to": true, "of": true, "and": true,
+	"a": true, "in": true, "that": true, "have": true, "i": true,
+	"it": true, "for": true, "not": true, "on": true, "with": true,
+	"he": true, "as": true, "you": true, "do": true, "at": true,
+	"this": true, "but": true, "his": true, "by": true, "from": true,
+	"they": true, "we": true, "say": true, "her": true, "she": true,
+	"or": true, "an": true, "will": true, "my": true, "one": true,
+	"all": true, "would": true, "there": true, "their": true, "what": true,
+	"so": true, "up": true, "out": true, "if": true, "about": true,
+	"who": true, "get": true, "which": true, "go": true, "me": true,
+	"when": true, "make": true, "can": true, "like": true, "time": true,
+	"no": true, "just": true, "him": true, "know": true, "take": true,
+	"people": true, "into": true, "year": true, "your": true, "good": true,
+	"some": true, "could": true, "them": true, "see": true, "other": true,
+	"than": true, "then": true, "now": true, "look": true, "only": true,
+	"come": true, "its": true, "over": true, "think": true, "also": true,
+	"back": true, "after": true, "use": true, "two": true, "how": true,
+	"our": true, "work": true, "first": true, "well": true, "way": true,
+	"even": true, "new": true, "want": true, "because": true, "any": true,
+	"these": true, "give": true, "day": true, "most": true, "us": true,
+	// Common legal/court words
+	"court": true, "case": true, "law": true, "state": true, "united": true,
+	"district": true, "plaintiff": true, "defendant": true, "attorney": true,
+	"judge": true, "versus": true, "order": true, "motion": true, "evidence": true,
+	"witness": true, "testimony": true, "trial": true, "jury": true, "verdict": true,
+	"appeal": true, "hearing": true, "counsel": true, "party": true, "section": true,
+	"statute": true, "claim": true, "damages": true, "contract": true, "agreement": true,
+	// Add more common words as needed
+	"was": true, "were": true, "been": true, "being": true, "am": true, "are": true, "is": true,
+	"has": true, "had": true, "having": true, "did": true, "does": true, "done": true, "doing": true,
+	"said": true, "says": true, "saying": true, "made": true, "makes": true, "making": true,
+	"here": true, "where": true, "why": true,
+	"each": true, "such": true, "much": true, "many": true, "few": true, "several": true,
+	"between": true, "during": true, "before": true, "above": true, "below": true,
+	"through": true, "under": true, "against": true, "within": true, "without": true,
+	"including": true, "regarding": true, "according": true, "concerning": true,
+	"shall": true, "may": true, "must": true, "should": true,
+	"might": true, "ought": true, "need": true, "dare": true,
+	// More common words for segmentation
+	"room": true, "involving": true, "states": true, "session": true,
+	// Email and document terms (common in legal/business documents)
+	"email": true, "chain": true, "document": true, "documents": true, "draft": true,
+	"redraft": true, "legal": true, "relating": true, "litigation": true, "product": true,
+	"withheld": true, "interest": true, "common": true, "defense": true, "joint": true,
+	"client": true, "privilege": true, "privileged": true, "confidential": true,
+	"conveying": true, "information": true, "potential": true, "action": true,
+	"sent": true, "date": true, "address": true, "subject": true,
+	"matter": true, "type": true, "count": true, "page": true, "log": true,
+	// Additional common words
+	"office": true, "company": true, "meeting": true, "report": true, "project": true,
+	"review": true, "response": true, "request": true, "notice": true, "letter": true,
+	"memo": true, "file": true, "record": true, "number": true, "reference": true,
+	// Common verb forms (to prevent OCR overcorrection)
+	"filed": true, "claimed": true, "stated": true, "noted": true, "provided": true,
+	"received": true, "issued": true, "signed": true, "dated": true, "submitted": true,
+}
+
+// SegmentWords uses dynamic programming to find optimal word boundaries in merged text.
+// This handles PDFs with zero-gap character positioning that result in merged words
+// like "UNITEDSTATESDISTRICTCOURT" -> "UNITED STATES DISTRICT COURT"
+func (tr *TextRepair) SegmentWords(text string) string {
+	if len(text) == 0 {
+		return text
+	}
+
+	// Process line by line to preserve formatting
+	lines := strings.Split(text, "\n")
+	var result []string
+
+	for _, line := range lines {
+		if len(strings.TrimSpace(line)) == 0 {
+			result = append(result, line)
+			continue
+		}
+
+		// Segment words in this line
+		segmented := tr.segmentLine(line)
+		result = append(result, segmented)
+	}
+
+	return strings.Join(result, "\n")
+}
+
+// segmentLine segments a single line of merged text into words.
+func (tr *TextRepair) segmentLine(line string) string {
+	words := strings.Fields(line)
+	var segmented []string
+
+	for _, word := range words {
+		// Skip email addresses and URLs - don't segment these
+		if strings.Contains(word, "@") || strings.HasPrefix(strings.ToLower(word), "http") {
+			segmented = append(segmented, word)
+			continue
+		}
+
+		// Only segment words that look merged (long words not in dictionary)
+		if len(word) > 8 && !tr.isLikelyProperWord(word) {
+			parts := tr.segmentWord(strings.ToLower(word))
+			if len(parts) > 1 {
+				// Preserve original casing
+				if tr.isAllUpper(word) {
+					for i := range parts {
+						parts[i] = strings.ToUpper(parts[i])
+					}
+				} else if tr.isTitleCase(word) {
+					for i := range parts {
+						parts[i] = strings.Title(parts[i])
+					}
+				}
+				segmented = append(segmented, strings.Join(parts, " "))
+				continue
+			}
+		}
+		segmented = append(segmented, word)
+	}
+
+	return strings.Join(segmented, " ")
+}
+
+// segmentWord uses dynamic programming to find optimal word segmentation.
+func (tr *TextRepair) segmentWord(word string) []string {
+	n := len(word)
+	if n == 0 {
+		return []string{}
+	}
+
+	// dp[i] = best score for segmenting word[0:i]
+	// parent[i] = index of start of last word in best segmentation
+	dp := make([]float64, n+1)
+	parent := make([]int, n+1)
+
+	// Initialize: empty string has score 0
+	dp[0] = 0
+	for i := 1; i <= n; i++ {
+		parent[i] = -1
+		dp[i] = -1e9 // Very negative score
+	}
+
+	// Fill DP table
+	for i := 1; i <= n; i++ {
+		// Try all possible last words ending at position i
+		for j := 0; j < i; j++ {
+			candidate := word[j:i]
+			wordScore := tr.scoreWord(candidate)
+
+			// Score of segmentation ending with this word
+			score := dp[j] + wordScore
+
+			if score > dp[i] {
+				dp[i] = score
+				parent[i] = j
+			}
+		}
+	}
+
+	// Reconstruct segmentation by following parent pointers
+	var parts []string
+	pos := n
+	for pos > 0 {
+		start := parent[pos]
+		if start == -1 {
+			// Couldn't find valid segmentation
+			return []string{word}
+		}
+		parts = append([]string{word[start:pos]}, parts...)
+		pos = start
+	}
+
+	return parts
+}
+
+// scoreWord returns a score for how likely this is a valid English word.
+// Higher scores are better.
+func (tr *TextRepair) scoreWord(word string) float64 {
+	// Penalize very short or very long words
+	if len(word) == 0 {
+		return -100
+	}
+	if len(word) == 1 {
+		return -10 // Single letters get low score unless common
+	}
+	if len(word) > 20 {
+		return -50 // Very long words are unlikely
+	}
+
+	// Check if it's a known word
+	if CommonEnglishWords[word] {
+		return 10.0 + float64(len(word)) // Bonus for known words, prefer longer
+	}
+
+	// Heuristic scoring for unknown words
+	// Prefer reasonable length (3-8 chars)
+	lengthScore := 0.0
+	if len(word) >= 3 && len(word) <= 8 {
+		lengthScore = 2.0
+	} else if len(word) >= 2 && len(word) <= 12 {
+		lengthScore = 1.0
+	}
+
+	// Small penalty for unknown words
+	return lengthScore - 5.0
+}
+
+// isLikelyProperWord returns true if word looks like a proper word (not merged).
+func (tr *TextRepair) isLikelyProperWord(word string) bool {
+	// Check if it's a known word
+	if CommonEnglishWords[strings.ToLower(word)] {
+		return true
+	}
+
+	// Long words with mixed case or all caps are suspicious
+	if len(word) > 15 {
+		return false
+	}
+
+	return true
+}
+
+// isAllUpper returns true if all letters in s are uppercase.
+func (tr *TextRepair) isAllUpper(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) && !unicode.IsUpper(r) {
+			return false
+		}
+	}
+	return true
+}
+
+// isTitleCase returns true if s looks like title case (first letter caps).
+func (tr *TextRepair) isTitleCase(s string) bool {
+	runes := []rune(s)
+	if len(runes) == 0 {
+		return false
+	}
+	return unicode.IsUpper(runes[0])
+}
+
+// -------------------------------------------------------------------------
+// Dictionary-Based Word Repair (OCR Error Correction)
+// -------------------------------------------------------------------------
+
+// RepairMisspelledWords uses edit distance to correct likely OCR errors.
+// Conservative approach: only fixes words with small edit distance to known words.
+func (tr *TextRepair) RepairMisspelledWords(text string) string {
+	words := strings.Fields(text)
+	var repaired []string
+
+	for _, word := range words {
+		// Clean punctuation for checking
+		cleaned := strings.Trim(word, ".,!?;:\"'()[]{}$%")
+		lower := strings.ToLower(cleaned)
+
+		// Skip if it's a known word
+		if CommonEnglishWords[lower] {
+			repaired = append(repaired, word)
+			continue
+		}
+
+		// Skip very short words (likely abbreviations)
+		if len(cleaned) <= 2 {
+			repaired = append(repaired, word)
+			continue
+		}
+
+		// Try to find correction
+		correction := tr.findBestCorrection(lower)
+		if correction != "" && correction != lower {
+			// Apply the same case/punctuation as original
+			corrected := tr.applyCasing(word, cleaned, correction)
+			repaired = append(repaired, corrected)
+		} else {
+			repaired = append(repaired, word)
+		}
+	}
+
+	return strings.Join(repaired, " ")
+}
+
+// findBestCorrection finds the best correction for a misspelled word.
+// Returns empty string if no good correction found.
+func (tr *TextRepair) findBestCorrection(word string) string {
+	if len(word) == 0 {
+		return ""
+	}
+
+	bestMatch := ""
+	bestDistance := 3 // Only correct if edit distance <= 2
+
+	// Common OCR error patterns: similar looking characters
+	ocrVariants := tr.generateOCRVariants(word)
+
+	// Check variants first (fast path for common OCR errors)
+	for _, variant := range ocrVariants {
+		if CommonEnglishWords[variant] {
+			return variant
+		}
+	}
+
+	// Check edit distance to known words (limited search for performance)
+	// Only check words of similar length (±2 chars)
+	for knownWord := range CommonEnglishWords {
+		lenDiff := len(knownWord) - len(word)
+		if lenDiff < -2 || lenDiff > 2 {
+			continue
+		}
+
+		dist := tr.editDistance(word, knownWord)
+		if dist < bestDistance {
+			bestDistance = dist
+			bestMatch = knownWord
+		}
+	}
+
+	// Only return if we found a close match (edit distance 1-2)
+	if bestDistance <= 2 && bestMatch != "" {
+		return bestMatch
+	}
+
+	return ""
+}
+
+// generateOCRVariants generates common OCR error variants for a word.
+// OCR commonly confuses similar-looking characters: l/I/1, O/0, m/n, etc.
+func (tr *TextRepair) generateOCRVariants(word string) []string {
+	ocrSubstitutions := map[rune][]rune{
+		'l': {'i', '1', 'I'},
+		'i': {'l', '1', 'I'},
+		'I': {'l', '1', 'i'},
+		'1': {'l', 'i', 'I'},
+		'o': {'0', 'O'},
+		'O': {'0', 'o'},
+		'0': {'o', 'O'},
+		',': {'v'}, // Common in "im,olvng" -> "involving"
+		'v': {','}, // Reverse mapping
+		'm': {'n'}, // m/n confusion
+		'n': {'m'},
+		's': {'5'},
+		'5': {'s'},
+		'z': {'2'},
+		'2': {'z'},
+	}
+
+	variants := []string{}
+	runes := []rune(word)
+
+	// Try single-character substitutions
+	for i, r := range runes {
+		if subs, ok := ocrSubstitutions[r]; ok {
+			for _, sub := range subs {
+				variant := make([]rune, len(runes))
+				copy(variant, runes)
+				variant[i] = sub
+				variants = append(variants, string(variant))
+			}
+		}
+	}
+
+	return variants
+}
+
+// editDistance calculates edit distance between two strings (optimized version).
+func (tr *TextRepair) editDistance(a, b string) int {
+	if len(a) == 0 {
+		return len(b)
+	}
+	if len(b) == 0 {
+		return len(a)
+	}
+
+	// Use same implementation as levenshteinDistance but optimized
+	return tr.levenshteinDistance(a, b)
+}
+
+// applyCasing applies the casing pattern from original word to correction.
+func (tr *TextRepair) applyCasing(original, cleaned, correction string) string {
+	// Find prefix/suffix punctuation
+	prefix := ""
+	suffix := ""
+
+	for i, r := range original {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			prefix = original[:i]
+			break
+		}
+	}
+
+	for i := len(original) - 1; i >= 0; i-- {
+		r := rune(original[i])
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			suffix = original[i+1:]
+			break
+		}
+	}
+
+	// Apply casing
+	result := correction
+	if tr.isAllUpper(cleaned) {
+		result = strings.ToUpper(correction)
+	} else if tr.isTitleCase(cleaned) {
+		result = strings.Title(correction)
+	}
+
+	return prefix + result + suffix
+}
+
+// -------------------------------------------------------------------------
+// Entropy-Based Noise Detection
+// -------------------------------------------------------------------------
+
+// CalculateLineEntropy calculates Shannon entropy of a line of text.
+// Higher entropy indicates more randomness (potential garbled content).
+func (tr *TextRepair) CalculateLineEntropy(line string) float64 {
+	if len(line) == 0 {
+		return 0.0
+	}
+
+	// Count character frequencies
+	freq := make(map[rune]int)
+	for _, r := range line {
+		freq[r]++
+	}
+
+	// Calculate entropy
+	entropy := 0.0
+	total := float64(len(line))
+
+	for _, count := range freq {
+		p := float64(count) / total
+		if p > 0 {
+			entropy -= p * math.Log2(p)
+		}
+	}
+
+	return entropy
+}
+
+// IsNoiseLine detects if a line is likely garbled/corrupted content.
+// Uses entropy and character pattern analysis.
+func (tr *TextRepair) IsNoiseLine(line string) bool {
+	line = strings.TrimSpace(line)
+
+	// Empty lines are not noise
+	if len(line) == 0 {
+		return false
+	}
+
+	// Very short lines are hard to classify
+	if len(line) < 10 {
+		return false
+	}
+
+	// Calculate entropy
+	entropy := tr.CalculateLineEntropy(line)
+
+	// High entropy threshold (English text typically < 4.5 bits/char)
+	// Random/garbled text has entropy > 4.8
+	if entropy > 4.8 {
+		// Additional check: high entropy with mixed case, numbers, and symbols
+		letterCount := 0
+		digitCount := 0
+		symbolCount := 0
+		for _, r := range line {
+			if unicode.IsLetter(r) {
+				letterCount++
+			} else if unicode.IsDigit(r) {
+				digitCount++
+			} else if unicode.IsPunct(r) || unicode.IsSymbol(r) {
+				symbolCount++
+			}
+		}
+
+		// If high entropy and highly mixed character types, likely noise
+		if digitCount > 0 && symbolCount > 0 && letterCount < len(line)/2 {
+			return true
+		}
+	}
+
+	// Check for high ratio of non-printable or unusual characters
+	unusualCount := 0
+	for _, r := range line {
+		// Count non-ASCII, control chars, or replacement chars as unusual
+		if r > 127 || r < 32 || r == unicode.ReplacementChar {
+			unusualCount++
+		}
+	}
+
+	unusualRatio := float64(unusualCount) / float64(len(line))
+	if unusualRatio > 0.3 {
+		return true
+	}
+
+	// Check for very high ratio of punctuation/symbols
+	symbolCount := 0
+	letterCount := 0
+	digitCount := 0
+	for _, r := range line {
+		if unicode.IsLetter(r) {
+			letterCount++
+		} else if unicode.IsDigit(r) {
+			digitCount++
+		} else if unicode.IsPunct(r) || unicode.IsSymbol(r) {
+			symbolCount++
+		}
+	}
+
+	// If more symbols than letters, likely noise
+	if symbolCount > letterCount && letterCount < len(line)/4 {
+		return true
+	}
+
+	// Check for alternating letter/digit/symbol pattern (gibberish)
+	// Example: "xK3#@fJq&*2LqZ%mN8!pR" has lots of transitions
+	if len(line) > 15 {
+		transitions := 0
+		prevType := 0 // 0=other, 1=letter, 2=digit, 3=symbol
+		for _, r := range line {
+			currentType := 0
+			if unicode.IsLetter(r) {
+				currentType = 1
+			} else if unicode.IsDigit(r) {
+				currentType = 2
+			} else if unicode.IsPunct(r) || unicode.IsSymbol(r) {
+				currentType = 3
+			}
+
+			if prevType != 0 && currentType != 0 && prevType != currentType {
+				transitions++
+			}
+			prevType = currentType
+		}
+
+		// High transition rate suggests random garbage
+		transitionRate := float64(transitions) / float64(len(line))
+		if transitionRate > 0.5 && symbolCount > len(line)/6 {
+			return true
+		}
+	}
+
+	return false
+}
+
+// FilterNoiseLines removes lines detected as garbled/corrupted content.
+func (tr *TextRepair) FilterNoiseLines(text string) string {
+	lines := strings.Split(text, "\n")
+	var filtered []string
+
+	for _, line := range lines {
+		if !tr.IsNoiseLine(line) {
+			filtered = append(filtered, line)
+		}
+	}
+
+	return strings.Join(filtered, "\n")
+}
+
+// -------------------------------------------------------------------------
+// Font Encoding Detection and Repair
+// -------------------------------------------------------------------------
+
+// DetectFontEncodingCorruption checks if text appears to be using a corrupted
+// or non-standard font encoding. This happens when PDF fonts have custom glyph
+// mappings that don't match standard character codes.
+//
+// Characteristics of font-encoding corruption:
+// - Text looks like random letters but has structure (same length as expected)
+// - Unusual mix of uppercase/lowercase in patterns that don't match English
+// - High proportion of consonant clusters that are phonetically impossible
+// - No recognizable words despite looking like text
+func (tr *TextRepair) DetectFontEncodingCorruption(text string) float64 {
+	text = strings.TrimSpace(text)
+	if len(text) < 10 {
+		return 0.0
+	}
+
+	// Count various characteristics
+	letterCount := 0
+	upperCount := 0
+	lowerCount := 0
+	consonantRuns := 0
+	currentConsonantRun := 0
+	vowelCount := 0
+
+	vowels := map[rune]bool{'a': true, 'e': true, 'i': true, 'o': true, 'u': true,
+		'A': true, 'E': true, 'I': true, 'O': true, 'U': true}
+
+	for _, r := range text {
+		if unicode.IsLetter(r) {
+			letterCount++
+			if unicode.IsUpper(r) {
+				upperCount++
+			} else {
+				lowerCount++
+			}
+			if vowels[r] {
+				vowelCount++
+				if currentConsonantRun >= 4 {
+					consonantRuns++
+				}
+				currentConsonantRun = 0
+			} else {
+				currentConsonantRun++
+			}
+		}
+	}
+	if currentConsonantRun >= 4 {
+		consonantRuns++
+	}
+
+	if letterCount == 0 {
+		return 0.0
+	}
+
+	// Calculate corruption indicators
+	score := 0.0
+
+	// 1. Unusual case mixing (e.g., "NWNRJcvJMTQPPJLAP")
+	// Normal text has either mostly lowercase, mostly uppercase, or title case
+	if upperCount > 0 && lowerCount > 0 {
+		upperRatio := float64(upperCount) / float64(letterCount)
+		// Random-looking case mixing scores high
+		if upperRatio > 0.3 && upperRatio < 0.7 {
+			score += 0.3
+		}
+	}
+
+	// 2. Impossible consonant clusters (e.g., "NWNRJ", "MTQPP")
+	if consonantRuns > 0 {
+		consonantRunRatio := float64(consonantRuns) / float64(len(strings.Fields(text))+1)
+		if consonantRunRatio > 0.3 {
+			score += 0.3
+		}
+	}
+
+	// 3. Very low vowel ratio (English typically 35-40% vowels)
+	if letterCount > 0 {
+		vowelRatio := float64(vowelCount) / float64(letterCount)
+		if vowelRatio < 0.15 {
+			score += 0.3
+		}
+	}
+
+	// 4. Check if words are recognizable
+	words := strings.Fields(text)
+	unrecognizedCount := 0
+	for _, word := range words {
+		cleaned := strings.Trim(strings.ToLower(word), ".,!?;:\"'()[]{}$%")
+		if len(cleaned) > 3 && !CommonEnglishWords[cleaned] {
+			// Check if it's pronounceable (has vowels distributed reasonably)
+			hasVowel := false
+			for _, r := range cleaned {
+				if vowels[r] {
+					hasVowel = true
+					break
+				}
+			}
+			if !hasVowel && len(cleaned) > 4 {
+				unrecognizedCount++
+			}
+		}
+	}
+	if len(words) > 0 {
+		unrecognizedRatio := float64(unrecognizedCount) / float64(len(words))
+		if unrecognizedRatio > 0.5 {
+			score += 0.2
+		}
+	}
+
+	if score > 1.0 {
+		score = 1.0
+	}
+	return score
+}
+
+// IsFontEncodingCorrupted returns true if text appears to have font encoding issues.
+func (tr *TextRepair) IsFontEncodingCorrupted(text string) bool {
+	return tr.DetectFontEncodingCorruption(text) > 0.5
+}
+
+// DetectEncodedPattern checks if a string matches a pattern that suggests
+// it's an encoded version of a known format (like case numbers).
+// Returns the detected pattern type and a description.
+func (tr *TextRepair) DetectEncodedPattern(text string) (patternType string, description string) {
+	text = strings.TrimSpace(text)
+
+	// Case number pattern: 1:15-cv-07433-LAP
+	// Encoded might look like: NWNRJcvJMTQPPJLAP
+	// - Has the "cv" or "cv-" preserved (common in font encoding issues)
+	// - Has uppercase letters at the end (judge initials)
+	// - Length similar to case numbers (15-20 chars)
+
+	if len(text) >= 12 && len(text) <= 25 {
+		// Check for preserved "cv" which often survives encoding
+		if strings.Contains(strings.ToLower(text), "cv") {
+			// Count structure: digits-like before cv, letters after
+			parts := strings.SplitN(strings.ToLower(text), "cv", 2)
+			if len(parts) == 2 && len(parts[0]) > 0 && len(parts[1]) > 0 {
+				return "case_number", "Possible encoded case number"
+			}
+		}
+	}
+
+	return "", ""
+}
+
+// MarkFontEncodingIssues wraps text that appears to have font encoding issues
+// with markers for downstream processing or flagging.
+func (tr *TextRepair) MarkFontEncodingIssues(text string) string {
+	lines := strings.Split(text, "\n")
+	var result []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if len(trimmed) > 10 && tr.IsFontEncodingCorrupted(trimmed) {
+			// Mark the line as having encoding issues
+			result = append(result, "[ENCODING_ISSUE] "+line)
+		} else {
+			result = append(result, line)
+		}
+	}
+
+	return strings.Join(result, "\n")
+}
+
+// FilterFontEncodingCorruption removes or replaces lines with severe font encoding issues.
+// Less severe issues are left in place but could be marked.
+func (tr *TextRepair) FilterFontEncodingCorruption(text string) string {
+	lines := strings.Split(text, "\n")
+	var result []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Skip empty lines
+		if len(trimmed) == 0 {
+			result = append(result, line)
+			continue
+		}
+
+		// Check for severe corruption
+		corruptionScore := tr.DetectFontEncodingCorruption(trimmed)
+
+		if corruptionScore > 0.7 {
+			// Severely corrupted - skip this line
+			continue
+		} else if corruptionScore > 0.5 {
+			// Moderately corrupted - check if it's a recognizable pattern
+			patternType, _ := tr.DetectEncodedPattern(trimmed)
+			if patternType != "" {
+				// It's a recognizable pattern, keep it with a marker
+				result = append(result, "["+patternType+"] "+line)
+			}
+			// Otherwise skip it
+		} else {
+			result = append(result, line)
+		}
+	}
+
+	return strings.Join(result, "\n")
 }

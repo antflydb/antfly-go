@@ -110,6 +110,9 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 			pageContent, _ = textRepair.AutoRepairMirroredText(pageContent)
 		}
 
+		// Apply word segmentation to fix merged words from PDFs with zero-gap positioning
+		pageContent = textRepair.SegmentWords(pageContent)
+
 		if pageContent == "" {
 			continue
 		}

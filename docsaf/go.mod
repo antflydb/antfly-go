@@ -10,6 +10,7 @@ require (
 	github.com/pb33f/libopenapi v0.31.1
 	github.com/yuin/goldmark v1.7.13
 	go.yaml.in/yaml/v4 v4.0.0-rc.3
+	golang.org/x/text v0.32.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -32,7 +33,6 @@ require (
 	github.com/temoto/robotstxt v1.1.2 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
