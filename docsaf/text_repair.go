@@ -226,17 +226,29 @@ func (tr *TextRepair) DecodeSymbolSubstitution(text string, substMap map[rune]ru
 // AutoDecodeText automatically detects and decodes text with encoding issues.
 // Returns the decoded text and a description of what was fixed.
 func (tr *TextRepair) AutoDecodeText(text string) (decoded string, fixed string) {
+	// First, check if text already looks like valid English.
+	// If so, don't apply transformations that could corrupt it.
+	if tr.looksLikeValidEnglish(text) {
+		return text, ""
+	}
+
 	// Try symbol substitution first
 	substMap, substConf := tr.DetectSymbolSubstitution(text)
 	if substConf > 0.3 {
 		decoded = tr.DecodeSymbolSubstitution(text, substMap)
-		// Now check if the result needs shift decoding
-		shift, shiftConf := tr.DetectEncodingShift(decoded)
-		if shiftConf > 0.5 && shift != 0 {
-			decoded = tr.DecodeShiftedText(decoded, shift)
-			return decoded, "symbol_substitution+shift"
+		// Only accept the substitution if it actually improves the text
+		if !tr.looksLikeValidEnglish(decoded) {
+			// Substitution didn't help, revert
+			decoded = text
+		} else {
+			// Now check if the result needs shift decoding
+			shift, shiftConf := tr.DetectEncodingShift(decoded)
+			if shiftConf > 0.5 && shift != 0 {
+				decoded = tr.DecodeShiftedText(decoded, shift)
+				return decoded, "symbol_substitution+shift"
+			}
+			return decoded, "symbol_substitution"
 		}
-		return decoded, "symbol_substitution"
 	}
 
 	// Try shift encoding
@@ -244,6 +256,218 @@ func (tr *TextRepair) AutoDecodeText(text string) (decoded string, fixed string)
 	if shiftConf > 0.5 && shift != 0 {
 		decoded = tr.DecodeShiftedText(text, shift)
 		return decoded, "shift"
+	}
+
+	return text, ""
+}
+
+// looksLikeValidEnglish checks if text appears to be readable English.
+// Returns true if the text has recognizable English words and normal structure.
+func (tr *TextRepair) looksLikeValidEnglish(text string) bool {
+	words := strings.Fields(text)
+	if len(words) < 3 {
+		return false
+	}
+
+	recognizedCount := 0
+	totalChecked := 0
+
+	for _, word := range words {
+		// Clean punctuation for checking
+		cleaned := strings.Trim(word, ".,!?;:\"'()[]{}$%")
+		lower := strings.ToLower(cleaned)
+
+		// Skip very short words and numbers/case numbers
+		if len(cleaned) <= 2 {
+			continue
+		}
+		// Skip words that look like identifiers (contain digits mixed with letters)
+		if containsDigit(cleaned) {
+			continue
+		}
+
+		totalChecked++
+		if CommonEnglishWords[lower] {
+			recognizedCount++
+		}
+	}
+
+	// If we checked at least 3 words and >40% are recognized, text is valid
+	if totalChecked >= 3 && float64(recognizedCount)/float64(totalChecked) > 0.4 {
+		return true
+	}
+
+	return false
+}
+
+// containsDigit returns true if the string contains any digit.
+func containsDigit(s string) bool {
+	for _, r := range s {
+		if unicode.IsDigit(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// -------------------------------------------------------------------------
+// Private Use Area (PUA) Decoding for Unmapped Font Bytes
+// -------------------------------------------------------------------------
+
+// IsPUAChar returns true if the rune is in the Private Use Area range
+// used to preserve unmapped font bytes (U+E000-U+E0FF).
+func IsPUAChar(r rune) bool {
+	return r >= 0xE000 && r <= 0xE0FF
+}
+
+// HasPUAChars returns true if the text contains any PUA characters.
+func HasPUAChars(text string) bool {
+	for _, r := range text {
+		if IsPUAChar(r) {
+			return true
+		}
+	}
+	return false
+}
+
+// CountPUAChars returns the count and ratio of PUA characters in text.
+func CountPUAChars(text string) (count int, ratio float64) {
+	total := 0
+	for _, r := range text {
+		total++
+		if IsPUAChar(r) {
+			count++
+		}
+	}
+	if total == 0 {
+		return 0, 0.0
+	}
+	return count, float64(count) / float64(total)
+}
+
+// DecodePUAWithShift decodes PUA-preserved bytes by applying a character shift.
+// This handles custom font encodings where characters are shifted by a fixed offset.
+// For example, a shift of 29 would decode PUA byte 65 as 65+29=94 ('n' in some encodings).
+func DecodePUAWithShift(text string, shift int) string {
+	if !HasPUAChars(text) {
+		return text
+	}
+
+	var result strings.Builder
+	result.Grow(len(text))
+
+	for _, r := range text {
+		if IsPUAChar(r) {
+			// Extract original byte from PUA encoding
+			originalByte := int(r) - 0xE000
+
+			// Apply shift (with wraparound for printable ASCII)
+			decoded := originalByte + shift
+			if decoded > 126 {
+				decoded = 33 + (decoded - 127)
+			}
+			if decoded < 33 {
+				decoded = 126 - (33 - decoded) + 1
+			}
+
+			result.WriteRune(rune(decoded))
+		} else {
+			result.WriteRune(r)
+		}
+	}
+
+	return result.String()
+}
+
+// DetectPUAShift analyzes text with PUA characters to detect the encoding shift.
+// Returns the best shift value and confidence score based on resulting English frequency.
+func (tr *TextRepair) DetectPUAShift(text string) (shift int, confidence float64) {
+	if !HasPUAChars(text) {
+		return 0, 0.0
+	}
+
+	bestShift := 0
+	bestScore := 0.0
+
+	// Test shifts from 1 to 127 (full byte range)
+	for testShift := 1; testShift <= 127; testShift++ {
+		decoded := DecodePUAWithShift(text, testShift)
+
+		// Calculate how English-like the result is
+		score := tr.calculateEnglishScore(decoded)
+		if score > bestScore {
+			bestScore = score
+			bestShift = testShift
+		}
+	}
+
+	// Confidence is based on how English-like the best result is
+	confidence = bestScore
+
+	return bestShift, confidence
+}
+
+// calculateEnglishScore returns a score (0.0-1.0) indicating how English-like text is.
+func (tr *TextRepair) calculateEnglishScore(text string) float64 {
+	// Count common English patterns
+	lower := strings.ToLower(text)
+	words := strings.Fields(lower)
+
+	if len(words) < 2 {
+		return 0.0
+	}
+
+	// Check for common English words
+	commonWords := []string{"the", "and", "that", "have", "for", "not", "with", "you", "this", "but", "from", "they", "was", "are", "been"}
+	foundCommon := 0
+	for _, w := range words {
+		for _, common := range commonWords {
+			if w == common {
+				foundCommon++
+				break
+			}
+		}
+	}
+
+	// Calculate vowel ratio (English typically has 35-45% vowels)
+	vowels := 0
+	letters := 0
+	for _, r := range lower {
+		if r >= 'a' && r <= 'z' {
+			letters++
+			if r == 'a' || r == 'e' || r == 'i' || r == 'o' || r == 'u' {
+				vowels++
+			}
+		}
+	}
+
+	vowelRatio := 0.0
+	if letters > 0 {
+		vowelRatio = float64(vowels) / float64(letters)
+	}
+
+	// Score components
+	wordScore := float64(foundCommon) / float64(len(words))
+	vowelScore := 1.0 - math.Abs(vowelRatio-0.40)*2.5 // Optimal around 40%
+	if vowelScore < 0 {
+		vowelScore = 0
+	}
+
+	// Combined score
+	return wordScore*0.7 + vowelScore*0.3
+}
+
+// AutoDecodePUA attempts to automatically decode PUA-preserved bytes.
+// Returns the decoded text and a description of the decoding applied.
+func (tr *TextRepair) AutoDecodePUA(text string) (decoded string, description string) {
+	if !HasPUAChars(text) {
+		return text, ""
+	}
+
+	shift, confidence := tr.DetectPUAShift(text)
+	if confidence > 0.3 && shift != 0 {
+		decoded = DecodePUAWithShift(text, shift)
+		return decoded, "pua_shift_" + string(rune('0'+shift/100)) + string(rune('0'+(shift/10)%10)) + string(rune('0'+shift%10))
 	}
 
 	return text, ""
@@ -691,112 +915,6 @@ func (tr *TextRepair) RemoveHeadersFooters(pageText string, headers, footers []s
 }
 
 // -------------------------------------------------------------------------
-// Fragmented Text Detection and Repair
-// -------------------------------------------------------------------------
-
-// DetectFragmentedText checks if text has abnormal single-character word sequences.
-// Returns true if the text appears to be fragmented.
-func (tr *TextRepair) DetectFragmentedText(text string) bool {
-	words := strings.Fields(text)
-	if len(words) < 5 {
-		return false
-	}
-
-	// Count sequences of single-char words
-	totalSingleCharRuns := 0
-	currentRun := 0
-
-	for _, word := range words {
-		if len(word) == 1 && unicode.IsLetter(rune(word[0])) {
-			currentRun++
-		} else {
-			// Any run of 3+ single chars indicates fragmentation
-			if currentRun >= 3 {
-				totalSingleCharRuns++
-			}
-			currentRun = 0
-		}
-	}
-	if currentRun >= 3 {
-		totalSingleCharRuns++
-	}
-
-	// If we have any run of 3+ single-char words, likely fragmented
-	return totalSingleCharRuns >= 1
-}
-
-// RepairFragmentedText attempts to merge fragmented word sequences.
-// Handles patterns like:
-//   - "L A N G I N O" → "LANGINO" (consecutive single chars)
-//   - "w orry" → "worry" (single char + fragment)
-//   - "t a k en" → "taken" (mixed single chars + fragment)
-func (tr *TextRepair) RepairFragmentedText(text string) string {
-	words := strings.Fields(text)
-	if len(words) == 0 {
-		return text
-	}
-
-	var result []string
-	var currentMerge strings.Builder
-	inFragmentedSequence := false
-
-	for i, word := range words {
-		isSingleChar := len(word) == 1 && unicode.IsLetter(rune(word[0]))
-
-		// Check context for fragmentation
-		prevSingle := i > 0 && len(words[i-1]) == 1 && unicode.IsLetter(rune(words[i-1][0]))
-		nextSingle := i < len(words)-1 && len(words[i+1]) == 1 && unicode.IsLetter(rune(words[i+1][0]))
-
-		if isSingleChar && (prevSingle || nextSingle) {
-			// Single char in a sequence - merge it
-			currentMerge.WriteString(word)
-			inFragmentedSequence = true
-			continue
-		}
-
-		if inFragmentedSequence && !isSingleChar {
-			// We were in a fragmented sequence and hit a non-single char
-			// Check if this fragment should be appended (no space before it in original)
-			// Heuristic: if merged text + fragment is <= 20 chars and all letters, merge
-			potentialWord := currentMerge.String() + word
-			if len(potentialWord) <= 20 && isAllLetters(potentialWord) {
-				currentMerge.WriteString(word)
-				result = append(result, currentMerge.String())
-				currentMerge.Reset()
-				inFragmentedSequence = false
-				continue
-			}
-		}
-
-		// Flush any merged text
-		if currentMerge.Len() > 0 {
-			result = append(result, currentMerge.String())
-			currentMerge.Reset()
-		}
-		inFragmentedSequence = false
-
-		result = append(result, word)
-	}
-
-	// Flush final merge
-	if currentMerge.Len() > 0 {
-		result = append(result, currentMerge.String())
-	}
-
-	return strings.Join(result, " ")
-}
-
-// isAllLetters returns true if all runes in s are letters.
-func isAllLetters(s string) bool {
-	for _, r := range s {
-		if !unicode.IsLetter(r) {
-			return false
-		}
-	}
-	return true
-}
-
-// -------------------------------------------------------------------------
 // Interleaved Character Removal
 // -------------------------------------------------------------------------
 
@@ -1067,6 +1185,27 @@ var CommonEnglishWords = map[string]bool{
 	// Common verb forms (to prevent OCR overcorrection)
 	"filed": true, "claimed": true, "stated": true, "noted": true, "provided": true,
 	"received": true, "issued": true, "signed": true, "dated": true, "submitted": true,
+	// Additional domain-specific words
+	"form": true, "forms": true, "media": true, "nature": true, "natural": true,
+	"southern": true, "northern": true, "eastern": true, "western": true,
+	"florida": true, "california": true, "texas": true,
+	"deposition": true, "depositions": true, "interrogatory": true, "interrogatories": true,
+	"presence": true, "present": true, "scheduled": true, "schedule": true,
+	"household": true, "visited": true, "visitor": true, "visitors": true,
+	"associated": true, "observation": true, "observations": true, "observed": true,
+	"involvement": true, "anticipated": true, "testify": true,
+	"massage": true, "massages": true, "female": true, "females": true,
+	"underage": true, "activities": true, "activity": true, "sexual": true,
+	"place": true, "places": true, "mansion": true, "closely": true,
+	"minor": true, "minors": true, "girls": true, "girl": true,
+	"respect": true, "prior": true,
+	// Legal specific terms
+	"objection": true, "objections": true, "sustained": true, "overruled": true,
+	"depose": true, "deposed": true, "sworn": true, "affidavit": true,
+	"subpoena": true, "summons": true, "complaint": true,
+	"discovery": true, "exhibit": true, "exhibits": true, "stipulation": true,
+	"allegation": true, "allegations": true, "liability": true, "negligence": true,
+	"breach": true, "violations": true,
 }
 
 // SegmentWords uses dynamic programming to find optimal word boundaries in merged text.

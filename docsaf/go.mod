@@ -36,3 +36,5 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
+
+replace github.com/ledongthuc/pdf => github.com/ajroetker/pdf v0.0.0-20260103234042-3f2ea6a51c82

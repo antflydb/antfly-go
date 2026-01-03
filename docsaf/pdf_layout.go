@@ -98,68 +98,6 @@ type Table struct {
 	Cells         [][]TableCell
 }
 
-// ExtractWithLayout performs advanced text extraction with layout analysis.
-// It detects columns, tables, and reconstructs proper reading order.
-// When AutoDetectLayout is enabled, it automatically detects document type
-// (e.g., deposition transcripts) and adjusts settings accordingly.
-func (la *LayoutAnalyzer) ExtractWithLayout(page pdf.Page) string {
-	content := page.Content()
-	if len(content.Text) == 0 {
-		return ""
-	}
-
-	// Filter out empty and newline-only text elements
-	texts := la.filterTexts(content.Text)
-	if len(texts) == 0 {
-		return ""
-	}
-
-	// Auto-detect document type and adjust settings if enabled
-	if la.AutoDetectLayout {
-		tr := NewTextRepair()
-		if tr.DetectDepositionLayout(texts) {
-			// Switch to deposition mode for this extraction
-			la.ColumnGapThreshold = 12.0
-			la.RowTolerance = 2.0
-			la.MinRowsForColumnPct = 75
-			la.FilterLineNumbers = true
-		}
-	}
-
-	// Filter out line number columns for deposition transcripts
-	if la.FilterLineNumbers {
-		tr := NewTextRepair()
-		texts = tr.FilterLineNumberColumn(texts)
-	}
-
-	// Fix mirrored text (reversed character order due to PDF rendering issues)
-	texts = la.fixMirroredTextByRow(texts)
-
-	// Detect page boundaries
-	pageLeft, pageRight, _, _ := la.getPageBounds(texts)
-
-	// Detect columns
-	columns := la.detectColumns(texts, pageLeft, pageRight)
-
-	// Check for tables within each column
-	var result strings.Builder
-	for colIdx, col := range columns {
-		if colIdx > 0 {
-			result.WriteString("\n\n")
-		}
-
-		// Try to detect tables in this column
-		tables := la.detectTables(col.Blocks)
-		if len(tables) > 0 {
-			result.WriteString(la.formatTablesAndText(col.Blocks, tables))
-		} else {
-			result.WriteString(la.formatBlocks(col.Blocks))
-		}
-	}
-
-	return result.String()
-}
-
 // filterTexts removes empty and newline-only text elements.
 func (la *LayoutAnalyzer) filterTexts(texts []pdf.Text) []pdf.Text {
 	filtered := make([]pdf.Text, 0, len(texts))
@@ -814,7 +752,31 @@ func (la *LayoutAnalyzer) textsToBlocks(texts []pdf.Text) []TextBlock {
 				}
 			}
 
-			if gap <= threshold {
+			// Check if gap suggests word break
+			isWordBreak := gap > threshold
+
+			// Apply lowercase heuristic ONLY when not using adaptive spacing.
+			// Adaptive spacing already properly detects word boundaries based on
+			// the gap distribution, so we shouldn't override it.
+			// This heuristic handles PDFs with unusual character spacing like "do cu me nt"
+			// when using fixed threshold mode.
+			if !la.UseAdaptiveSpacing && isWordBreak && len(currentBlock.Text) > 0 && len(t.S) > 0 {
+				lastChar := rune(currentBlock.Text[len(currentBlock.Text)-1])
+				nextChar := rune(t.S[0])
+				bothLowercase := (lastChar >= 'a' && lastChar <= 'z') && (nextChar >= 'a' && nextChar <= 'z')
+				// Also check for lowercase followed by uppercase that looks like fragment
+				// e.g., "Virg" + "In" where 'g' is lowercase and 'I' is uppercase
+				lowerThenUpper := (lastChar >= 'a' && lastChar <= 'z') && (nextChar >= 'A' && nextChar <= 'Z')
+
+				if bothLowercase || lowerThenUpper {
+					// Use 3x threshold for mid-word gaps to be more conservative
+					if gap <= threshold*3 {
+						isWordBreak = false
+					}
+				}
+			}
+
+			if !isWordBreak {
 				// Same word/block - append
 				currentBlock.Width = t.X + t.W - currentBlock.X
 				currentBlock.Text += t.S
@@ -1468,20 +1430,15 @@ func (etc *EnhancedTextCleaner) Clean(text string) string {
 	// Step 8: Clean box drawing characters that appear as artifacts
 	text = CleanBoxDrawingChars(text)
 
-	// Step 9: Repair fragmented text (single-char word sequences)
-	if etc.textRepair.DetectFragmentedText(text) {
-		text = etc.textRepair.RepairFragmentedText(text)
-	}
-
-	// Step 10: Join hyphenated words split across lines
+	// Step 9: Join hyphenated words split across lines
 	// Example: "state-\nment" → "statement"
 	text = JoinHyphenatedWords(text)
 
-	// Step 11: Apply Unicode NFC normalization for consistency
+	// Step 10: Apply Unicode NFC normalization for consistency
 	// Converts combining character sequences to composed forms
 	text = NormalizeUnicode(text)
 
-	// Step 12: Final whitespace cleanup
+	// Step 11: Final whitespace cleanup
 	text = etc.normalizeWhitespace(text)
 
 	return text
@@ -1597,23 +1554,4 @@ func (etc *EnhancedTextCleaner) normalizeWhitespace(text string) string {
 	}
 
 	return strings.TrimSpace(result.String())
-}
-
-// ExtractWithLayout extracts text from a page using full layout analysis.
-func (etc *EnhancedTextCleaner) ExtractWithLayout(page pdf.Page) string {
-	content := page.Content()
-	if len(content.Text) == 0 {
-		return ""
-	}
-
-	// Learn PUA mappings from context
-	etc.glyphMapper.LearnFromContext(content.Text)
-
-	// Extract with layout analysis
-	text := etc.layoutAnalyzer.ExtractWithLayout(page)
-
-	// Apply font decoding and cleanup
-	text = etc.Clean(text)
-
-	return text
 }

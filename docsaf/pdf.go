@@ -12,10 +12,8 @@ import (
 
 // PDFProcessor processes PDF (.pdf) content using the ledongthuc/pdf library.
 // It chunks content into sections by pages and extracts metadata from the PDF Info dictionary.
-// Uses advanced layout analysis with column detection, table recognition, and font decoding.
 type PDFProcessor struct {
-	textCleaner *EnhancedTextCleaner
-	textRepair  *TextRepair
+	textRepair *TextRepair
 
 	// EnableHeaderFooterDetection enables cross-page header/footer detection.
 	// When enabled, the processor makes two passes: first to detect patterns,
@@ -25,13 +23,6 @@ type PDFProcessor struct {
 	// EnableMirroredTextRepair enables automatic detection and repair of mirrored/reversed text.
 	// Uses bigram frequency analysis to detect text that has been horizontally flipped.
 	EnableMirroredTextRepair bool
-}
-
-func (pp *PDFProcessor) getTextCleaner() *EnhancedTextCleaner {
-	if pp.textCleaner == nil {
-		pp.textCleaner = NewEnhancedTextCleaner()
-	}
-	return pp.textCleaner
 }
 
 func (pp *PDFProcessor) getTextRepair() *TextRepair {
@@ -68,7 +59,6 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 
 	totalPages := reader.NumPage()
 	textRepair := pp.getTextRepair()
-	textCleaner := pp.getTextCleaner()
 
 	// If header/footer detection is enabled, make a first pass to collect page patterns
 	var headers, footers []string
@@ -78,7 +68,7 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 			if page.V.IsNull() {
 				continue
 			}
-			pageContent := textCleaner.ExtractWithLayout(page)
+			pageContent, _ := page.GetPlainText(nil)
 			textRepair.RecordPageContent(pageContent)
 		}
 		headers = textRepair.GetDetectedHeaders()
@@ -94,9 +84,16 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 			continue
 		}
 
-		// Use advanced layout analysis with column detection, table recognition,
-		// and improved font decoding
-		pageContent := textCleaner.ExtractWithLayout(page)
+		// Use GetPlainText for reliable word boundary detection
+		// Layout analysis was introducing word fragmentation artifacts
+		pageContent, _ := page.GetPlainText(nil)
+
+		// Decode PUA-preserved bytes from custom font encodings
+		// The pdf library stores unmapped font bytes in U+E000-U+E0FF to preserve them.
+		// This step detects the encoding shift and decodes them to readable text.
+		if HasPUAChars(pageContent) {
+			pageContent, _ = textRepair.AutoDecodePUA(pageContent)
+		}
 
 		// Remove detected headers and footers
 		if len(headers) > 0 || len(footers) > 0 {
@@ -110,8 +107,8 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 			pageContent, _ = textRepair.AutoRepairMirroredText(pageContent)
 		}
 
-		// Apply word segmentation to fix merged words from PDFs with zero-gap positioning
-		pageContent = textRepair.SegmentWords(pageContent)
+		// Note: SegmentWords was removed - it was designed for layout-analyzed text
+		// with merged words, but GetPlainText already handles word boundaries correctly
 
 		if pageContent == "" {
 			continue
@@ -319,7 +316,7 @@ func isGarbledLine(line string) bool {
 			singleCharCount++
 		}
 		for _, r := range word {
-			if r == '\uFFFD' || r == '�' {
+			if r == '\uFFFD' || r == '�' || IsPUAChar(r) {
 				replacementCount++
 			}
 		}

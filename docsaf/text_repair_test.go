@@ -209,63 +209,6 @@ func splitLines(text string) []string {
 	return lines
 }
 
-func TestTextRepair_DetectFragmentedText(t *testing.T) {
-	tr := NewTextRepair()
-
-	tests := []struct {
-		name           string
-		text           string
-		wantFragmented bool
-	}{
-		{
-			name:           "normal text",
-			text:           "This is normal text with proper words and complete sentences that are not fragmented.",
-			wantFragmented: false,
-		},
-		{
-			// Two runs of 5+ single chars to trigger detection
-			name:           "fragmented text with multiple runs",
-			text:           "Header T h i s i s f r a g m e n t e d middle text A n d t h i s i s a l s o footer",
-			wantFragmented: true,
-		},
-		{
-			// Single run of 3+ chars is now detected as fragmented
-			name:           "single fragmented run",
-			text:           "Some normal words and t h e n s o m e",
-			wantFragmented: true, // Changed: 3+ single chars now triggers detection
-		},
-		{
-			// Short run (2 chars) should not trigger
-			name:           "short non-fragmented run",
-			text:           "This is a b normal text with proper formatting",
-			wantFragmented: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := tr.DetectFragmentedText(tt.text)
-			if got != tt.wantFragmented {
-				t.Errorf("DetectFragmentedText() = %v, want %v", got, tt.wantFragmented)
-			}
-		})
-	}
-}
-
-func TestTextRepair_RepairFragmentedText(t *testing.T) {
-	tr := NewTextRepair()
-
-	text := "Normal word t h i s i s f r a g m e n t e d another word"
-	result := tr.RepairFragmentedText(text)
-
-	// The fragmented section should be merged
-	// Exact output depends on implementation, but single chars should be merged
-	if result == text {
-		t.Error("RepairFragmentedText() should have changed the text")
-	}
-	t.Logf("Repaired: %s", result)
-}
-
 func TestTextRepair_LevenshteinDistance(t *testing.T) {
 	tr := NewTextRepair()
 
