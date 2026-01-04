@@ -10,6 +10,18 @@ import (
 	"github.com/ledongthuc/pdf"
 )
 
+// PDFProgress reports progress during PDF processing.
+type PDFProgress struct {
+	Phase      string // "header_detection", "extraction"
+	Page       int    // Current page number (1-based)
+	TotalPages int    // Total pages in document
+	FilePath   string // Path to the PDF file
+}
+
+// PDFProgressFunc is called to report PDF processing progress.
+// Return an error to abort processing.
+type PDFProgressFunc func(progress PDFProgress) error
+
 // PDFProcessor processes PDF (.pdf) content using the ledongthuc/pdf library.
 // It chunks content into sections by pages and extracts metadata from the PDF Info dictionary.
 type PDFProcessor struct {
@@ -23,6 +35,14 @@ type PDFProcessor struct {
 	// EnableMirroredTextRepair enables automatic detection and repair of mirrored/reversed text.
 	// Uses bigram frequency analysis to detect text that has been horizontally flipped.
 	EnableMirroredTextRepair bool
+
+	// ProgressFunc is called to report processing progress.
+	// If nil, no progress is reported.
+	ProgressFunc PDFProgressFunc
+
+	// ProgressInterval controls how often ProgressFunc is called.
+	// If 0, defaults to every 100 pages.
+	ProgressInterval int
 }
 
 func (pp *PDFProcessor) getTextRepair() *TextRepair {
@@ -30,6 +50,30 @@ func (pp *PDFProcessor) getTextRepair() *TextRepair {
 		pp.textRepair = NewTextRepair()
 	}
 	return pp.textRepair
+}
+
+func (pp *PDFProcessor) progressInterval() int {
+	if pp.ProgressInterval > 0 {
+		return pp.ProgressInterval
+	}
+	return 100 // default: report every 100 pages
+}
+
+func (pp *PDFProcessor) reportProgress(phase string, page, total int, path string) error {
+	if pp.ProgressFunc == nil {
+		return nil
+	}
+	interval := pp.progressInterval()
+	// Report on first page, last page, and at intervals
+	if page == 1 || page == total || page%interval == 0 {
+		return pp.ProgressFunc(PDFProgress{
+			Phase:      phase,
+			Page:       page,
+			TotalPages: total,
+			FilePath:   path,
+		})
+	}
+	return nil
 }
 
 // CanProcess returns true for PDF content types or .pdf extensions.
@@ -64,6 +108,9 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 	var headers, footers []string
 	if pp.EnableHeaderFooterDetection && totalPages >= 3 {
 		for pageNum := 1; pageNum <= totalPages; pageNum++ {
+			if err := pp.reportProgress("header_detection", pageNum, totalPages, path); err != nil {
+				return nil, err
+			}
 			page := reader.Page(pageNum)
 			if page.V.IsNull() {
 				continue
@@ -79,6 +126,9 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 	sections := make([]DocumentSection, 0, totalPages)
 
 	for pageNum := 1; pageNum <= totalPages; pageNum++ {
+		if err := pp.reportProgress("extraction", pageNum, totalPages, path); err != nil {
+			return nil, err
+		}
 		page := reader.Page(pageNum)
 		if page.V.IsNull() {
 			continue
