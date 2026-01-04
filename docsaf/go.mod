@@ -37,4 +37,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/ledongthuc/pdf => github.com/ajroetker/pdf v0.0.0-20260103234042-3f2ea6a51c82
+replace github.com/ledongthuc/pdf => github.com/ajroetker/pdf v0.0.0-20260104010325-99529f90e80b
