@@ -79,8 +79,8 @@ github.com/aclements/go-moremath v0.0.0-20210112150236-f10218a38794/go.mod h1:7e
 github.com/agnivade/levenshtein v1.2.1/go.mod h1:QVVI16kDrtSuwcpd0p1+xMC6Z/VfhtCyDIjcwga4/DU=
 github.com/ajroetker/pdf v0.0.0-20260103203040-28c7852ea62d h1:dwwSYhCg7xrSZzVhyOozn1PLNf9QJ+EDJmYxHWWnpII=
 github.com/ajroetker/pdf v0.0.0-20260103203040-28c7852ea62d/go.mod h1:1fEHWurg7pvf5SG6XNE5Q8UZmOwex51Mkx3SLhrW5B4=
-github.com/ajroetker/pdf v0.0.0-20260104010325-99529f90e80b h1:z2WsNh1EO+0sMtFdtqyQh0PqeO6cpa3f/mE4V/BO9O0=
-github.com/ajroetker/pdf v0.0.0-20260104010325-99529f90e80b/go.mod h1:1fEHWurg7pvf5SG6XNE5Q8UZmOwex51Mkx3SLhrW5B4=
+github.com/ajroetker/pdf v0.0.0-20260104233245-a32716fb454f h1:d7lo9FechmuuEOOJkedFDcTxgUiz87o8GM4i9IkUbhg=
+github.com/ajroetker/pdf v0.0.0-20260104233245-a32716fb454f/go.mod h1:1fEHWurg7pvf5SG6XNE5Q8UZmOwex51Mkx3SLhrW5B4=
 github.com/ajstarks/svgo v0.0.0-20211024235047-1546f124cd8b/go.mod h1:1KcenG0jGWcpt8ov532z81sp/kMMUG485J2InIOyADM=
 github.com/alecthomas/kingpin/v2 v2.4.0/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
 github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b/go.mod h1:fvzegU4vN3H1qMT+8wDmzjAcDONcgo2/SZ/TyfdUOFs=

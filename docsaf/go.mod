@@ -8,7 +8,7 @@ require (
 	github.com/gocolly/colly/v2 v2.3.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/pb33f/libopenapi v0.31.1
-	github.com/yuin/goldmark v1.7.13
+	github.com/yuin/goldmark v1.7.14
 	go.yaml.in/yaml/v4 v4.0.0-rc.3
 	golang.org/x/text v0.32.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -37,4 +37,4 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-replace github.com/ledongthuc/pdf => github.com/ajroetker/pdf v0.0.0-20260104010325-99529f90e80b
+replace github.com/ledongthuc/pdf => github.com/ajroetker/pdf v0.0.0-20260104233245-a32716fb454f
