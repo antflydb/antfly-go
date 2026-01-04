@@ -361,13 +361,13 @@ func DecodePUAWithShift(text string, shift int) string {
 			// Extract original byte from PUA encoding
 			originalByte := int(r) - 0xE000
 
-			// Apply shift (with wraparound for printable ASCII)
+			// Apply shift (with wraparound for printable ASCII, preserving space)
 			decoded := originalByte + shift
 			if decoded > 126 {
-				decoded = 33 + (decoded - 127)
+				decoded = 32 + (decoded - 127)
 			}
-			if decoded < 33 {
-				decoded = 126 - (33 - decoded) + 1
+			if decoded < 32 {
+				decoded = 126 - (32 - decoded) + 1
 			}
 
 			result.WriteRune(rune(decoded))
@@ -465,7 +465,7 @@ func (tr *TextRepair) AutoDecodePUA(text string) (decoded string, description st
 	}
 
 	shift, confidence := tr.DetectPUAShift(text)
-	if confidence > 0.3 && shift != 0 {
+	if confidence > 0.2 && shift != 0 {
 		decoded = DecodePUAWithShift(text, shift)
 		return decoded, "pua_shift_" + string(rune('0'+shift/100)) + string(rune('0'+(shift/10)%10)) + string(rune('0'+shift%10))
 	}
