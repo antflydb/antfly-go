@@ -3,7 +3,7 @@ package docsaf
 import (
 	"testing"
 
-	"github.com/antflydb/antfly/antfly-go/libaf/s3"
+	"github.com/antflydb/antfly-go/libaf/s3"
 )
 
 func TestNewS3Source(t *testing.T) {
