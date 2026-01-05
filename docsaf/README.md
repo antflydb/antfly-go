@@ -4,10 +4,11 @@ A generic content traversal and processing library for building documentation fr
 
 ## Features
 
-- **Multiple Content Sources**: Traverse local directories, crawl websites, or clone Git repositories
+- **Multiple Content Sources**: Traverse local directories, crawl websites, clone Git repositories, or fetch from S3-compatible storage
 - **Pluggable Processors**: Markdown, HTML, PDF, OpenAPI, and custom processors
 - **Web Crawling**: Full-featured web crawler with sitemap support via go-colly
 - **Git Integration**: Clone and traverse Git repositories with branch/tag support
+- **S3 Integration**: Fetch and process documentation from S3, MinIO, R2, and other S3-compatible storage
 - **URL Normalization**: Consistent URL deduplication across crawls
 - **Retry Logic**: Exponential backoff for transient failures
 - **Advanced Caching**: HTTP-aware caching with disk persistence, ETag/Last-Modified support, and content deduplication
@@ -277,6 +278,117 @@ func main() {
     }
 
     fmt.Printf("Processed %d sections from repository\n", len(sections))
+}
+```
+
+### S3Source
+
+Traverses objects in S3-compatible buckets (AWS S3, MinIO, R2, etc.) and yields files matching specified patterns.
+
+```go
+// Basic configuration with MinIO
+source, err := docsaf.NewS3Source(docsaf.S3SourceConfig{
+    // Required: S3 credentials
+    Credentials: s3.Credentials{
+        Endpoint:        "s3.amazonaws.com",
+        AccessKeyId:     "your-access-key",
+        SecretAccessKey: "your-secret-key",
+        UseSsl:          true,
+    },
+
+    // Required: Bucket name
+    Bucket: "my-docs-bucket",
+
+    // Optional: Key prefix to filter objects (e.g., "docs/" for only docs folder)
+    Prefix: "docs/",
+
+    // Optional: Base URL for generating document links
+    BaseURL: "https://docs.example.com",
+
+    // Optional: Glob patterns for objects to include (default: all objects)
+    IncludePatterns: []string{"**/*.md", "**/*.mdx"},
+
+    // Optional: Glob patterns for objects to exclude
+    ExcludePatterns: []string{"**/drafts/**", "**/.DS_Store"},
+
+    // Optional: Concurrent downloads (default: 5)
+    Concurrency: 10,
+})
+```
+
+#### Using with MinIO
+
+```go
+source, err := docsaf.NewS3Source(docsaf.S3SourceConfig{
+    Credentials: s3.Credentials{
+        Endpoint:        "localhost:9000",
+        AccessKeyId:     "minioadmin",
+        SecretAccessKey: "minioadmin",
+        UseSsl:          false,  // Disable SSL for local MinIO
+    },
+    Bucket:          "documentation",
+    IncludePatterns: []string{"**/*.md"},
+})
+```
+
+#### Using with AWS S3 and Environment Variables
+
+The S3 source supports environment variable fallbacks for credentials:
+
+```go
+// Credentials will fall back to AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+source, err := docsaf.NewS3Source(docsaf.S3SourceConfig{
+    Credentials: s3.Credentials{
+        Endpoint: "s3.amazonaws.com",
+        UseSsl:   true,
+    },
+    Bucket: "my-bucket",
+    Prefix: "documentation/",
+})
+```
+
+#### Processing S3 Content
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/antflydb/antfly-go/docsaf"
+    "github.com/antflydb/antfly/antfly-go/libaf/s3"
+)
+
+func main() {
+    // Create S3 source
+    source, err := docsaf.NewS3Source(docsaf.S3SourceConfig{
+        Credentials: s3.Credentials{
+            Endpoint:        "s3.amazonaws.com",
+            AccessKeyId:     "your-access-key",
+            SecretAccessKey: "your-secret-key",
+            UseSsl:          true,
+        },
+        Bucket:          "my-docs",
+        Prefix:          "documentation/",
+        BaseURL:         "https://docs.example.com",
+        IncludePatterns: []string{"**/*.md", "**/*.mdx"},
+        ExcludePatterns: []string{"**/drafts/**"},
+        Concurrency:     5,
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    processor := docsaf.NewProcessor(source, docsaf.DefaultRegistry())
+
+    sections, err := processor.Process(context.Background())
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Printf("Processed %d sections from S3\n", len(sections))
 }
 ```
 
