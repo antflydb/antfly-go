@@ -3,7 +3,7 @@ module github.com/antflydb/antfly-go/openrouter-genkit
 go 1.25
 
 require (
-	github.com/firebase/genkit/go v1.2.0
+	github.com/firebase/genkit/go v1.3.0
 	github.com/revrost/go-openrouter v1.1.5
 )
 

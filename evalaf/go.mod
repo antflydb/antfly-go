@@ -3,7 +3,7 @@ module github.com/antflydb/antfly-go/evalaf
 go 1.25
 
 require (
-	github.com/firebase/genkit/go v1.2.0
+	github.com/firebase/genkit/go v1.3.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	golang.org/x/time v0.14.0

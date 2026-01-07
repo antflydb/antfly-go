@@ -6,7 +6,7 @@ require (
 	github.com/antflydb/antfly-go/antfly v0.0.0
 	github.com/antflydb/antfly-go/evalaf v0.0.0
 	github.com/bytedance/sonic v1.14.2
-	github.com/firebase/genkit/go v1.2.0
+	github.com/firebase/genkit/go v1.3.0
 )
 
 require (
