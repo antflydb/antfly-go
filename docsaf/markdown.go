@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"mime"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -29,6 +30,29 @@ type MarkdownProcessor struct {
 func estimateTokens(text string) int {
 	words := len(strings.Fields(text))
 	return int(float64(words) * 1.3)
+}
+
+// codeBlockRegex matches fenced code blocks (```...```)
+var codeBlockRegex = regexp.MustCompile("(?s)```[^`]*```")
+
+// calculateCodeRatio returns the ratio of code block content to total content (0.0 to 1.0).
+// A ratio > 0.85 indicates the section is predominantly code.
+func calculateCodeRatio(content string) float64 {
+	if len(content) == 0 {
+		return 0.0
+	}
+
+	matches := codeBlockRegex.FindAllString(content, -1)
+	if len(matches) == 0 {
+		return 0.0
+	}
+
+	codeChars := 0
+	for _, m := range matches {
+		codeChars += len(m)
+	}
+
+	return float64(codeChars) / float64(len(content))
 }
 
 // CanProcess returns true for markdown content types or .md/.mdx extensions.
@@ -177,6 +201,37 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 					targetBuffer.Write(line.Value(contentWithoutFrontmatter))
 				}
 			}
+			// Extract fenced code blocks with language metadata
+			if codeBlock, ok := n.(*ast.FencedCodeBlock); ok {
+				targetBuffer := &preambleBuffer
+				if seenHeading && currentSection != nil {
+					targetBuffer = &contentBuffer
+				}
+				lang := string(codeBlock.Language(contentWithoutFrontmatter))
+				targetBuffer.WriteString("\n```")
+				if lang != "" {
+					targetBuffer.WriteString(lang)
+				}
+				targetBuffer.WriteString("\n")
+				for i := 0; i < codeBlock.Lines().Len(); i++ {
+					line := codeBlock.Lines().At(i)
+					targetBuffer.Write(line.Value(contentWithoutFrontmatter))
+				}
+				targetBuffer.WriteString("```\n")
+			}
+			// Extract indented code blocks (no language info)
+			if codeBlock, ok := n.(*ast.CodeBlock); ok {
+				targetBuffer := &preambleBuffer
+				if seenHeading && currentSection != nil {
+					targetBuffer = &contentBuffer
+				}
+				targetBuffer.WriteString("\n```\n")
+				for i := 0; i < codeBlock.Lines().Len(); i++ {
+					line := codeBlock.Lines().At(i)
+					targetBuffer.Write(line.Value(contentWithoutFrontmatter))
+				}
+				targetBuffer.WriteString("```\n")
+			}
 		}
 		return ast.WalkContinue, nil
 	})
@@ -211,12 +266,13 @@ func (mp *MarkdownProcessor) Process(path, sourceURL, baseURL string, content []
 		}
 	}
 
-	// Merge small sections to ensure minimum token count
+	// Merge small sections to ensure minimum token count and merge pure-code sections
+	// with their preceding prose sections for better search context
 	minTokens := mp.MinTokensPerSection
 	if minTokens == 0 {
 		minTokens = 500 // default
 	}
-	if minTokens > 1 && len(sections) > 1 {
+	if len(sections) > 1 {
 		sections = mergeSmallerSections(sections, minTokens)
 	}
 
@@ -526,6 +582,8 @@ func generateSlug(heading string) string {
 
 // mergeSmallerSections merges consecutive sections that are below the minimum token threshold.
 // It combines small sections with the next section to ensure each chunk has enough context.
+// It also merges sections that are predominantly code (>85% code) with the previous section,
+// since explanatory prose typically precedes code examples.
 func mergeSmallerSections(sections []DocumentSection, minTokens int) []DocumentSection {
 	if len(sections) <= 1 {
 		return sections
@@ -536,6 +594,25 @@ func mergeSmallerSections(sections []DocumentSection, minTokens int) []DocumentS
 	var accumulatedContent strings.Builder
 
 	for i, section := range sections {
+		codeRatio := calculateCodeRatio(section.Content)
+		isPureCode := codeRatio > 0.85
+
+		// If this section is predominantly code and we have a previous merged section,
+		// append it to the previous section instead of starting fresh.
+		// This ensures code examples stay with their explanatory prose.
+		if isPureCode && len(merged) > 0 && accumulator == nil {
+			// Append to the last merged section
+			lastIdx := len(merged) - 1
+			merged[lastIdx].Content = merged[lastIdx].Content + "\n\n" + section.Content
+			merged[lastIdx].Content = strings.TrimSpace(merged[lastIdx].Content)
+			// Mark that this section contains code
+			if merged[lastIdx].Metadata == nil {
+				merged[lastIdx].Metadata = make(map[string]any)
+			}
+			merged[lastIdx].Metadata["has_code_blocks"] = true
+			continue
+		}
+
 		if accumulator == nil {
 			// Start a new accumulator
 			accumulator = &DocumentSection{
@@ -545,7 +622,7 @@ func mergeSmallerSections(sections []DocumentSection, minTokens int) []DocumentS
 				Type:        section.Type,
 				URL:         section.URL,
 				SectionPath: section.SectionPath,
-				Metadata:    section.Metadata,
+				Metadata:    copyMetadata(section.Metadata),
 			}
 			accumulatedContent.WriteString(section.Content)
 		} else {
@@ -554,11 +631,24 @@ func mergeSmallerSections(sections []DocumentSection, minTokens int) []DocumentS
 			accumulatedContent.WriteString(section.Content)
 		}
 
-		accumulatedTokens := estimateTokens(accumulatedContent.String())
+		// Track code blocks in metadata
+		if codeRatio > 0 && accumulator.Metadata != nil {
+			accumulator.Metadata["has_code_blocks"] = true
+		}
 
-		// Flush if we've reached the threshold or this is the last section
-		if accumulatedTokens >= minTokens || i == len(sections)-1 {
+		accumulatedTokens := estimateTokens(accumulatedContent.String())
+		accumulatedCodeRatio := calculateCodeRatio(accumulatedContent.String())
+
+		// Flush if we've reached the threshold AND the section isn't predominantly code,
+		// or if this is the last section
+		shouldFlush := (accumulatedTokens >= minTokens && accumulatedCodeRatio <= 0.85) || i == len(sections)-1
+
+		if shouldFlush {
 			accumulator.Content = strings.TrimSpace(accumulatedContent.String())
+			// Record the final code ratio in metadata
+			if accumulator.Metadata != nil && accumulatedCodeRatio > 0 {
+				accumulator.Metadata["code_ratio"] = accumulatedCodeRatio
+			}
 			merged = append(merged, *accumulator)
 			accumulator = nil
 			accumulatedContent.Reset()
@@ -566,6 +656,18 @@ func mergeSmallerSections(sections []DocumentSection, minTokens int) []DocumentS
 	}
 
 	return merged
+}
+
+// copyMetadata creates a shallow copy of the metadata map.
+func copyMetadata(m map[string]any) map[string]any {
+	if m == nil {
+		return make(map[string]any)
+	}
+	copy := make(map[string]any, len(m))
+	for k, v := range m {
+		copy[k] = v
+	}
+	return copy
 }
 
 // transformURLPath removes .md/.mdx extensions from the path for cleaner URLs.

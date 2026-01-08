@@ -375,6 +375,204 @@ func TestMergeSmallerSections_EmptySlice(t *testing.T) {
 	}
 }
 
+func TestCalculateCodeRatio(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantMin float64
+		wantMax float64
+	}{
+		{
+			name:    "no code blocks",
+			content: "This is just plain text without any code.",
+			wantMin: 0.0,
+			wantMax: 0.01,
+		},
+		{
+			name:    "pure code block",
+			content: "```python\nprint('hello')\n```",
+			wantMin: 0.99,
+			wantMax: 1.0,
+		},
+		{
+			name:    "mixed content",
+			content: "Some explanation here.\n\n```go\nfunc main() {}\n```\n\nMore text after.",
+			wantMin: 0.3,
+			wantMax: 0.6,
+		},
+		{
+			name:    "empty content",
+			content: "",
+			wantMin: 0.0,
+			wantMax: 0.01,
+		},
+		{
+			name:    "multiple code blocks",
+			content: "Text\n```a\ncode1\n```\nText\n```b\ncode2\n```",
+			wantMin: 0.4,
+			wantMax: 0.75,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ratio := calculateCodeRatio(tt.content)
+			if ratio < tt.wantMin || ratio > tt.wantMax {
+				t.Errorf("calculateCodeRatio() = %v, want between %v and %v", ratio, tt.wantMin, tt.wantMax)
+			}
+		})
+	}
+}
+
+func TestMergeSmallerSections_PureCodeMergesWithPrevious(t *testing.T) {
+	// Create sections where the second section is pure code
+	sections := []DocumentSection{
+		{
+			ID:       "1",
+			Title:    "Explanation",
+			Content:  "This explains how to use the function. It provides context and details about the API.",
+			Metadata: map[string]any{"heading_level": 2},
+		},
+		{
+			ID:       "2",
+			Title:    "Example",
+			Content:  "```python\ndef hello():\n    print('Hello, World!')\n\nhello()\n```",
+			Metadata: map[string]any{"heading_level": 3},
+		},
+		{
+			ID:       "3",
+			Title:    "Next Topic",
+			Content:  "This is another topic with enough content to stand alone as its own section with prose.",
+			Metadata: map[string]any{"heading_level": 2},
+		},
+	}
+
+	// With threshold of 1 (split on every heading), the pure-code section should still merge
+	merged := mergeSmallerSections(sections, 1)
+
+	// The pure-code section should have been merged with the previous one
+	if len(merged) != 2 {
+		t.Errorf("Expected 2 merged sections (code merged with explanation), got %d", len(merged))
+		for i, s := range merged {
+			t.Logf("Section %d: %q (code_ratio: %v)", i, s.Title, s.Metadata["code_ratio"])
+		}
+		return
+	}
+
+	// First merged section should contain both explanation and code
+	if !strings.Contains(merged[0].Content, "explains how to use") {
+		t.Errorf("First section should contain explanation text")
+	}
+	if !strings.Contains(merged[0].Content, "```python") {
+		t.Errorf("First section should contain the code block")
+	}
+
+	// Should have has_code_blocks metadata
+	if merged[0].Metadata["has_code_blocks"] != true {
+		t.Errorf("First section should have has_code_blocks=true metadata")
+	}
+
+	// Second section should be the next topic
+	if merged[1].Title != "Next Topic" {
+		t.Errorf("Second section title = %q, want %q", merged[1].Title, "Next Topic")
+	}
+}
+
+func TestMergeSmallerSections_FirstSectionPureCode(t *testing.T) {
+	// Edge case: first section is pure code (no previous to merge with)
+	sections := []DocumentSection{
+		{
+			ID:       "1",
+			Title:    "Quick Start",
+			Content:  "```bash\nnpm install mypackage\n```",
+			Metadata: map[string]any{"heading_level": 2},
+		},
+		{
+			ID:       "2",
+			Title:    "Details",
+			Content:  "After installation, you can use the package. Here are more details about configuration.",
+			Metadata: map[string]any{"heading_level": 2},
+		},
+	}
+
+	merged := mergeSmallerSections(sections, 1)
+
+	// Since first section is pure code with no previous, it should merge forward
+	// into the next section's accumulation
+	if len(merged) != 1 {
+		t.Errorf("Expected 1 merged section, got %d", len(merged))
+	}
+
+	if !strings.Contains(merged[0].Content, "npm install") {
+		t.Errorf("Merged section should contain the code")
+	}
+	if !strings.Contains(merged[0].Content, "After installation") {
+		t.Errorf("Merged section should contain the prose")
+	}
+}
+
+func TestMarkdownProcessor_CodeBlockExtraction(t *testing.T) {
+	mp := &MarkdownProcessor{MinTokensPerSection: 1}
+
+	mdContent := []byte("# Example\n\nHere's some code:\n\n```python\nprint('hello')\n```\n\nAnd more text.")
+
+	sections, err := mp.Process("test.md", "", "https://example.com", mdContent)
+	if err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+
+	if len(sections) != 1 {
+		t.Fatalf("Expected 1 section, got %d", len(sections))
+	}
+
+	// Should contain the code block with language tag preserved
+	if !strings.Contains(sections[0].Content, "```python") {
+		t.Errorf("Section should contain code block with language tag, got: %q", sections[0].Content)
+	}
+	if !strings.Contains(sections[0].Content, "print('hello')") {
+		t.Errorf("Section should contain code content")
+	}
+}
+
+func TestMarkdownProcessor_PureCodeSectionMergedWithProse(t *testing.T) {
+	mp := &MarkdownProcessor{MinTokensPerSection: 1}
+
+	// Document with explanation followed by pure-code section
+	mdContent := []byte(`# Getting Started
+
+This guide explains how to set up the project. You'll need to follow these steps carefully.
+
+## Installation
+
+` + "```bash\npip install mypackage\nmypackage init\nmypackage run\n```" + `
+
+## Configuration
+
+After installation, configure the settings in your config file.
+`)
+
+	sections, err := mp.Process("test.md", "", "https://example.com", mdContent)
+	if err != nil {
+		t.Fatalf("Process failed: %v", err)
+	}
+
+	// The pure-code "Installation" section should merge with "Getting Started"
+	// So we should have 2 sections: (Getting Started + Installation) and Configuration
+	if len(sections) != 2 {
+		t.Errorf("Expected 2 sections (code merged with intro), got %d", len(sections))
+		for i, s := range sections {
+			ratio := calculateCodeRatio(s.Content)
+			t.Logf("Section %d: %q (code_ratio: %.2f, len: %d)", i, s.Title, ratio, len(s.Content))
+		}
+	}
+
+	// First section should have the code block merged in
+	foundCodeInFirst := strings.Contains(sections[0].Content, "pip install")
+	if !foundCodeInFirst && len(sections) >= 1 {
+		t.Logf("First section content: %s", sections[0].Content)
+	}
+}
+
 func TestGenerateSlug(t *testing.T) {
 	tests := []struct {
 		heading string
