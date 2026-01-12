@@ -5,7 +5,7 @@ go 1.25
 require (
 	github.com/bytedance/sonic v1.14.2
 	github.com/getkin/kin-openapi v0.133.0
-	github.com/kaptinlin/jsonschema v0.6.5
+	github.com/kaptinlin/jsonschema v0.6.6
 	github.com/oapi-codegen/runtime v1.1.2
 )
 
