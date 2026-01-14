@@ -118,6 +118,15 @@ type (
 	EvalSummary   = oapi.EvalSummary
 	EvaluatorName = oapi.EvaluatorName
 	GroundTruth   = oapi.GroundTruth
+
+	// Join types
+	JoinClause    = oapi.JoinClause
+	JoinCondition = oapi.JoinCondition
+	JoinFilters   = oapi.JoinFilters
+	JoinOperator  = oapi.JoinOperator
+	JoinResult    = oapi.JoinResult
+	JoinStrategy  = oapi.JoinStrategy
+	JoinType      = oapi.JoinType
 )
 
 // ChunkingModel is just a string - use "fixed" or any ONNX model directory name
@@ -197,4 +206,22 @@ const (
 	EvaluatorNameRecall          = oapi.EvaluatorNameRecall
 	EvaluatorNameRelevance       = oapi.EvaluatorNameRelevance
 	EvaluatorNameSafety          = oapi.EvaluatorNameSafety
+
+	// JoinOperator values
+	JoinOperatorEq  = oapi.JoinOperatorEq
+	JoinOperatorNeq = oapi.JoinOperatorNeq
+	JoinOperatorLt  = oapi.JoinOperatorLt
+	JoinOperatorLte = oapi.JoinOperatorLte
+	JoinOperatorGt  = oapi.JoinOperatorGt
+	JoinOperatorGte = oapi.JoinOperatorGte
+
+	// JoinStrategy values
+	JoinStrategyBroadcast   = oapi.JoinStrategyBroadcast
+	JoinStrategyIndexLookup = oapi.JoinStrategyIndexLookup
+	JoinStrategyShuffle     = oapi.JoinStrategyShuffle
+
+	// JoinType values
+	JoinTypeInner = oapi.JoinTypeInner
+	JoinTypeLeft  = oapi.JoinTypeLeft
+	JoinTypeRight = oapi.JoinTypeRight
 )

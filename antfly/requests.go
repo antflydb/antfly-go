@@ -133,6 +133,10 @@ type QueryRequest struct {
 	// GraphSearches declarative graph queries to execute after full-text/vector searches.
 	// Results can reference search results using node selectors like $full_text_results.
 	GraphSearches map[string]oapi.GraphQuery `json:"graph_searches,omitempty"`
+
+	// Join configuration for joining data from another table.
+	// Supports inner, left, and right joins with automatic strategy selection.
+	Join JoinClause `json:"join,omitempty"`
 }
 
 // MarshalJSON implements custom JSON marshalling for QueryRequest.
@@ -160,6 +164,7 @@ func (q QueryRequest) MarshalJSON() ([]byte, error) {
 		SemanticSearch:   q.SemanticSearch,
 		DocumentRenderer: q.DocumentRenderer,
 		GraphSearches:    q.GraphSearches,
+		Join:             q.Join,
 	}
 
 	// Marshal query fields to json.RawMessage
@@ -215,6 +220,7 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 	q.SemanticSearch = oapiReq.SemanticSearch
 	q.DocumentRenderer = oapiReq.DocumentRenderer
 	q.GraphSearches = oapiReq.GraphSearches
+	q.Join = oapiReq.Join
 
 	// Unmarshal query fields (only if not null and not empty)
 	if len(oapiReq.FilterQuery) > 0 && !bytes.Equal(oapiReq.FilterQuery, []byte("null")) {
