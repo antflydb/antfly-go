@@ -129,6 +129,10 @@ type QueryRequest struct {
 
 	// DocumentRenderer optional Go template string for rendering document content to the prompt
 	DocumentRenderer string `json:"document_renderer,omitempty"`
+
+	// GraphSearches declarative graph queries to execute after full-text/vector searches.
+	// Results can reference search results using node selectors like $full_text_results.
+	GraphSearches map[string]oapi.GraphQuery `json:"graph_searches,omitempty"`
 }
 
 // MarshalJSON implements custom JSON marshalling for QueryRequest.
@@ -155,6 +159,7 @@ func (q QueryRequest) MarshalJSON() ([]byte, error) {
 		Pruner:           q.Pruner,
 		SemanticSearch:   q.SemanticSearch,
 		DocumentRenderer: q.DocumentRenderer,
+		GraphSearches:    q.GraphSearches,
 	}
 
 	// Marshal query fields to json.RawMessage
@@ -209,6 +214,7 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 	q.Pruner = oapiReq.Pruner
 	q.SemanticSearch = oapiReq.SemanticSearch
 	q.DocumentRenderer = oapiReq.DocumentRenderer
+	q.GraphSearches = oapiReq.GraphSearches
 
 	// Unmarshal query fields (only if not null and not empty)
 	if len(oapiReq.FilterQuery) > 0 && !bytes.Equal(oapiReq.FilterQuery, []byte("null")) {
