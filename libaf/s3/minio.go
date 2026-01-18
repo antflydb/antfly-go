@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -16,6 +18,9 @@ import (
 
 // NewMinioClient creates a Minio client from a Credentials struct.
 // This is the preferred method when using the full Credentials configuration.
+// The endpoint can be either a hostname (e.g., "s3.amazonaws.com") or a full URL
+// (e.g., "https://storage.googleapis.com"). If a URL with scheme is provided,
+// the scheme is stripped and used to infer the SSL setting.
 func (creds *Credentials) NewMinioClient() (*minio.Client, error) {
 	if creds.Endpoint == "" {
 		return nil, errors.New("endpoint is required")
@@ -27,14 +32,33 @@ func (creds *Credentials) NewMinioClient() (*minio.Client, error) {
 		return nil, errors.New("secret access key is required")
 	}
 
-	minioClient, err := minio.New(creds.Endpoint, &minio.Options{
+	endpoint, secure := parseEndpoint(creds.Endpoint, creds.UseSsl)
+
+	minioClient, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(creds.AccessKeyId, creds.SecretAccessKey, creds.SessionToken),
-		Secure: creds.UseSsl,
+		Secure: secure,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("creating S3 client for endpoint %s: %w", creds.Endpoint, err)
+		return nil, fmt.Errorf("creating S3 client for endpoint %s: %w", endpoint, err)
 	}
 	return minioClient, nil
+}
+
+// parseEndpoint extracts the host from an endpoint that may be a full URL or just a hostname.
+// If the endpoint has a scheme (http:// or https://), the scheme is stripped and used to
+// determine the SSL setting. Otherwise, the provided useSsl value is used.
+// Returns the cleaned endpoint (host only) and whether to use SSL.
+func parseEndpoint(endpoint string, useSsl bool) (string, bool) {
+	// Check if endpoint looks like a URL (has scheme)
+	if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
+		parsed, err := url.Parse(endpoint)
+		if err == nil && parsed.Host != "" {
+			// Use scheme to determine SSL: https = true, http = false
+			return parsed.Host, parsed.Scheme == "https"
+		}
+	}
+	// Not a URL or failed to parse - use as-is with provided useSsl
+	return endpoint, useSsl
 }
 
 // DownloadObjectOptions configures how an S3 object is downloaded.
