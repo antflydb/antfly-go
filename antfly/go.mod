@@ -3,7 +3,6 @@ module github.com/antflydb/antfly-go/antfly
 go 1.25
 
 require (
-	github.com/bytedance/sonic v1.14.2
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/kaptinlin/jsonschema v0.6.5
 	github.com/oapi-codegen/runtime v1.1.2
@@ -11,9 +10,6 @@ require (
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
-	github.com/bytedance/gopkg v0.1.3 // indirect
-	github.com/bytedance/sonic/loader v0.4.0 // indirect
-	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dprotaso/go-yit v0.0.0-20250513224043-18a80f8f6df4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -26,7 +22,6 @@ require (
 	github.com/kaptinlin/go-i18n v0.2.2 // indirect
 	github.com/kaptinlin/jsonpointer v0.4.8 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.7 // indirect
-	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
@@ -39,10 +34,8 @@ require (
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/speakeasy-api/jsonpath v0.6.2 // indirect
 	github.com/speakeasy-api/openapi-overlay v0.10.3 // indirect
-	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	github.com/woodsbury/decimal128 v1.4.0 // indirect
-	golang.org/x/arch v0.23.0 // indirect
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect

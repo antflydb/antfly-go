@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	antfly "github.com/antflydb/antfly-go/antfly"
+	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/antflydb/antfly-go/evalaf/eval"
-	"github.com/bytedance/sonic"
 )
 
 // Type aliases for the generated types from the Antfly SDK.
@@ -47,7 +47,7 @@ func (c *Client) CallRAG(ctx context.Context, req RAGRequest) (*RAGResult, error
 
 	// Parse the JSON into RAGResult to get full hit information
 	var result RAGResult
-	if err := sonic.UnmarshalString(rawJSON, &result); err != nil {
+	if err := json.UnmarshalString(rawJSON, &result); err != nil {
 		return nil, fmt.Errorf("parsing RAG response: %w", err)
 	}
 
