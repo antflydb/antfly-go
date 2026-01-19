@@ -165,3 +165,23 @@ type Marshaler = stdjson.Marshaler
 
 // Unmarshaler is the interface implemented by types that can unmarshal a JSON description of themselves.
 type Unmarshaler = stdjson.Unmarshaler
+
+// EncodeOption represents an option for JSON encoding.
+type EncodeOption func(*encodeOptions)
+
+type encodeOptions struct {
+	sortMapKeys bool
+}
+
+// SortMapKeys is an option that sorts map keys in the output.
+var SortMapKeys EncodeOption = func(o *encodeOptions) {
+	o.sortMapKeys = true
+}
+
+// EncodeIndented returns the JSON encoding of v with indentation.
+// It accepts optional EncodeOptions like SortMapKeys.
+// Note: SortMapKeys is a no-op with encoding/json as it always sorts keys.
+func EncodeIndented(v any, prefix, indent string, opts ...EncodeOption) ([]byte, error) {
+	// encoding/json.MarshalIndent always sorts map keys, so we just call it directly
+	return config.MarshalIndent(v, prefix, indent)
+}
