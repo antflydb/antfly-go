@@ -18,7 +18,7 @@ package oapi
 import (
 	"fmt"
 
-	"github.com/bytedance/sonic"
+	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/kaptinlin/jsonschema"
 )
 
@@ -74,11 +74,11 @@ func (d *DocumentSchema) Validate(document any) (*ValidationResult, error) {
 
 	// Create a new compiler with sonic JSON encoder/decoder for consistency
 	compiler := jsonschema.NewCompiler()
-	compiler.WithDecoderJSON(sonic.Unmarshal)
-	compiler.WithEncoderJSON(sonic.Marshal)
+	compiler.WithDecoderJSON(json.Unmarshal)
+	compiler.WithEncoderJSON(json.Marshal)
 
 	// Marshal the schema to bytes for compilation
-	schemaBytes, err := sonic.Marshal(d.Schema)
+	schemaBytes, err := json.Marshal(d.Schema)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling schema: %w", err)
 	}
@@ -89,7 +89,7 @@ func (d *DocumentSchema) Validate(document any) (*ValidationResult, error) {
 		return nil, fmt.Errorf("compiling schema: %w", err)
 	}
 
-	docBytes, err := sonic.Marshal(document)
+	docBytes, err := json.Marshal(document)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling document: %w", err)
 	}

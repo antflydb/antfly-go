@@ -18,9 +18,9 @@ package antfly
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 
+	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/antflydb/antfly-go/antfly/oapi"
 	"github.com/antflydb/antfly-go/antfly/query"
 )

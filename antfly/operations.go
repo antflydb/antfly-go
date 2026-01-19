@@ -25,16 +25,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/antflydb/antfly-go/antfly/oapi"
-	"github.com/bytedance/sonic"
-	"github.com/bytedance/sonic/decoder"
-	"github.com/bytedance/sonic/encoder"
 )
 
 // Query executes queries against a table
 func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryResponses, error) {
 	request := bytes.NewBuffer(nil)
-	e := encoder.NewStreamEncoder(request)
+	e := json.NewEncoder(request)
 	for _, opt := range opts {
 		// Validate options
 		if len(opt.Indexes) > 0 && opt.SemanticSearch == "" {
@@ -66,7 +64,7 @@ func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryR
 	}
 
 	var result QueryResponses
-	if err := sonic.Unmarshal(respBody, &result); err != nil {
+	if err := json.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("parsing result: %w", err)
 	}
 
@@ -75,7 +73,7 @@ func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryR
 
 // Batch performs a batch operation on a table
 func (c *AntflyClient) Batch(ctx context.Context, tableName string, request BatchRequest) (*BatchResult, error) {
-	batchBody, err := sonic.Marshal(request)
+	batchBody, err := json.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling batch request: %w", err)
 	}
@@ -97,7 +95,7 @@ func (c *AntflyClient) Batch(ctx context.Context, tableName string, request Batc
 
 	var result BatchResult
 	if len(respBody) > 0 {
-		if err := sonic.Unmarshal(respBody, &result); err != nil {
+		if err := json.Unmarshal(respBody, &result); err != nil {
 			// If unmarshaling fails, return a basic result
 			result = BatchResult{
 				Inserted: len(request.Inserts),
@@ -139,7 +137,7 @@ func (c *AntflyClient) LinearMerge(ctx context.Context, tableName string, reques
 
 	var result LinearMergeResult
 	if len(respBody) > 0 {
-		if err := sonic.Unmarshal(respBody, &result); err != nil {
+		if err := json.Unmarshal(respBody, &result); err != nil {
 			return nil, fmt.Errorf("parsing linear merge result: %w", err)
 		}
 	}
@@ -177,7 +175,7 @@ func (c *AntflyClient) LookupKeyWithFields(ctx context.Context, tableName, key, 
 
 	// Parse the response
 	var document map[string]any
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&document); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&document); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
@@ -199,7 +197,7 @@ func (c *AntflyClient) ScanKeys(ctx context.Context, tableName string, request S
 
 	// Parse the response as array of documents
 	var documents []map[string]any
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&documents); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&documents); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
@@ -217,7 +215,7 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 	}
 
 	// Marshal RAGRequest - QueryRequest.MarshalJSON handles the conversion automatically
-	ragBody, err := sonic.Marshal(ragReq)
+	ragBody, err := json.Marshal(ragReq)
 	if err != nil {
 		return "", fmt.Errorf("marshalling RAG request: %w", err)
 	}
@@ -300,7 +298,7 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 	}
 
 	// Marshal request - AnswerAgentRequest.MarshalJSON handles the conversion automatically
-	reqBody, err := sonic.Marshal(req)
+	reqBody, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling answer agent request: %w", err)
 	}
@@ -332,7 +330,7 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 			return nil, fmt.Errorf("reading response body: %w", err)
 		}
 		var result AnswerAgentResult
-		if err := sonic.Unmarshal(respBody, &result); err != nil {
+		if err := json.Unmarshal(respBody, &result); err != nil {
 			return nil, fmt.Errorf("parsing answer agent result: %w", err)
 		}
 		return &result, nil
@@ -365,7 +363,7 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 					case "classification":
 						// Parse classification and transformation JSON
 						var classData ClassificationTransformationResult
-						if err := sonic.UnmarshalString(data, &classData); err == nil {
+						if err := json.UnmarshalString(data, &classData); err == nil {
 							result.ClassificationTransformation = classData
 							if opt.OnClassification != nil {
 								if err := opt.OnClassification(&classData); err != nil {
@@ -377,7 +375,7 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 					case "reasoning":
 						// Reasoning chunks are JSON-encoded strings to preserve newlines in SSE format
 						var reasoningStr string
-						if err := sonic.UnmarshalString(data, &reasoningStr); err == nil {
+						if err := json.UnmarshalString(data, &reasoningStr); err == nil {
 							if opt.OnReasoning != nil {
 								if err := opt.OnReasoning(reasoningStr); err != nil {
 									return nil, fmt.Errorf("reasoning callback error: %w", err)
@@ -387,7 +385,7 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 
 					case "hit":
 						var hitData Hit
-						if err := sonic.UnmarshalString(data, &hitData); err == nil {
+						if err := json.UnmarshalString(data, &hitData); err == nil {
 							if opt.OnHit != nil {
 								if err := opt.OnHit(&hitData); err != nil {
 									return nil, fmt.Errorf("hit callback error: %w", err)
@@ -398,7 +396,7 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 					case "answer":
 						// Answer chunks are JSON-encoded strings to preserve newlines in SSE format
 						var answerStr string
-						if err := sonic.UnmarshalString(data, &answerStr); err == nil {
+						if err := json.UnmarshalString(data, &answerStr); err == nil {
 							answerBuilder.WriteString(answerStr)
 							if opt.OnAnswer != nil {
 								if err := opt.OnAnswer(answerStr); err != nil {
@@ -410,7 +408,7 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 					case "followup_question":
 						// Followup questions are JSON-encoded strings to preserve newlines in SSE format
 						var followupStr string
-						if err := sonic.UnmarshalString(data, &followupStr); err == nil {
+						if err := json.UnmarshalString(data, &followupStr); err == nil {
 							result.FollowupQuestions = append(result.FollowupQuestions, followupStr)
 							if opt.OnFollowupQuestion != nil {
 								if err := opt.OnFollowupQuestion(followupStr); err != nil {
@@ -426,7 +424,7 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 					case "error":
 						// Parse error JSON - can be {"error": "..."} or {"error": "...", "status": N, "table": "..."}
 						var agentErr AnswerAgentError
-						if err := sonic.UnmarshalString(data, &agentErr); err != nil {
+						if err := json.UnmarshalString(data, &agentErr); err != nil {
 							// Fallback if parsing fails
 							agentErr = AnswerAgentError{Error: data}
 						}

@@ -23,8 +23,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/antflydb/antfly-go/antfly/oapi"
-	"github.com/bytedance/sonic/decoder"
 )
 
 // CreateTable creates a new table
@@ -69,7 +69,7 @@ func (c *AntflyClient) GetTable(ctx context.Context, tableName string) (*TableSt
 	}
 	// Parse the response
 	var table TableStatus
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&table); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&table); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
@@ -89,7 +89,7 @@ func (c *AntflyClient) ListTables(ctx context.Context) ([]TableStatus, error) {
 
 	// Parse the response
 	var tables []TableStatus
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&tables); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&tables); err != nil {
 		return nil, fmt.Errorf("parsing list tables response: %w", err)
 	}
 
@@ -134,7 +134,7 @@ func (c *AntflyClient) ListIndexes(ctx context.Context, tableName string) (map[s
 	}
 	// Parse the response - API returns an array, we convert to a map keyed by index name
 	var indexList []IndexStatus
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&indexList); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&indexList); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
@@ -158,7 +158,7 @@ func (c *AntflyClient) GetIndex(ctx context.Context, tableName, indexName string
 	}
 	// Parse the response
 	var index IndexStatus
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&index); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&index); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
@@ -248,7 +248,7 @@ func (c *AntflyClient) ClusterBackup(ctx context.Context, backupID, location str
 	}
 
 	var result oapi.ClusterBackupResponse
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
@@ -304,7 +304,7 @@ func (c *AntflyClient) ClusterRestore(ctx context.Context, backupID, location st
 	}
 
 	var result oapi.ClusterRestoreResponse
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
@@ -348,7 +348,7 @@ func (c *AntflyClient) ListBackups(ctx context.Context, location string) ([]Back
 	}
 
 	var result oapi.BackupListResponse
-	if err := decoder.NewStreamDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("parsing response: %w", err)
 	}
 
