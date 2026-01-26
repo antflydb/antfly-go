@@ -12,6 +12,7 @@ import (
 	"path"
 	"strings"
 
+	externalRef0 "github.com/antflydb/antfly-go/libaf/s3"
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
@@ -36,21 +37,90 @@ type ContentSecurityConfig struct {
 	MaxImageDimension int `json:"max_image_dimension,omitempty,omitzero"`
 }
 
+// HTTPCredentialConfig HTTP credential for authenticated endpoints.
+type HTTPCredentialConfig struct {
+	// BaseUrl Base URL prefix this credential applies to.
+	BaseUrl string `json:"base_url,omitempty,omitzero"`
+
+	// Headers HTTP headers to include. Supports keystore syntax (e.g., "${secret:token}").
+	Headers  map[string]string     `json:"headers,omitempty,omitzero"`
+	Security ContentSecurityConfig `json:"security,omitempty,omitzero"`
+}
+
+// RemoteContentConfig Configuration for remote content fetching (remotePDF, remoteMedia, remoteText templates).
+// Consolidates S3 credentials and security settings separate from backup storage.
+//
+// **Credential Resolution Order:**
+// 1. Explicit `credentials="name"` parameter in template
+// 2. First credential where `buckets` glob pattern matches URL's bucket
+// 3. `default_s3` credential
+// 4. Legacy fallback: `storage.s3` credentials (backward compatibility)
+type RemoteContentConfig struct {
+	// DefaultS3 Default S3 credential name when no bucket pattern matches.
+	DefaultS3 string `json:"default_s3,omitempty,omitzero"`
+
+	// Http Named HTTP credentials for authenticated endpoints.
+	Http map[string]HTTPCredentialConfig `json:"http,omitempty,omitzero"`
+
+	// S3 Named S3 credentials for remote content fetching.
+	S3       map[string]S3CredentialConfig `json:"s3,omitempty,omitzero"`
+	Security ContentSecurityConfig         `json:"security,omitempty,omitzero"`
+}
+
+// S3CredentialConfig defines model for S3CredentialConfig.
+type S3CredentialConfig struct {
+	// AccessKeyId AWS access key ID. Supports keystore syntax for secret lookup. Falls back to AWS_ACCESS_KEY_ID environment variable if not set.
+	AccessKeyId string `json:"access_key_id,omitempty,omitzero"`
+
+	// Buckets Glob patterns for bucket names this credential handles. When a URL matches a pattern, this credential is auto-selected.
+	Buckets []string `json:"buckets,omitempty,omitzero"`
+
+	// Endpoint S3-compatible endpoint (e.g., 's3.amazonaws.com' or 'localhost:9000' for MinIO)
+	Endpoint string `json:"endpoint,omitempty,omitzero"`
+
+	// SecretAccessKey AWS secret access key. Supports keystore syntax for secret lookup. Falls back to AWS_SECRET_ACCESS_KEY environment variable if not set.
+	SecretAccessKey string                `json:"secret_access_key,omitempty,omitzero"`
+	Security        ContentSecurityConfig `json:"security,omitempty,omitzero"`
+
+	// SessionToken Optional AWS session token for temporary credentials. Supports keystore syntax for secret lookup.
+	SessionToken string `json:"session_token,omitempty,omitzero"`
+
+	// UseSsl Enable SSL/TLS for S3 connections (default: true for AWS, false for local MinIO)
+	UseSsl bool `json:"use_ssl,omitempty,omitzero"`
+}
+
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
@@ -90,6 +160,12 @@ func PathToRawSpec(pathToFile string) map[string]func() ([]byte, error) {
 		res[pathToFile] = rawSpec
 	}
 
+	for rawPath, rawFunc := range externalRef0.PathToRawSpec(path.Join(path.Dir(pathToFile), "../s3/openapi.yaml")) {
+		if _, ok := res[rawPath]; ok {
+			// it is not possible to compare functions in golang, so always overwrite the old value
+		}
+		res[rawPath] = rawFunc
+	}
 	return res
 }
 

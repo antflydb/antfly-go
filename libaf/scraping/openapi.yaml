@@ -48,3 +48,84 @@ components:
           example:
             - "/Users/data/"
             - "my-bucket/uploads/"
+
+    S3CredentialConfig:
+      type: object
+      description: S3 credential with optional bucket patterns and security overrides.
+      allOf:
+        - $ref: '../s3/openapi.yaml#/components/schemas/Credentials'
+        - type: object
+          properties:
+            buckets:
+              type: array
+              description: Glob patterns for bucket names this credential handles. When a URL matches a pattern, this credential is auto-selected.
+              items:
+                type: string
+              example: ["user-uploads-*", "media-*"]
+            security:
+              $ref: '#/components/schemas/ContentSecurityConfig'
+              description: Security overrides for this credential.
+
+    HTTPCredentialConfig:
+      type: object
+      description: HTTP credential for authenticated endpoints.
+      properties:
+        base_url:
+          type: string
+          format: uri
+          description: Base URL prefix this credential applies to.
+        headers:
+          type: object
+          description: HTTP headers to include. Supports keystore syntax (e.g., "${secret:token}").
+          additionalProperties:
+            type: string
+        security:
+          $ref: '#/components/schemas/ContentSecurityConfig'
+          description: Security overrides for this credential.
+
+    RemoteContentConfig:
+      type: object
+      description: |
+        Configuration for remote content fetching (remotePDF, remoteMedia, remoteText templates).
+        Consolidates S3 credentials and security settings separate from backup storage.
+
+        **Credential Resolution Order:**
+        1. Explicit `credentials="name"` parameter in template
+        2. First credential where `buckets` glob pattern matches URL's bucket
+        3. `default_s3` credential
+        4. Legacy fallback: `storage.s3` credentials (backward compatibility)
+      properties:
+        security:
+          $ref: '#/components/schemas/ContentSecurityConfig'
+          description: Global security defaults for remote content operations. Overrides top-level content_security when set.
+        default_s3:
+          type: string
+          description: Default S3 credential name when no bucket pattern matches.
+          example: "primary"
+        s3:
+          type: object
+          description: Named S3 credentials for remote content fetching.
+          additionalProperties:
+            $ref: '#/components/schemas/S3CredentialConfig'
+          example:
+            primary:
+              endpoint: "s3.amazonaws.com"
+              access_key_id: "${secret:aws.key}"
+              secret_access_key: "${secret:aws.secret}"
+            untrusted:
+              endpoint: "s3.amazonaws.com"
+              buckets: ["user-uploads-*", "public-*"]
+              access_key_id: "${secret:uploads.key}"
+              secret_access_key: "${secret:uploads.secret}"
+              security:
+                max_download_size_bytes: 10485760
+        http:
+          type: object
+          description: Named HTTP credentials for authenticated endpoints.
+          additionalProperties:
+            $ref: '#/components/schemas/HTTPCredentialConfig'
+          example:
+            internal-api:
+              base_url: "https://docs.internal.com"
+              headers:
+                Authorization: "Bearer ${secret:token}"
