@@ -92,6 +92,11 @@ type (
 	KeyRange              = oapi.KeyRange
 	SyncLevel             = oapi.SyncLevel
 
+	// Transform types for MongoDB-style atomic updates
+	Transform       = oapi.Transform
+	TransformOp     = oapi.TransformOp
+	TransformOpType = oapi.TransformOpType
+
 	// Key scan types
 	ScanKeysRequest = oapi.ScanKeysRequest
 	LookupKeyParams = oapi.LookupKeyParams
@@ -224,4 +229,18 @@ const (
 	JoinTypeInner = oapi.JoinTypeInner
 	JoinTypeLeft  = oapi.JoinTypeLeft
 	JoinTypeRight = oapi.JoinTypeRight
+
+	// TransformOpType values for MongoDB-style operators
+	TransformOpTypeSet         = oapi.TransformOpTypeSet
+	TransformOpTypeUnset       = oapi.TransformOpTypeUnset
+	TransformOpTypeInc         = oapi.TransformOpTypeInc
+	TransformOpTypeMul         = oapi.TransformOpTypeMul
+	TransformOpTypeMin         = oapi.TransformOpTypeMin
+	TransformOpTypeMax         = oapi.TransformOpTypeMax
+	TransformOpTypePush        = oapi.TransformOpTypePush
+	TransformOpTypePull        = oapi.TransformOpTypePull
+	TransformOpTypeAddToSet    = oapi.TransformOpTypeAddToSet
+	TransformOpTypePop         = oapi.TransformOpTypePop
+	TransformOpTypeRename      = oapi.TransformOpTypeRename
+	TransformOpTypeCurrentDate = oapi.TransformOpTypeCurrentDate
 )

@@ -36,6 +36,13 @@ type BatchRequest struct {
 	// and will be automatically marshaled to JSON.
 	Inserts map[string]any `json:"inserts,omitempty"`
 
+	// Transforms Array of transform operations for in-place document updates using MongoDB-style operators.
+	// Transform operations allow you to modify documents without read-modify-write races:
+	// - Operations are applied atomically on the server
+	// - Multiple operations per document are applied in sequence
+	// - Supports numeric operations ($inc, $mul, $min, $max), array operations ($push, $pull), and more
+	Transforms []Transform `json:"transforms,omitempty"`
+
 	// SyncLevel Synchronization level for the batch operation:
 	// - "propose": Wait for Raft proposal acceptance (fastest, default)
 	// - "write": Wait for Pebble KV write
@@ -51,6 +58,9 @@ type BatchResult struct {
 
 	// Inserted Number of documents successfully inserted
 	Inserted int `json:"inserted,omitempty"`
+
+	// Transformed Number of documents successfully transformed
+	Transformed int `json:"transformed,omitempty"`
 
 	// Failed List of failed operations with error details
 	Failed []struct {
