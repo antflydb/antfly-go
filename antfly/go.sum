@@ -1,4 +1,6 @@
 github.com/RaveNoX/go-jsoncommentstrip v1.0.0/go.mod h1:78ihd09MekBnJnxpICcwzCMzGrKSKYe4AqU6PDYYpjk=
+github.com/antflydb/antfly-go/libaf v0.0.0-20260119190433-d22bd299f7f0 h1:dz14ZNaCzh25Z+RIh+q4HdwD0uOhegfSRa+y182FDT0=
+github.com/antflydb/antfly-go/libaf v0.0.0-20260119190433-d22bd299f7f0/go.mod h1:nbNgvSyi1cbKfzD5xh9sC6aen0Y0Ot2XqlQev4AsUuk=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
 github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=
@@ -40,8 +42,8 @@ github.com/kaptinlin/go-i18n v0.2.2 h1:kebVCZme/BrCTqonh/J+VYCl1+Of5C18bvyn3DRPl
 github.com/kaptinlin/go-i18n v0.2.2/go.mod h1:MiwkeHryBopAhC/M3zEwIM/2IN8TvTqJQswPw6kceqM=
 github.com/kaptinlin/jsonpointer v0.4.8 h1:HocHcXrOBfP/nUJw0YYjed/TlQvuCAY6uRs3Qok7F6g=
 github.com/kaptinlin/jsonpointer v0.4.8/go.mod h1:9y0LgXavlmVE5FSHShY5LRlURJJVhbyVJSRWkilrTqA=
-github.com/kaptinlin/jsonschema v0.6.5 h1:hC7upwWlvamWqeTVQ3ab20F4w0XKNKR1drY9apoqGOU=
-github.com/kaptinlin/jsonschema v0.6.5/go.mod h1:EbhSbdxZ4QjzIORdMWOrRXJeCHrLTJqXDA8JzNaeFc8=
+github.com/kaptinlin/jsonschema v0.6.7 h1:ytzDGyvSMhcijnyRsr+CyRbwocp4qdeAWREESPc6nEE=
+github.com/kaptinlin/jsonschema v0.6.7/go.mod h1:EbhSbdxZ4QjzIORdMWOrRXJeCHrLTJqXDA8JzNaeFc8=
 github.com/kaptinlin/messageformat-go v0.4.7 h1:HQ/OvFUSU7+fAHWkZnP2ug9y+A/ZyTE8j33jfWr8O3Q=
 github.com/kaptinlin/messageformat-go v0.4.7/go.mod h1:DusKpv8CIybczGvwIVn3j13hbR3psr5mOwhFudkiq1c=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
