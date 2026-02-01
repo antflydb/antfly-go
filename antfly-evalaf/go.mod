@@ -5,7 +5,8 @@ go 1.25
 require (
 	github.com/antflydb/antfly-go/antfly v0.0.0
 	github.com/antflydb/antfly-go/evalaf v0.0.0
-	github.com/firebase/genkit/go v1.3.0
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260126194852-c11aefe42149
+	github.com/firebase/genkit/go v1.4.0
 )
 
 require (
@@ -19,15 +20,15 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.4 // indirect
-	github.com/goccy/go-yaml v1.19.1 // indirect
-	github.com/google/dotprompt/go v0.0.0-20251229072418-d79986469d4c // indirect
+	github.com/goccy/go-yaml v1.19.2 // indirect
+	github.com/google/dotprompt/go v0.0.0-20260130181147-3a469d85dbee // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/kaptinlin/go-i18n v0.2.2 // indirect
-	github.com/kaptinlin/jsonpointer v0.4.8 // indirect
-	github.com/kaptinlin/jsonschema v0.6.5 // indirect
-	github.com/kaptinlin/messageformat-go v0.4.7 // indirect
+	github.com/kaptinlin/go-i18n v0.2.3 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.9 // indirect
+	github.com/kaptinlin/jsonschema v0.6.9 // indirect
+	github.com/kaptinlin/messageformat-go v0.4.9 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mbleigh/raymond v0.0.0-20250414171441-6b3a58ab9e0a // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
@@ -46,8 +47,8 @@ require (
 	go.opentelemetry.io/otel/metric v1.39.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
-	golang.org/x/text v0.32.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
