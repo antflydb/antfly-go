@@ -329,6 +329,41 @@ type AnswerAgentRequest struct {
 	Eval EvalConfig `json:"eval,omitzero"`
 }
 
+// ChatAgentRequest represents a chat agent request with multi-turn conversation support.
+type ChatAgentRequest struct {
+	// Messages is the conversation history (required).
+	// The last message should typically be from the user.
+	Messages []ChatMessage `json:"messages"`
+
+	// AccumulatedFilters from previous conversation turns, applied to all queries automatically.
+	AccumulatedFilters []FilterSpec `json:"accumulated_filters,omitempty"`
+
+	// Queries is the base query configurations that the chat agent will modify
+	// based on conversation context.
+	Queries []QueryRequest `json:"queries"`
+
+	// Generator model configuration. Mutually exclusive with Chain.
+	Generator GeneratorConfig `json:"generator,omitzero"`
+
+	// Chain of generators with retry/fallback. Mutually exclusive with Generator.
+	Chain []ChainLink `json:"chain,omitempty,omitzero"`
+
+	// AgentKnowledge is background knowledge that guides the agent's domain understanding.
+	AgentKnowledge string `json:"agent_knowledge,omitempty"`
+
+	// Steps is optional per-step configuration for the chat agent pipeline.
+	Steps ChatAgentSteps `json:"steps,omitempty,omitzero"`
+
+	// WithStreaming enables SSE streaming instead of JSON response
+	WithStreaming bool `json:"with_streaming,omitempty"`
+
+	// MaxContextTokens limits the total tokens for retrieved document context
+	MaxContextTokens int `json:"max_context_tokens,omitempty"`
+
+	// SystemPrompt overrides the default system prompt.
+	SystemPrompt string `json:"system_prompt,omitempty"`
+}
+
 // RAGOptions contains optional parameters for RAG requests
 type RAGOptions struct {
 	// Callback is called for each chunk of the streaming response
@@ -371,4 +406,30 @@ type AnswerAgentOptions struct {
 	// If the callback returns nil, the error is still returned from AnswerAgent.
 	// If the callback returns an error, that error is returned instead.
 	OnError func(err *AnswerAgentError) error
+}
+
+// ChatAgentError represents an error received during streaming from the chat agent.
+type ChatAgentError struct {
+	// Error is the error message
+	Error string `json:"error"`
+}
+
+// ChatAgentOptions contains optional parameters for chat agent requests
+type ChatAgentOptions struct {
+	// OnClassification is called when the classification and transformation result is received
+	OnClassification func(result *ClassificationTransformationResult) error
+
+	// OnHit is called for each search result hit
+	OnHit func(hit *Hit) error
+
+	// OnAnswer is called for each chunk of the answer text
+	OnAnswer func(chunk string) error
+
+	// OnClarificationRequired is called when the agent needs clarification from the user
+	OnClarificationRequired func(clarification *ClarificationRequest) error
+
+	// OnError is called when an error event is received during streaming.
+	// If the callback returns nil, the error is still returned from ChatAgent.
+	// If the callback returns an error, that error is returned instead.
+	OnError func(err *ChatAgentError) error
 }

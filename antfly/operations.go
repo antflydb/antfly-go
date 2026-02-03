@@ -22,12 +22,44 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"net/http"
 	"strings"
 
 	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/antflydb/antfly-go/antfly/oapi"
 )
+
+// readSSEEvents reads SSE events from a reader and yields (eventType, data) pairs.
+// Events are parsed from "event: <type>" and "data: <content>" lines.
+func readSSEEvents(r io.Reader) iter.Seq2[string, string] {
+	return func(yield func(string, string) bool) {
+		buf := make([]byte, 4096)
+		var partial string // buffer for incomplete lines across reads
+		var currentEvent string
+		for {
+			n, err := r.Read(buf)
+			if n > 0 {
+				chunk := partial + string(buf[:n])
+				lines := strings.Split(chunk, "\n")
+				// Last element may be incomplete; save for next read
+				partial = lines[len(lines)-1]
+				for _, line := range lines[:len(lines)-1] {
+					if after, ok := strings.CutPrefix(line, "event: "); ok {
+						currentEvent = strings.TrimSpace(after)
+					} else if after, ok := strings.CutPrefix(line, "data: "); ok {
+						if !yield(currentEvent, after) {
+							return
+						}
+					}
+				}
+			}
+			if err != nil {
+				return
+			}
+		}
+	}
+}
 
 // Query executes queries against a table
 func (c *AntflyClient) Query(ctx context.Context, opts ...QueryRequest) (*QueryResponses, error) {
@@ -259,32 +291,134 @@ func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOp
 		}
 	}
 
-	// Read the SSE stream
-	buf := make([]byte, 4096)
-	for {
-		n, err := resp.Body.Read(buf)
-		if n > 0 {
-			chunk := string(buf[:n])
-			// Parse SSE format: "data: <content>\n\n"
-			lines := strings.SplitSeq(chunk, "\n")
-			for line := range lines {
-				if after, ok := strings.CutPrefix(line, "data: "); ok {
-					data := after
-					if err := callback(data); err != nil {
-						return "", fmt.Errorf("callback error: %w", err)
-					}
-				}
-			}
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return "", fmt.Errorf("reading stream: %w", err)
+	// Read the SSE stream (RAG only uses data: lines, not event: lines)
+	for _, data := range readSSEEvents(resp.Body) {
+		if err := callback(data); err != nil {
+			return "", fmt.Errorf("callback error: %w", err)
 		}
 	}
 
 	return result.String(), nil
+}
+
+// ChatAgent performs a chat agent query with multi-turn conversation support.
+// The agent maintains conversation context, uses tools (search, filter, clarification),
+// and generates contextual answers.
+// Supports streaming responses with granular callbacks for different event types.
+func (c *AntflyClient) ChatAgent(ctx context.Context, req ChatAgentRequest, opts ...ChatAgentOptions) (*ChatAgentResult, error) {
+	// Merge options
+	var opt ChatAgentOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+
+	// Marshal request - QueryRequest.MarshalJSON handles the conversion automatically
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling chat agent request: %w", err)
+	}
+
+	// Set Accept header based on streaming mode
+	acceptHeader := func(_ context.Context, httpReq *http.Request) error {
+		if req.WithStreaming {
+			httpReq.Header.Set("Accept", "text/event-stream")
+		} else {
+			httpReq.Header.Set("Accept", "application/json")
+		}
+		return nil
+	}
+
+	resp, err := c.client.ChatAgentWithBody(ctx, "application/json", bytes.NewBuffer(reqBody), acceptHeader)
+	if err != nil {
+		return nil, fmt.Errorf("sending chat agent request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("chat agent request failed: %w", readErrorResponse(resp))
+	}
+
+	// If streaming is disabled, read JSON response directly
+	if !req.WithStreaming {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("reading response body: %w", err)
+		}
+		var result ChatAgentResult
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return nil, fmt.Errorf("parsing chat agent result: %w", err)
+		}
+		return &result, nil
+	}
+
+	// Build result from streaming events
+	result := &ChatAgentResult{}
+	var answerBuilder strings.Builder
+
+	for eventType, data := range readSSEEvents(resp.Body) {
+		switch eventType {
+		case "classification":
+			var classData ClassificationTransformationResult
+			if json.UnmarshalString(data, &classData) == nil {
+				result.ClassificationTransformation = classData
+				if opt.OnClassification != nil {
+					if err := opt.OnClassification(&classData); err != nil {
+						return nil, fmt.Errorf("classification callback: %w", err)
+					}
+				}
+			}
+		case "hit":
+			var hitData Hit
+			if json.UnmarshalString(data, &hitData) == nil && opt.OnHit != nil {
+				if err := opt.OnHit(&hitData); err != nil {
+					return nil, fmt.Errorf("hit callback: %w", err)
+				}
+			}
+		case "answer":
+			var answerStr string
+			if json.UnmarshalString(data, &answerStr) == nil {
+				answerBuilder.WriteString(answerStr)
+				if opt.OnAnswer != nil {
+					if err := opt.OnAnswer(answerStr); err != nil {
+						return nil, fmt.Errorf("answer callback: %w", err)
+					}
+				}
+			}
+		case "clarification_required":
+			var clarification ClarificationRequest
+			if json.UnmarshalString(data, &clarification) == nil {
+				result.PendingClarification = clarification
+				if opt.OnClarificationRequired != nil {
+					if err := opt.OnClarificationRequired(&clarification); err != nil {
+						return nil, fmt.Errorf("clarification callback: %w", err)
+					}
+				}
+			}
+		case "done":
+			var doneData struct {
+				AppliedFilters   []FilterSpec `json:"applied_filters"`
+				AnswerConfidence float32      `json:"answer_confidence"`
+			}
+			if json.UnmarshalString(data, &doneData) == nil {
+				result.AppliedFilters = doneData.AppliedFilters
+				result.AnswerConfidence = doneData.AnswerConfidence
+			}
+		case "error":
+			var chatErr ChatAgentError
+			if json.UnmarshalString(data, &chatErr) != nil {
+				chatErr = ChatAgentError{Error: data}
+			}
+			if opt.OnError != nil {
+				if callbackErr := opt.OnError(&chatErr); callbackErr != nil {
+					return nil, callbackErr
+				}
+			}
+			return nil, fmt.Errorf("chat agent: %s", chatErr.Error)
+		}
+	}
+
+	result.Answer = answerBuilder.String()
+	return result, nil
 }
 
 // AnswerAgent performs an answer agent query with classification, query generation, and answer generation.
@@ -340,123 +474,69 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 	result := &AnswerAgentResult{}
 	var answerBuilder strings.Builder
 
-	// Read the SSE stream
-	buf := make([]byte, 4096)
-	var currentEvent string
-	for {
-		n, err := resp.Body.Read(buf)
-		if n > 0 {
-			chunk := string(buf[:n])
-			lines := strings.SplitSeq(chunk, "\n")
-			for line := range lines {
-				// Parse SSE event type
-				if after, ok := strings.CutPrefix(line, "event: "); ok {
-					currentEvent = strings.TrimSpace(after)
-					continue
-				}
-
-				// Parse SSE data
-				if after, ok := strings.CutPrefix(line, "data: "); ok {
-					data := after
-
-					switch currentEvent {
-					case "classification":
-						// Parse classification and transformation JSON
-						var classData ClassificationTransformationResult
-						if err := json.UnmarshalString(data, &classData); err == nil {
-							result.ClassificationTransformation = classData
-							if opt.OnClassification != nil {
-								if err := opt.OnClassification(&classData); err != nil {
-									return nil, fmt.Errorf("classification callback error: %w", err)
-								}
-							}
-						}
-
-					case "reasoning":
-						// Reasoning chunks are JSON-encoded strings to preserve newlines in SSE format
-						var reasoningStr string
-						if err := json.UnmarshalString(data, &reasoningStr); err == nil {
-							if opt.OnReasoning != nil {
-								if err := opt.OnReasoning(reasoningStr); err != nil {
-									return nil, fmt.Errorf("reasoning callback error: %w", err)
-								}
-							}
-						}
-
-					case "hit":
-						var hitData Hit
-						if err := json.UnmarshalString(data, &hitData); err == nil {
-							if opt.OnHit != nil {
-								if err := opt.OnHit(&hitData); err != nil {
-									return nil, fmt.Errorf("hit callback error: %w", err)
-								}
-							}
-						}
-
-					case "answer":
-						// Answer chunks are JSON-encoded strings to preserve newlines in SSE format
-						var answerStr string
-						if err := json.UnmarshalString(data, &answerStr); err == nil {
-							answerBuilder.WriteString(answerStr)
-							if opt.OnAnswer != nil {
-								if err := opt.OnAnswer(answerStr); err != nil {
-									return nil, fmt.Errorf("answer callback error: %w", err)
-								}
-							}
-						}
-
-					case "followup_question":
-						// Followup questions are JSON-encoded strings to preserve newlines in SSE format
-						var followupStr string
-						if err := json.UnmarshalString(data, &followupStr); err == nil {
-							result.FollowupQuestions = append(result.FollowupQuestions, followupStr)
-							if opt.OnFollowupQuestion != nil {
-								if err := opt.OnFollowupQuestion(followupStr); err != nil {
-									return nil, fmt.Errorf("followup question callback error: %w", err)
-								}
-							}
-						}
-
-					case "done":
-						// Stream complete
-						break
-
-					case "error":
-						// Parse error JSON - can be {"error": "..."} or {"error": "...", "status": N, "table": "..."}
-						var agentErr AnswerAgentError
-						if err := json.UnmarshalString(data, &agentErr); err != nil {
-							// Fallback if parsing fails
-							agentErr = AnswerAgentError{Error: data}
-						}
-
-						// Call OnError callback if provided
-						if opt.OnError != nil {
-							if callbackErr := opt.OnError(&agentErr); callbackErr != nil {
-								return nil, callbackErr
-							}
-						}
-
-						// Return error with context if available
-						if agentErr.Table != "" {
-							return nil, fmt.Errorf("answer agent error on table %s (status %d): %s", agentErr.Table, agentErr.Status, agentErr.Error)
-						}
-						return nil, fmt.Errorf("answer agent error: %s", agentErr.Error)
+	for eventType, data := range readSSEEvents(resp.Body) {
+		switch eventType {
+		case "classification":
+			var classData ClassificationTransformationResult
+			if json.UnmarshalString(data, &classData) == nil {
+				result.ClassificationTransformation = classData
+				if opt.OnClassification != nil {
+					if err := opt.OnClassification(&classData); err != nil {
+						return nil, fmt.Errorf("classification callback: %w", err)
 					}
 				}
 			}
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("reading stream: %w", err)
+		case "reasoning":
+			var reasoningStr string
+			if json.UnmarshalString(data, &reasoningStr) == nil && opt.OnReasoning != nil {
+				if err := opt.OnReasoning(reasoningStr); err != nil {
+					return nil, fmt.Errorf("reasoning callback: %w", err)
+				}
+			}
+		case "hit":
+			var hitData Hit
+			if json.UnmarshalString(data, &hitData) == nil && opt.OnHit != nil {
+				if err := opt.OnHit(&hitData); err != nil {
+					return nil, fmt.Errorf("hit callback: %w", err)
+				}
+			}
+		case "answer":
+			var answerStr string
+			if json.UnmarshalString(data, &answerStr) == nil {
+				answerBuilder.WriteString(answerStr)
+				if opt.OnAnswer != nil {
+					if err := opt.OnAnswer(answerStr); err != nil {
+						return nil, fmt.Errorf("answer callback: %w", err)
+					}
+				}
+			}
+		case "followup_question":
+			var followupStr string
+			if json.UnmarshalString(data, &followupStr) == nil {
+				result.FollowupQuestions = append(result.FollowupQuestions, followupStr)
+				if opt.OnFollowupQuestion != nil {
+					if err := opt.OnFollowupQuestion(followupStr); err != nil {
+						return nil, fmt.Errorf("followup callback: %w", err)
+					}
+				}
+			}
+		case "error":
+			var agentErr AnswerAgentError
+			if json.UnmarshalString(data, &agentErr) != nil {
+				agentErr = AnswerAgentError{Error: data}
+			}
+			if opt.OnError != nil {
+				if callbackErr := opt.OnError(&agentErr); callbackErr != nil {
+					return nil, callbackErr
+				}
+			}
+			if agentErr.Table != "" {
+				return nil, fmt.Errorf("answer agent on table %s (status %d): %s", agentErr.Table, agentErr.Status, agentErr.Error)
+			}
+			return nil, fmt.Errorf("answer agent: %s", agentErr.Error)
 		}
 	}
 
-	// Set the accumulated answer
-	if answerBuilder.Len() > 0 {
-		result.Answer = answerBuilder.String()
-	}
-
+	result.Answer = answerBuilder.String()
 	return result, nil
 }

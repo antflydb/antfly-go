@@ -5,7 +5,7 @@ go 1.25
 require (
 	github.com/antflydb/antfly-go/antfly v0.0.0
 	github.com/antflydb/antfly-go/evalaf v0.0.0
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260126194852-c11aefe42149
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260201045039-cb8261520b44
 	github.com/firebase/genkit/go v1.4.0
 )
 
@@ -21,7 +21,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.4 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/google/dotprompt/go v0.0.0-20260130181147-3a469d85dbee // indirect
+	github.com/google/dotprompt/go v0.0.0-20260201215514-c059f385b850 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect

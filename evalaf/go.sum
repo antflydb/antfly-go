@@ -23,8 +23,8 @@ github.com/go-viper/mapstructure/v2 v2.5.0 h1:vM5IJoUAy3d7zRSVtIwQgBj7BiWtMPfmPE
 github.com/go-viper/mapstructure/v2 v2.5.0/go.mod h1:oJDH3BJKyqBA2TXFhDsKDGDTlndYOZ6rGS0BRZIxGhM=
 github.com/goccy/go-yaml v1.19.2 h1:PmFC1S6h8ljIz6gMRBopkjP1TVT7xuwrButHID66PoM=
 github.com/goccy/go-yaml v1.19.2/go.mod h1:XBurs7gK8ATbW4ZPGKgcbrY1Br56PdM69F7LkFRi1kA=
-github.com/google/dotprompt/go v0.0.0-20260130181147-3a469d85dbee h1:ds9Y9YhXu2r1Er8F3/FBvTTOlIjdWU/tmSVlSCsP4nE=
-github.com/google/dotprompt/go v0.0.0-20260130181147-3a469d85dbee/go.mod h1:C3szz01Q13zHPZelngokuTi9Gh4aa4rNvrL5t75QhuY=
+github.com/google/dotprompt/go v0.0.0-20260201215514-c059f385b850 h1:7kN9UwDF6KUnuxXhXILUlKr/c9NUBT2gcTeG1QeG/Bk=
+github.com/google/dotprompt/go v0.0.0-20260201215514-c059f385b850/go.mod h1:C3szz01Q13zHPZelngokuTi9Gh4aa4rNvrL5t75QhuY=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/google/go-cmp v0.7.0/go.mod h1:pXiqmnSA92OHEEa9HXL2W4E7lf9JzCmGVUdgjX3N/iU=
 github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=

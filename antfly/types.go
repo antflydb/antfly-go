@@ -116,6 +116,19 @@ type (
 	ChainLink                          = oapi.ChainLink
 	ChainCondition                     = oapi.ChainCondition
 
+	// Chat Agent types
+	ChatAgentResult      = oapi.ChatAgentResult
+	ChatAgentSteps       = oapi.ChatAgentSteps
+	ChatMessage          = oapi.ChatMessage
+	ChatMessageRole      = oapi.ChatMessageRole
+	ChatToolCall         = oapi.ChatToolCall
+	ChatToolResult       = oapi.ChatToolResult
+	ChatToolName         = oapi.ChatToolName
+	ChatToolsConfig      = oapi.ChatToolsConfig
+	ClarificationRequest = oapi.ClarificationRequest
+	FilterSpec           = oapi.FilterSpec
+	FilterSpecOperator   = oapi.FilterSpecOperator
+
 	// Evaluation types
 	EvalConfig    = oapi.EvalConfig
 	EvalOptions   = oapi.EvalOptions
@@ -196,6 +209,31 @@ const (
 	ChainConditionOnError     = oapi.ChainConditionOnError
 	ChainConditionOnTimeout   = oapi.ChainConditionOnTimeout
 	ChainConditionOnRateLimit = oapi.ChainConditionOnRateLimit
+
+	// ChatMessageRole values
+	ChatMessageRoleUser      = oapi.ChatMessageRoleUser
+	ChatMessageRoleAssistant = oapi.ChatMessageRoleAssistant
+	ChatMessageRoleSystem    = oapi.ChatMessageRoleSystem
+	ChatMessageRoleTool      = oapi.ChatMessageRoleTool
+
+	// ChatToolName values
+	ChatToolNameAddFilter        = oapi.ChatToolNameAddFilter
+	ChatToolNameAskClarification = oapi.ChatToolNameAskClarification
+	ChatToolNameFetch            = oapi.ChatToolNameFetch
+	ChatToolNameSearch           = oapi.ChatToolNameSearch
+	ChatToolNameWebsearch        = oapi.ChatToolNameWebsearch
+
+	// FilterSpecOperator values
+	FilterSpecOperatorEq       = oapi.FilterSpecOperatorEq
+	FilterSpecOperatorNe       = oapi.FilterSpecOperatorNe
+	FilterSpecOperatorGt       = oapi.FilterSpecOperatorGt
+	FilterSpecOperatorGte      = oapi.FilterSpecOperatorGte
+	FilterSpecOperatorLt       = oapi.FilterSpecOperatorLt
+	FilterSpecOperatorLte      = oapi.FilterSpecOperatorLte
+	FilterSpecOperatorContains = oapi.FilterSpecOperatorContains
+	FilterSpecOperatorPrefix   = oapi.FilterSpecOperatorPrefix
+	FilterSpecOperatorRange    = oapi.FilterSpecOperatorRange
+	FilterSpecOperatorIn       = oapi.FilterSpecOperatorIn
 
 	// EvaluatorName values
 	EvaluatorNameCitationQuality = oapi.EvaluatorNameCitationQuality
