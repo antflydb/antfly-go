@@ -142,7 +142,7 @@ type QueryRequest struct {
 
 	// GraphSearches declarative graph queries to execute after full-text/vector searches.
 	// Results can reference search results using node selectors like $full_text_results.
-	GraphSearches map[string]oapi.GraphQuery `json:"graph_searches,omitempty"`
+	GraphSearches map[string]GraphQuery `json:"graph_searches,omitempty"`
 
 	// Join configuration for joining data from another table.
 	// Supports inner, left, and right joins with automatic strategy selection.

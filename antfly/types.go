@@ -145,6 +145,39 @@ type (
 	JoinResult    = oapi.JoinResult
 	JoinStrategy  = oapi.JoinStrategy
 	JoinType      = oapi.JoinType
+
+	// Graph index types
+	GraphIndexV0Config      = oapi.GraphIndexV0Config
+	GraphIndexV0Stats       = oapi.GraphIndexV0Stats
+	EdgeTypeConfig          = oapi.EdgeTypeConfig
+	EdgeTypeConfigTopology  = oapi.EdgeTypeConfigTopology
+	EdgeDirection           = oapi.EdgeDirection
+	Edge                    = oapi.Edge
+	EdgesResponse           = oapi.EdgesResponse
+
+	// Graph query types
+	GraphQuery        = oapi.GraphQuery
+	GraphQueryParams  = oapi.GraphQueryParams
+	GraphQueryResult  = oapi.GraphQueryResult
+	GraphQueryType    = oapi.GraphQueryType
+	GraphNodeSelector = oapi.GraphNodeSelector
+	GraphResultNode   = oapi.GraphResultNode
+
+	// Graph pattern types
+	PatternEdgeStep = oapi.PatternEdgeStep
+	PatternMatch    = oapi.PatternMatch
+	PatternStep     = oapi.PatternStep
+
+	// Graph traversal types
+	TraverseResponse = oapi.TraverseResponse
+
+	// Path types
+	Path                = oapi.Path
+	PathEdge            = oapi.PathEdge
+	PathFindRequest     = oapi.PathFindRequest
+	PathFindResult      = oapi.PathFindResult
+	PathFindWeightMode  = oapi.PathFindWeightMode
+	PathWeightMode      = oapi.PathWeightMode
 )
 
 // ChunkingModel is just a string - use "fixed" or any ONNX model directory name
@@ -281,4 +314,33 @@ const (
 	TransformOpTypePop         = oapi.TransformOpTypePop
 	TransformOpTypeRename      = oapi.TransformOpTypeRename
 	TransformOpTypeCurrentDate = oapi.TransformOpTypeCurrentDate
+
+	// IndexType graph value
+	IndexTypeGraphV0 = oapi.IndexTypeGraphV0
+
+	// EdgeDirection values
+	EdgeDirectionBoth = oapi.EdgeDirectionBoth
+	EdgeDirectionIn   = oapi.EdgeDirectionIn
+	EdgeDirectionOut  = oapi.EdgeDirectionOut
+
+	// EdgeTypeConfigTopology values
+	EdgeTypeConfigTopologyGraph = oapi.EdgeTypeConfigTopologyGraph
+	EdgeTypeConfigTopologyTree  = oapi.EdgeTypeConfigTopologyTree
+
+	// GraphQueryType values
+	GraphQueryTypeKShortestPaths = oapi.GraphQueryTypeKShortestPaths
+	GraphQueryTypeNeighbors      = oapi.GraphQueryTypeNeighbors
+	GraphQueryTypePattern        = oapi.GraphQueryTypePattern
+	GraphQueryTypeShortestPath   = oapi.GraphQueryTypeShortestPath
+	GraphQueryTypeTraverse       = oapi.GraphQueryTypeTraverse
+
+	// PathFindWeightMode values
+	PathFindWeightModeMaxWeight = oapi.PathFindWeightModeMaxWeight
+	PathFindWeightModeMinHops   = oapi.PathFindWeightModeMinHops
+	PathFindWeightModeMinWeight = oapi.PathFindWeightModeMinWeight
+
+	// PathWeightMode values
+	PathWeightModeMaxWeight = oapi.PathWeightModeMaxWeight
+	PathWeightModeMinHops   = oapi.PathWeightModeMinHops
+	PathWeightModeMinWeight = oapi.PathWeightModeMinWeight
 )
