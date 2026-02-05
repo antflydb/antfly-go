@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/ledongthuc/pdf"
+	"github.com/ajroetker/pdf"
 )
 
 // LayoutAnalyzer provides advanced PDF text extraction with column detection,

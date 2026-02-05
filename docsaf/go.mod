@@ -7,7 +7,7 @@ require (
 	github.com/antflydb/antfly-go/libaf v0.0.0
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/gocolly/colly/v2 v2.3.0
-	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
+	github.com/ajroetker/pdf v0.0.1-antfly001
 	github.com/minio/minio-go/v7 v7.0.98
 	github.com/pb33f/libopenapi v0.33.0
 	github.com/yuin/goldmark v1.7.16
@@ -64,7 +64,5 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
-
-replace github.com/ledongthuc/pdf => github.com/ajroetker/pdf v0.0.0-20260104233245-a32716fb454f
 
 replace github.com/antflydb/antfly-go/libaf => ../libaf

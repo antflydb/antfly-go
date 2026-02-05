@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ledongthuc/pdf"
+	"github.com/ajroetker/pdf"
 )
 
 // PDFProgress reports progress during PDF processing.

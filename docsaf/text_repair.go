@@ -7,7 +7,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/ledongthuc/pdf"
+	"github.com/ajroetker/pdf"
 )
 
 // TextRepair provides utilities for detecting and fixing common PDF text extraction issues.

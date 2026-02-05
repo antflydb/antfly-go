@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ledongthuc/pdf"
+	"github.com/ajroetker/pdf"
 )
 
 func TestLayoutAnalyzer_DetectColumns(t *testing.T) {
