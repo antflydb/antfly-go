@@ -7,33 +7,51 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"path"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/oapi-codegen/runtime"
 )
 
-// Chunk A chunk of text with position information.
-type Chunk struct {
-	// EndChar Character position in original text where chunk ends (exclusive)
-	EndChar int `json:"end_char"`
+// BinaryContent Binary media content with format-specific metadata.
+type BinaryContent struct {
+	// Data Base64-encoded binary data (valid WAV, PNG, etc.)
+	Data []byte `json:"data,omitempty,omitzero"`
 
+	// EndTimeMs Audio: window end time in milliseconds
+	EndTimeMs float32 `json:"end_time_ms,omitempty,omitzero"`
+
+	// FrameDelayMs Animation: display delay in milliseconds
+	FrameDelayMs int `json:"frame_delay_ms,omitempty,omitzero"`
+
+	// FrameIndex Animation: frame number
+	FrameIndex int `json:"frame_index,omitempty,omitzero"`
+
+	// StartTimeMs Audio: window start time in milliseconds
+	StartTimeMs float32 `json:"start_time_ms,omitempty,omitzero"`
+}
+
+// Chunk defines model for Chunk.
+type Chunk struct {
 	// Id Sequence number of the chunk (0, 1, 2, ...)
 	Id uint32 `json:"id"`
 
-	// StartChar Character position in original text where chunk starts
-	StartChar int `json:"start_char"`
-
-	// Text The chunk content
-	Text string `json:"text"`
+	// MimeType MIME type: text/plain, audio/wav, image/png, etc.
+	MimeType string `json:"mime_type"`
+	union    json.RawMessage
 }
 
 // ChunkOptions Per-request configuration for chunking. All fields are optional - zero/omitted values use chunker defaults.
 type ChunkOptions struct {
 	// MaxChunks Maximum number of chunks to generate per document.
 	MaxChunks int `json:"max_chunks,omitempty,omitzero"`
+
+	// OverlapDurationMs Overlap duration in milliseconds between audio chunks (default: 0).
+	OverlapDurationMs int `json:"overlap_duration_ms,omitempty,omitzero"`
 
 	// OverlapTokens Number of tokens to overlap between consecutive chunks. Helps maintain context across chunk boundaries. Only used by fixed-size chunkers.
 	OverlapTokens int `json:"overlap_tokens,omitempty,omitzero"`
@@ -46,23 +64,150 @@ type ChunkOptions struct {
 
 	// Threshold Minimum confidence threshold for separator detection (0.0-1.0). Only used by ONNX models.
 	Threshold float32 `json:"threshold,omitempty,omitzero"`
+
+	// WindowDurationMs Window duration in milliseconds for audio chunking (default: 30000).
+	WindowDurationMs int `json:"window_duration_ms,omitempty,omitzero"`
+}
+
+// TextContent Text content with character offsets.
+type TextContent struct {
+	// EndChar Character position in original text where chunk ends (exclusive)
+	EndChar int `json:"end_char"`
+
+	// StartChar Character position in original text where chunk starts
+	StartChar int `json:"start_char"`
+
+	// Text The chunk text content
+	Text string `json:"text"`
+}
+
+// AsTextContent returns the union data inside the Chunk as a TextContent
+func (t Chunk) AsTextContent() (TextContent, error) {
+	var body TextContent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextContent overwrites any union data inside the Chunk as the provided TextContent
+func (t *Chunk) FromTextContent(v TextContent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextContent performs a merge with any union data inside the Chunk, using the provided TextContent
+func (t *Chunk) MergeTextContent(v TextContent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBinaryContent returns the union data inside the Chunk as a BinaryContent
+func (t Chunk) AsBinaryContent() (BinaryContent, error) {
+	var body BinaryContent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBinaryContent overwrites any union data inside the Chunk as the provided BinaryContent
+func (t *Chunk) FromBinaryContent(v BinaryContent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBinaryContent performs a merge with any union data inside the Chunk, using the provided BinaryContent
+func (t *Chunk) MergeBinaryContent(v BinaryContent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Chunk) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["id"], err = json.Marshal(t.Id)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'id': %w", err)
+	}
+
+	object["mime_type"], err = json.Marshal(t.MimeType)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'mime_type': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *Chunk) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["id"]; found {
+		err = json.Unmarshal(raw, &t.Id)
+		if err != nil {
+			return fmt.Errorf("error reading 'id': %w", err)
+		}
+	}
+
+	if raw, found := object["mime_type"]; found {
+		err = json.Unmarshal(raw, &t.MimeType)
+		if err != nil {
+			return fmt.Errorf("error reading 'mime_type': %w", err)
+		}
+	}
+
+	return err
 }
 
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/6xUQW/zNgz9K4QuXwo4Wtrecit62aXtgPUwYBkKxaJtrbLkklSatsh/HyS7adZ4hwHf",
-	"zRapx/fIR32oOvZDDBiE1fpDcd1hb8rnbZfCc/6wyDW5QVwMaq1uoM4BiA0I7gVenXQwRHY5Di40kXqT",
-	"v7Wq1EBxQBKHBRGDfao7Q+egt50hUwvSKRJEcq0Lxk+FOiScimOwDAvc1z6x2+GFqpS8DajWygXBFkkd",
-	"KuXseaHf8SVhqBFC6rdIRUX3ibpYVXBZwVUFWusZzErtl21cTqfJBbm+yoVYDMlPUlaweFZPzj0v8Hik",
-	"X8cgGOTrLgu50KrDoVKEL8kRWrX+M/dlAvsX9eprPn8dIeL2b6wlVy92eChV+ZzFb0jLXANZMo/GtYmK",
-	"C6CJNPJzodVw4z00Dr1lMIQQy33jYQnvSPGX2DsRtLAzPiFD4kkbElhsTPLC57bqzf6pZM3wujN716f+",
-	"ZNxjJkiEFgOSEYQhw8c69RhEz7Y+7pC8GZ4kPuOc/PsvN5WMDD/dgS3KK2LIbWGsk7jdJIo1/Ip+YOiN",
-	"C2JcGCe4FzA1ReZprNuYgjXkkDU8BP+Wu2Jh+waN26Ndsns/Nonn2TMOhoxEmtuHKQSjWcq4ePBOJP8t",
-	"ULe6gh+bTdhswo8SzRdaMkPHF/+L0KcbKyWGWpT/bOZjCZ9u6NjTPKaCO69SOkLuop/Z+jsXiguKM23Z",
-	"/2P2qPjYBouCdTHuYqVXy0u9+q7y4f7+D+ijRV/Uje+dWqvGR3OyfCP9snzfdikf5XdyZhqdIbSQ87nw",
-	"Km44bk8Gd+KxPCvjGTzmXFWpHRKPICu90pfFtAMGMzi1Vtd6pa/z3hjpWK1D8v7wTwAAAP//NbrQEfoF",
-	"AAA=",
+	"H4sIAAAAAAAC/6xW32/bRgz+V4jbgDqALKvNsAe9ZcGw7SFJgQXrgCYIzjpK4no/1DvKPxr4fx/uJDtO",
+	"rKbbsDf7jseP/PiR1KOonOmcRctBlI8iVC0amX7+RFb67aWzjJbjgcJQeeqYnBXleA0GFUmoBitYE7dQ",
+	"O28kz0OHFdVUgUGWSrLMRSY67zr0TJgg4umEZxnwxx/maCunUMFyAIq2MFtJTQo+XPyRwfvrXzJArvIz",
+	"kYkBU5RiuWUUmeBth6IUgT3ZRuwygVY9MBl8MOEU8aJX5EpYk1VuDWgVRFMgC4a0poCVsyocw9TaSX7C",
+	"sb1Zoo84tZcGHxRquZ2GsmRk/F2CotBpuYVkPAE2+ibL2Bw7J6tw86rnZAdjUFOOAkvP/5SPZPxfGdkd",
+	"TtzyL6w4ol+2vf0UUaXWN7UoPz4KZ3H89b3HWpTiu8WTMBejKhe3uOG9IHfZ67bP5bu7j/bP1UfqNPPf",
+	"8XOPttqTB64GbhGqGDHMigzeZvAugzxPqntBbCY288bNx9OeLJ+/i/mayPNw+hLv6rernyFelcC44UWn",
+	"JdkMZCzAYi1XGZCRDS462wxiP9X2LhMeP/fkUYnyY8zqGPH+hP/77GW1x/Rcve/jHCLTw3GAVq4QDh6P",
+	"4swPxbxJviaU9B79PEaHgaPzmpreJ5HGKTEAkG1yuNAaakKtAkiP4NJ7qWEOX9C7hTPEjApWUvcYoA9j",
+	"SdCDwlr2msPpdDFy8zCkMMG73JDpzVGZx2TZQYMWvWSELrp3VW8iJZN95Fbotewe1JjVZDfdDEawN3rZ",
+	"RbBEXiPaoer7QGZjYiUUZ6+Ds/uEU9xfP0k4WcTcxjcHyMrZgFXPtBoZDTn8iroLYCRZlmQHTWwYZOVd",
+	"CKNWlq63SnrCkMON1dtYEgXLLdS0QTUP9OVQoTAdfcBOesnOTzXheAWDxpNWQqeJOf6bYd7kGby5u7N3",
+	"d/ZNuo0PGi+7Npz9q4CeFgRL3yB/lczbdH08FgZOo0aS3+ksufUYWqcnRs0V2STB1BYqDZ2D9ZDxgQaF",
+	"jFWSzqzIi/nbvHiZ5c319Z9gnEKdsvv2nhpm++vC/TDM/6/qNgZ5pNlUm4Nqz4uimFbu1Eo4nuyn3Kdh",
+	"dPyJUbXSy4pTJeqAU90fF340O3V3eXjcuUD7zJynhuLISWJft+j3Yx9jrjPcVLoPtMKzVzbq/wOYfE1/",
+	"AUTbCYIOK4qPqPrmqkjOnoWePdF2ujjic7K1m2jYVnpUaY8NqhgGhlX7z8P9nI8hEWtMpIySuY2vRCZW",
+	"6MPgrsiLPC1O16GVHYlSnOdFfh5rLLkNorS91ru/AwAA//8gsTMcvAoAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

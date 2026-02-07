@@ -3,7 +3,7 @@ module github.com/antflydb/antfly-go/openrouter-genkit
 go 1.25
 
 require (
-	github.com/firebase/genkit/go v1.3.0
+	github.com/firebase/genkit/go v1.4.0
 	github.com/revrost/go-openrouter v1.1.5
 )
 
@@ -13,8 +13,8 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/goccy/go-yaml v1.19.1 // indirect
-	github.com/google/dotprompt/go v0.0.0-20251229072418-d79986469d4c // indirect
+	github.com/goccy/go-yaml v1.19.2 // indirect
+	github.com/google/dotprompt/go v0.0.0-20260201215514-c059f385b850 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
@@ -29,6 +29,7 @@ require (
 	go.opentelemetry.io/otel/metric v1.39.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.39.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

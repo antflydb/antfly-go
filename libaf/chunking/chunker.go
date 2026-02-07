@@ -16,6 +16,32 @@ const (
 	ModelFixedBPE = "fixed-bpe-tokenizer"
 )
 
+// MIMETypePlainText is the MIME type for text/plain content chunks.
+const MIMETypePlainText = "text/plain"
+
+// NewTextChunk creates a Chunk containing text content with the given parameters.
+func NewTextChunk(id uint32, text string, startChar, endChar int) Chunk {
+	var c Chunk
+	c.Id = id
+	c.MimeType = MIMETypePlainText
+	c.FromTextContent(TextContent{
+		Text:      text,
+		StartChar: startChar,
+		EndChar:   endChar,
+	})
+	return c
+}
+
+// GetText returns the text content of a text chunk.
+// Returns empty string if the chunk is not a text chunk or cannot be decoded.
+func (c Chunk) GetText() string {
+	tc, err := c.AsTextContent()
+	if err != nil {
+		return ""
+	}
+	return tc.Text
+}
+
 // Chunker splits text into semantically meaningful chunks.
 // ChunkOptions is generated from openapi.yaml - see openapi.gen.go
 type Chunker interface {
