@@ -5,7 +5,7 @@ go 1.25
 require (
 	github.com/antflydb/antfly-go/antfly v0.0.0
 	github.com/antflydb/antfly-go/evalaf v0.0.0
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260201045039-cb8261520b44
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260207045125-de26f4ffd0a5
 	github.com/firebase/genkit/go v1.4.0
 )
 
@@ -21,7 +21,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.4 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/google/dotprompt/go v0.0.0-20260201215514-c059f385b850 // indirect
+	github.com/google/dotprompt/go v0.0.0-20260204102316-e863a7955e2c // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
@@ -43,10 +43,10 @@ require (
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel v1.39.0 // indirect
-	go.opentelemetry.io/otel/metric v1.39.0 // indirect
-	go.opentelemetry.io/otel/sdk v1.39.0 // indirect
-	go.opentelemetry.io/otel/trace v1.39.0 // indirect
+	go.opentelemetry.io/otel v1.40.0 // indirect
+	go.opentelemetry.io/otel/metric v1.40.0 // indirect
+	go.opentelemetry.io/otel/sdk v1.40.0 // indirect
+	go.opentelemetry.io/otel/trace v1.40.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/time v0.14.0 // indirect

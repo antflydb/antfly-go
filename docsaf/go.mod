@@ -4,12 +4,12 @@ go 1.25
 
 require (
 	github.com/PuerkitoBio/goquery v1.11.0
+	github.com/ajroetker/pdf v0.0.1-antfly001
 	github.com/antflydb/antfly-go/libaf v0.0.0
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/gocolly/colly/v2 v2.3.0
-	github.com/ajroetker/pdf v0.0.1-antfly001
 	github.com/minio/minio-go/v7 v7.0.98
-	github.com/pb33f/libopenapi v0.33.0
+	github.com/pb33f/libopenapi v0.33.5
 	github.com/yuin/goldmark v1.7.16
 	go.yaml.in/yaml/v4 v4.0.0-rc.4
 	golang.org/x/text v0.33.0

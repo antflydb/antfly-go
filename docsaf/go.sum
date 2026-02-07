@@ -1,6 +1,7 @@
 github.com/PuerkitoBio/goquery v1.11.0 h1:jZ7pwMQXIITcUXNH83LLk+txlaEy6NVOfTuP43xxfqw=
 github.com/PuerkitoBio/goquery v1.11.0/go.mod h1:wQHgxUOU3JGuj3oD/QFfxUdlzW6xPHfqyHre6VMY4DQ=
 github.com/ajroetker/pdf v0.0.1-antfly001 h1:JgcAMws679mfo77qPU+qXVpCd45e2Fe2wckpEJRfKrI=
+github.com/ajroetker/pdf v0.0.1-antfly001/go.mod h1:LIxk8ElVjbojOikYyGRPfj8RDh8nrPLrx253J0YTZNw=
 github.com/andybalholm/cascadia v1.3.3 h1:AG2YHrzJIm4BZ19iwJ/DAua6Btl3IwJX+VI4kktS1LM=
 github.com/andybalholm/cascadia v1.3.3/go.mod h1:xNd9bqTn98Ln4DwST8/nG+H0yuB8Hmgu1YHNnWw0GeA=
 github.com/antchfx/htmlquery v1.3.5 h1:aYthDDClnG2a2xePf6tys/UyyM/kRcsFRm+ifhFKoU0=
@@ -88,8 +89,8 @@ github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 h1:bQx3WeLcUWy+RletI
 github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90/go.mod h1:y5+oSEHCPT/DGrS++Wc/479ERge0zTFxaF8PbGKcg2o=
 github.com/pb33f/jsonpath v0.7.1 h1:dEp6oIZuJbpDSyuHAl9m7GonoDW4M20BcD5vT0tPYRE=
 github.com/pb33f/jsonpath v0.7.1/go.mod h1:zBV5LJW4OQOPatmQE2QdKpGQJvhDTlE5IEj6ASaRNTo=
-github.com/pb33f/libopenapi v0.33.0 h1:s0mZhtxNW4ko8npYzMKVOUYsEs5QqZdywxGlbUE52z0=
-github.com/pb33f/libopenapi v0.33.0/go.mod h1:e/dmd2Pf1nkjqkI0r7guFSyt9T5V0IIQKgs0L6B/3b0=
+github.com/pb33f/libopenapi v0.33.5 h1:AzILVrOzMaawLFhQENmwmn7h/TIDH2QEgUd0PfxS2xE=
+github.com/pb33f/libopenapi v0.33.5/go.mod h1:e/dmd2Pf1nkjqkI0r7guFSyt9T5V0IIQKgs0L6B/3b0=
 github.com/pb33f/ordered-map/v2 v2.3.0 h1:k2OhVEQkhTCQMhAicQ3Z6iInzoZNQ7L9MVomwKBZ5WQ=
 github.com/pb33f/ordered-map/v2 v2.3.0/go.mod h1:oe5ue+6ZNhy7QN9cPZvPA23Hx0vMHnNVeMg4fGdCANw=
 github.com/perimeterx/marshmallow v1.1.5 h1:a2LALqQ1BlHM8PZblsDdidgv1mWi1DgC2UmX50IvK2s=
