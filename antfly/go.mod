@@ -5,7 +5,7 @@ go 1.25
 require (
 	github.com/antflydb/antfly-go/libaf v0.0.0-20260207045125-de26f4ffd0a5
 	github.com/getkin/kin-openapi v0.133.0
-	github.com/kaptinlin/jsonschema v0.6.9
+	github.com/kaptinlin/jsonschema v0.6.10
 	github.com/oapi-codegen/runtime v1.1.2
 )
 
