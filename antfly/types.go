@@ -71,10 +71,6 @@ type (
 	AggregationOption  = oapi.AggregationBucket
 	AggregationResult  = oapi.AggregationResult
 
-	// RAG response types
-	RAGResult      = oapi.RAGResult
-	GenerateResult = oapi.GenerateResult
-
 	// Other types
 	AntflyType     = oapi.AntflyType
 	MergeStrategy  = oapi.MergeStrategy
@@ -102,12 +98,10 @@ type (
 	LookupKeyParams = oapi.LookupKeyParams
 
 	// AI Agent types
-	AnswerAgentResult                  = oapi.AnswerAgentResult
 	ClassificationTransformationResult = oapi.ClassificationTransformationResult
 	RouteType                          = oapi.RouteType
 	QueryStrategy                      = oapi.QueryStrategy
 	SemanticQueryMode                  = oapi.SemanticQueryMode
-	AnswerAgentSteps                   = oapi.AnswerAgentSteps
 	ClassificationStepConfig           = oapi.ClassificationStepConfig
 	AnswerStepConfig                   = oapi.AnswerStepConfig
 	FollowupStepConfig                 = oapi.FollowupStepConfig
@@ -116,9 +110,7 @@ type (
 	ChainLink                          = oapi.ChainLink
 	ChainCondition                     = oapi.ChainCondition
 
-	// Chat Agent types
-	ChatAgentResult      = oapi.ChatAgentResult
-	ChatAgentSteps       = oapi.ChatAgentSteps
+	// Chat/Agent types (used by retrieval agent)
 	ChatMessage          = oapi.ChatMessage
 	ChatMessageRole      = oapi.ChatMessageRole
 	ChatToolCall         = oapi.ChatToolCall
@@ -128,6 +120,21 @@ type (
 	ClarificationRequest = oapi.ClarificationRequest
 	FilterSpec           = oapi.FilterSpec
 	FilterSpecOperator   = oapi.FilterSpecOperator
+
+	// Retrieval Agent types
+	RetrievalAgentRequest   = oapi.RetrievalAgentRequest
+	RetrievalAgentResult    = oapi.RetrievalAgentResult
+	RetrievalAgentState     = oapi.RetrievalAgentState
+	RetrievalAgentSteps     = oapi.RetrievalAgentSteps
+	RetrievalQueryConfig    = oapi.RetrievalQueryConfig
+	RetrievalReasoningStep  = oapi.RetrievalReasoningStep
+	RetrievalStrategy = oapi.RetrievalStrategy
+	TreeSearchConfig        = oapi.TreeSearchConfig
+	QueryHit                = oapi.QueryHit
+
+	// Citation types (used by retrieval agent generation step)
+	Citation      = oapi.Citation
+	CitationStyle = oapi.CitationStyle
 
 	// Evaluation types
 	EvalConfig    = oapi.EvalConfig
@@ -267,6 +274,24 @@ const (
 	FilterSpecOperatorPrefix   = oapi.FilterSpecOperatorPrefix
 	FilterSpecOperatorRange    = oapi.FilterSpecOperatorRange
 	FilterSpecOperatorIn       = oapi.FilterSpecOperatorIn
+
+	// RetrievalAgentState values
+	RetrievalAgentStateToolCalling           = oapi.RetrievalAgentStateToolCalling
+	RetrievalAgentStateComplete              = oapi.RetrievalAgentStateComplete
+	RetrievalAgentStateAwaitingClarification = oapi.RetrievalAgentStateAwaitingClarification
+
+	// RetrievalStrategy values
+	RetrievalStrategySemantic = oapi.RetrievalStrategySemantic
+	RetrievalStrategyBm25     = oapi.RetrievalStrategyBm25
+	RetrievalStrategyTree     = oapi.RetrievalStrategyTree
+	RetrievalStrategyGraph    = oapi.RetrievalStrategyGraph
+	RetrievalStrategyMetadata = oapi.RetrievalStrategyMetadata
+	RetrievalStrategyHybrid   = oapi.RetrievalStrategyHybrid
+
+	// CitationStyle values
+	CitationStyleInline   = oapi.CitationStyleInline
+	CitationStyleFootnote = oapi.CitationStyleFootnote
+	CitationStyleNone     = oapi.CitationStyleNone
 
 	// EvaluatorName values
 	EvaluatorNameCitationQuality = oapi.EvaluatorNameCitationQuality
