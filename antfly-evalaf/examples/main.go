@@ -13,17 +13,17 @@ import (
 func main() {
 	ctx := context.Background()
 
-	// Example 1: Evaluate RAG with quick preset (no LLM calls)
-	evaluateRAGQuick(ctx)
+	// Example 1: Evaluate Retrieval Agent with quick preset (no LLM calls)
+	evaluateRetrievalAgentQuick(ctx)
 
 	fmt.Println("\n" + strings.Repeat("=", 80) + "\n")
 
-	// Example 2: Evaluate Answer Agent classification
-	evaluateAnswerAgentClassification(ctx)
+	// Example 2: Evaluate Retrieval Agent classification
+	evaluateRetrievalAgentClassification(ctx)
 }
 
-func evaluateRAGQuick(ctx context.Context) {
-	fmt.Println("Example 1: Quick RAG Evaluation (no LLM calls)")
+func evaluateRetrievalAgentQuick(ctx context.Context) {
+	fmt.Println("Example 1: Quick Retrieval Agent Evaluation (no LLM calls)")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Create Antfly client (for reference)
@@ -54,7 +54,7 @@ func evaluateRAGQuick(ctx context.Context) {
 	// Note: This will fail if Antfly isn't running, but shows the pattern
 	target := func(ctx context.Context, example eval.Example) (any, error) {
 		// In real usage, this would call:
-		// return client.CreateRAGTargetFunc([]string{"my_table"})(ctx, example)
+		// return client.CreateRetrievalAgentTargetFunc([]string{"my_table"})(ctx, example)
 
 		// For demo purposes, simulate a response with citations
 		query := example.Input.(string)
@@ -78,8 +78,8 @@ func evaluateRAGQuick(ctx context.Context) {
 	report.Print()
 }
 
-func evaluateAnswerAgentClassification(ctx context.Context) {
-	fmt.Println("Example 2: Answer Agent Classification Evaluation")
+func evaluateRetrievalAgentClassification(ctx context.Context) {
+	fmt.Println("Example 2: Retrieval Agent Classification Evaluation")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Create dataset with expected classifications
@@ -108,8 +108,8 @@ func evaluateAnswerAgentClassification(ctx context.Context) {
 	// Create target function
 	target := func(ctx context.Context, example eval.Example) (any, error) {
 		// In real usage, this would call:
-		// client := antfly.NewClient("http://localhost:3210")
-		// return client.CreateAnswerAgentTargetFunc([]string{"my_table"})(ctx, example)
+		// client := antflyevalaf.NewClient("http://localhost:3210")
+		// return client.CreateRetrievalAgentClassificationTargetFunc([]string{"my_table"})(ctx, example)
 
 		// For demo purposes, simulate Answer Agent response
 		query := example.Input.(string)

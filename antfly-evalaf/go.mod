@@ -5,11 +5,11 @@ go 1.25
 require (
 	github.com/antflydb/antfly-go/antfly v0.0.0
 	github.com/antflydb/antfly-go/evalaf v0.0.0
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260209062304-4244b0976527
 	github.com/firebase/genkit/go v1.4.0
 )
 
 require (
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260209062304-4244b0976527 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
