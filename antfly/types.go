@@ -126,7 +126,7 @@ type (
 	RetrievalAgentResult    = oapi.RetrievalAgentResult
 	RetrievalAgentState     = oapi.RetrievalAgentState
 	RetrievalAgentSteps     = oapi.RetrievalAgentSteps
-	RetrievalQueryConfig    = oapi.RetrievalQueryConfig
+	RetrievalQueryRequest   = oapi.RetrievalQueryRequest
 	RetrievalReasoningStep  = oapi.RetrievalReasoningStep
 	RetrievalStrategy = oapi.RetrievalStrategy
 	TreeSearchConfig        = oapi.TreeSearchConfig
