@@ -55,7 +55,7 @@ func (c *Client) CreateRetrievalAgentTargetFunc(tables []string) eval.TargetFunc
 			return nil, err
 		}
 
-		return resp.Answer, nil
+		return resp.Generation, nil
 	}
 }
 
