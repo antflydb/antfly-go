@@ -80,7 +80,7 @@ func (c *Client) CreateRetrievalAgentClassificationTargetFunc(tables []string) e
 		return map[string]any{
 			"route_type": resp.Classification.RouteType,
 			"confidence": resp.Classification.Confidence,
-			"answer":     resp.Answer,
+			"generation": resp.Generation,
 		}, nil
 	}
 }

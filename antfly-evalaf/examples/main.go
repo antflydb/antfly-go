@@ -137,7 +137,7 @@ func evaluateRetrievalAgentClassification(ctx context.Context) {
 		return map[string]any{
 			"route_type": routeType,
 			"confidence": confidence,
-			"answer":     "This is a simulated answer.",
+			"generation": "This is a simulated answer.",
 		}, nil
 	}
 

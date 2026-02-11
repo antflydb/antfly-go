@@ -59,10 +59,10 @@ func TestReadSSEEvents(t *testing.T) {
 		},
 		{
 			name:  "event type persists",
-			input: "event: answer\ndata: chunk1\ndata: chunk2\nevent: done\ndata: {}\n",
+			input: "event: generation\ndata: chunk1\ndata: chunk2\nevent: done\ndata: {}\n",
 			want: []struct{ event, data string }{
-				{"answer", "chunk1"},
-				{"answer", "chunk2"},
+				{"generation", "chunk1"},
+				{"generation", "chunk2"},
 				{"done", "{}"},
 			},
 		},

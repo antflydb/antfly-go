@@ -103,7 +103,7 @@ type (
 	QueryStrategy                      = oapi.QueryStrategy
 	SemanticQueryMode                  = oapi.SemanticQueryMode
 	ClassificationStepConfig           = oapi.ClassificationStepConfig
-	AnswerStepConfig                   = oapi.AnswerStepConfig
+	GenerationStepConfig               = oapi.GenerationStepConfig
 	FollowupStepConfig                 = oapi.FollowupStepConfig
 	ConfidenceStepConfig               = oapi.ConfidenceStepConfig
 	RetryConfig                        = oapi.RetryConfig
