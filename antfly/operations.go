@@ -385,3 +385,61 @@ func (c *AntflyClient) RetrievalAgent(ctx context.Context, req RetrievalAgentReq
 	return result, nil
 }
 
+// AnswerAgent performs a deprecated answer agent request.
+// This is a backward-compatible wrapper around the /agents/answer endpoint.
+// New code should use RetrievalAgent instead.
+func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest) (*AnswerAgentResult, error) {
+	reqBody, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling answer agent request: %w", err)
+	}
+
+	acceptHeader := func(_ context.Context, httpReq *http.Request) error {
+		if req.WithStreaming {
+			httpReq.Header.Set("Accept", "text/event-stream")
+		} else {
+			httpReq.Header.Set("Accept", "application/json")
+		}
+		return nil
+	}
+
+	resp, err := c.client.AnswerAgentWithBody(ctx, "application/json", bytes.NewBuffer(reqBody), acceptHeader)
+	if err != nil {
+		return nil, fmt.Errorf("sending answer agent request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("answer agent request failed: %w", readErrorResponse(resp))
+	}
+
+	if !req.WithStreaming {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("reading response body: %w", err)
+		}
+		var result AnswerAgentResult
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return nil, fmt.Errorf("parsing answer agent result: %w", err)
+		}
+		return &result, nil
+	}
+
+	// Streaming mode: read SSE events, return the done payload
+	var result AnswerAgentResult
+	for eventType, data := range readSSEEvents(resp.Body) {
+		switch eventType {
+		case "done":
+			_ = json.UnmarshalString(data, &result)
+		case "error":
+			var agentErr RetrievalAgentError
+			if json.UnmarshalString(data, &agentErr) != nil {
+				agentErr = RetrievalAgentError{Error: data}
+			}
+			return nil, fmt.Errorf("answer agent: %s", agentErr.Error)
+		}
+	}
+
+	return &result, nil
+}
+

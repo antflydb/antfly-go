@@ -126,6 +126,11 @@ type (
 	RetrievalAgentResult    = oapi.RetrievalAgentResult
 	RetrievalAgentState     = oapi.RetrievalAgentState
 	RetrievalAgentSteps     = oapi.RetrievalAgentSteps
+
+	// Answer Agent types (deprecated, use Retrieval Agent instead)
+	AnswerAgentRequest = oapi.AnswerAgentRequest
+	AnswerAgentResult  = oapi.AnswerAgentResult
+	AnswerAgentSteps   = oapi.AnswerAgentSteps
 	RetrievalQueryRequest   = oapi.RetrievalQueryRequest
 	RetrievalReasoningStep  = oapi.RetrievalReasoningStep
 	RetrievalStrategy = oapi.RetrievalStrategy
