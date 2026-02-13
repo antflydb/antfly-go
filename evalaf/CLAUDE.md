@@ -368,7 +368,7 @@ The runner can also run evaluators in parallel within each example evaluation.
 This is a **nested Go module** within the Antfly repository:
 - Module path: `github.com/antflydb/antfly-go/evalaf`
 - Directory: `evalaf/` in antfly repo
-- Go version: 1.25
+- Go version: 1.26
 
 When importing:
 ```go

@@ -147,6 +147,12 @@ type QueryRequest struct {
 	// Join configuration for joining data from another table.
 	// Supports inner, left, and right joins with automatic strategy selection.
 	Join JoinClause `json:"join,omitempty"`
+
+	// ForeignSources maps table names to foreign data source configurations for
+	// query-time federated access. When a table name referenced in a query or join
+	// appears in this map, the query is routed to the external data source instead
+	// of Antfly storage.
+	ForeignSources map[string]ForeignSource `json:"foreign_sources,omitempty"`
 }
 
 // MarshalJSON implements custom JSON marshalling for QueryRequest.
@@ -175,6 +181,7 @@ func (q QueryRequest) MarshalJSON() ([]byte, error) {
 		DocumentRenderer: q.DocumentRenderer,
 		GraphSearches:    q.GraphSearches,
 		Join:             q.Join,
+		ForeignSources:   q.ForeignSources,
 	}
 
 	// Marshal query fields to json.RawMessage
@@ -231,6 +238,7 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 	q.DocumentRenderer = oapiReq.DocumentRenderer
 	q.GraphSearches = oapiReq.GraphSearches
 	q.Join = oapiReq.Join
+	q.ForeignSources = oapiReq.ForeignSources
 
 	// Unmarshal query fields (only if not null and not empty)
 	if len(oapiReq.FilterQuery) > 0 && !bytes.Equal(oapiReq.FilterQuery, []byte("null")) {
@@ -255,181 +263,4 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// RAGRequest represents a RAG request with strongly-typed query fields.
-// This is the SDK-friendly version of oapi.RAGRequest with QueryRequest types instead of oapi.QueryRequest.
-type RAGRequest struct {
-	// Queries to execute for retrieval
-	Queries []QueryRequest `json:"queries"`
 
-	// Generator model configuration for generation.
-	// Mutually exclusive with Chain. Either Generator or Chain must be provided.
-	Generator GeneratorConfig `json:"generator,omitzero"`
-
-	// Chain of generators with retry/fallback semantics.
-	// Mutually exclusive with Generator. Either Generator or Chain must be provided.
-	// Each link can specify retry configuration and a condition for trying the next generator.
-	Chain []ChainLink `json:"chain,omitempty,omitzero"`
-
-	// Prompt is a Handlebars template for customizing the user prompt sent to the generator.
-	// You can use Handlebars template syntax to customize the prompt, including loops and conditionals.
-	Prompt string `json:"prompt,omitempty"`
-
-	// SystemPrompt optional system prompt to guide the summarization
-	SystemPrompt string `json:"system_prompt,omitempty"`
-
-	// Eval optional evaluation configuration. When provided, runs evaluators on the query results
-	// and includes scores in the response.
-	Eval *oapi.EvalConfig `json:"eval,omitempty"`
-
-	// WithStreaming Enable SSE streaming of results instead of JSON response
-	WithStreaming bool `json:"with_streaming,omitempty,omitzero"`
-}
-
-// AnswerAgentRequest represents an answer agent request.
-// The answer agent classifies queries, transforms them for optimal semantic search, executes provided queries, and generates answers.
-type AnswerAgentRequest struct {
-	// Query is the user's natural language query (required)
-	Query string `json:"query"`
-
-	// AgentKnowledge is background knowledge that guides the agent's understanding of the domain.
-	// Similar to CLAUDE.md, this provides context that applies to all steps
-	// (classification, retrieval, and answer generation).
-	AgentKnowledge string `json:"agent_knowledge,omitempty"`
-
-	// Generator is the default model configuration for all pipeline steps.
-	// Mutually exclusive with Chain. Either Generator or Chain must be provided.
-	Generator GeneratorConfig `json:"generator,omitzero"`
-
-	// Chain of generators with retry/fallback semantics.
-	// Mutually exclusive with Generator. Either Generator or Chain must be provided.
-	// Each link can specify retry configuration and a condition for trying the next generator.
-	Chain []ChainLink `json:"chain,omitempty,omitzero"`
-
-	// Queries is the array of query requests to execute with the transformed query (required)
-	// The transformed semantic search query will be applied to each QueryRequest
-	Queries []QueryRequest `json:"queries"`
-
-	// Steps is optional advanced per-step configuration
-	// Override the default generator for specific steps, configure step-specific options,
-	// or set up generator chains with retry/fallback
-	Steps *AnswerAgentSteps `json:"steps,omitempty"`
-
-	// WithStreaming enables SSE streaming of results instead of JSON response (default: true)
-	WithStreaming bool `json:"with_streaming,omitempty"`
-
-	// MaxContextTokens is the maximum total tokens allowed for retrieved document context
-	// When set, documents are pruned (lowest-ranked first) to fit within this budget
-	MaxContextTokens int `json:"max_context_tokens,omitempty"`
-
-	// ReserveTokens is the number of tokens to reserve for system prompt, answer generation, and overhead
-	// Defaults to 4000 if MaxContextTokens is set
-	ReserveTokens int `json:"reserve_tokens,omitempty"`
-
-	// Eval is the configuration for inline evaluation of query results
-	Eval EvalConfig `json:"eval,omitzero"`
-}
-
-// ChatAgentRequest represents a chat agent request with multi-turn conversation support.
-type ChatAgentRequest struct {
-	// Messages is the conversation history (required).
-	// The last message should typically be from the user.
-	Messages []ChatMessage `json:"messages"`
-
-	// AccumulatedFilters from previous conversation turns, applied to all queries automatically.
-	AccumulatedFilters []FilterSpec `json:"accumulated_filters,omitempty"`
-
-	// Queries is the base query configurations that the chat agent will modify
-	// based on conversation context.
-	Queries []QueryRequest `json:"queries"`
-
-	// Generator model configuration. Mutually exclusive with Chain.
-	Generator GeneratorConfig `json:"generator,omitzero"`
-
-	// Chain of generators with retry/fallback. Mutually exclusive with Generator.
-	Chain []ChainLink `json:"chain,omitempty,omitzero"`
-
-	// AgentKnowledge is background knowledge that guides the agent's domain understanding.
-	AgentKnowledge string `json:"agent_knowledge,omitempty"`
-
-	// Steps is optional per-step configuration for the chat agent pipeline.
-	Steps ChatAgentSteps `json:"steps,omitempty,omitzero"`
-
-	// WithStreaming enables SSE streaming instead of JSON response
-	WithStreaming bool `json:"with_streaming,omitempty"`
-
-	// MaxContextTokens limits the total tokens for retrieved document context
-	MaxContextTokens int `json:"max_context_tokens,omitempty"`
-
-	// SystemPrompt overrides the default system prompt.
-	SystemPrompt string `json:"system_prompt,omitempty"`
-}
-
-// RAGOptions contains optional parameters for RAG requests
-type RAGOptions struct {
-	// Callback is called for each chunk of the streaming response
-	// If not provided, chunks are written to a default buffer
-	Callback func(chunk string) error
-}
-
-// AnswerAgentError represents an error received during streaming from the answer agent.
-// Errors can contain additional context like the table name and HTTP status code.
-type AnswerAgentError struct {
-	// Error is the error message
-	Error string `json:"error"`
-
-	// Status is the HTTP status code (optional, present for query execution errors)
-	Status int32 `json:"status,omitempty"`
-
-	// Table is the table name where the error occurred (optional, present for query execution errors)
-	Table string `json:"table,omitempty"`
-}
-
-// AnswerAgentOptions contains optional parameters for answer agent requests
-type AnswerAgentOptions struct {
-	// OnClassification is called when the classification and transformation result is received
-	// Receives the full ClassificationTransformationResult with route_type, strategy, semantic_query, etc.
-	OnClassification func(result *ClassificationTransformationResult) error
-
-	// OnReasoning is called for each chunk of reasoning during classification (if steps.classification.with_reasoning is enabled)
-	OnReasoning func(chunk string) error
-
-	// OnHit is called for each search result hit
-	OnHit func(hit *Hit) error
-
-	// OnAnswer is called for each chunk of the answer text
-	OnAnswer func(chunk string) error
-
-	// OnFollowupQuestion is called for each follow-up question (if steps.followup.enabled is true)
-	OnFollowupQuestion func(question string) error
-
-	// OnError is called when an error event is received during streaming.
-	// If the callback returns nil, the error is still returned from AnswerAgent.
-	// If the callback returns an error, that error is returned instead.
-	OnError func(err *AnswerAgentError) error
-}
-
-// ChatAgentError represents an error received during streaming from the chat agent.
-type ChatAgentError struct {
-	// Error is the error message
-	Error string `json:"error"`
-}
-
-// ChatAgentOptions contains optional parameters for chat agent requests
-type ChatAgentOptions struct {
-	// OnClassification is called when the classification and transformation result is received
-	OnClassification func(result *ClassificationTransformationResult) error
-
-	// OnHit is called for each search result hit
-	OnHit func(hit *Hit) error
-
-	// OnAnswer is called for each chunk of the answer text
-	OnAnswer func(chunk string) error
-
-	// OnClarificationRequired is called when the agent needs clarification from the user
-	OnClarificationRequired func(clarification *ClarificationRequest) error
-
-	// OnError is called when an error event is received during streaming.
-	// If the callback returns nil, the error is still returned from ChatAgent.
-	// If the callback returns an error, that error is returned instead.
-	OnError func(err *ChatAgentError) error
-}

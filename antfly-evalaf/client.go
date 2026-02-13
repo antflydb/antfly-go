@@ -6,15 +6,12 @@ import (
 	"net/http"
 
 	antfly "github.com/antflydb/antfly-go/antfly"
-	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/antflydb/antfly-go/evalaf/eval"
 )
 
 // Type aliases for the generated types from the Antfly SDK.
 // These provide access to query hits with full score information.
 type (
-	RAGRequest  = antfly.RAGRequest
-	RAGResult   = antfly.RAGResult
 	QueryResult = antfly.QueryResult
 	QueryHit    = antfly.Hit
 	QueryHits   = antfly.Hits
@@ -37,63 +34,43 @@ func NewClient(baseURL string) (*Client, error) {
 	return &Client{AntflyClient: sdkClient}, nil
 }
 
-// CallRAG calls the Antfly RAG endpoint and returns the full result including query hits with scores.
-func (c *Client) CallRAG(ctx context.Context, req RAGRequest) (*RAGResult, error) {
-	// Call the SDK's RAG method which returns raw JSON
-	rawJSON, err := c.AntflyClient.RAG(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	// Parse the JSON into RAGResult to get full hit information
-	var result RAGResult
-	if err := json.UnmarshalString(rawJSON, &result); err != nil {
-		return nil, fmt.Errorf("parsing RAG response: %w", err)
-	}
-
-	return &result, nil
+// CallRetrievalAgent calls the Antfly RetrievalAgent endpoint and returns the full result including query hits with scores.
+func (c *Client) CallRetrievalAgent(ctx context.Context, req antfly.RetrievalAgentRequest, opts ...antfly.RetrievalAgentOptions) (*antfly.RetrievalAgentResult, error) {
+	return c.AntflyClient.RetrievalAgent(ctx, req, opts...)
 }
 
-// CallAnswerAgent calls the Antfly Answer Agent endpoint.
-func (c *Client) CallAnswerAgent(ctx context.Context, req antfly.AnswerAgentRequest) (*antfly.AnswerAgentResult, error) {
-	return c.AntflyClient.AnswerAgent(ctx, req)
-}
-
-// CreateRAGTargetFunc creates a target function for evaluating Antfly's RAG endpoint.
-func (c *Client) CreateRAGTargetFunc(tables []string) eval.TargetFunc {
+// CreateRetrievalAgentTargetFunc creates a target function for evaluating Antfly's RetrievalAgent endpoint.
+func (c *Client) CreateRetrievalAgentTargetFunc(tables []string) eval.TargetFunc {
 	return func(ctx context.Context, example eval.Example) (any, error) {
 		query, ok := example.Input.(string)
 		if !ok {
 			return nil, fmt.Errorf("input must be a string")
 		}
 
-		resp, err := c.CallRAG(ctx, RAGRequest{
-			Queries: []antfly.QueryRequest{{
-				Table:          tables[0],
-				SemanticSearch: query,
-			}},
+		resp, err := c.CallRetrievalAgent(ctx, antfly.RetrievalAgentRequest{
+			Table: tables[0],
+			Query: query,
 		})
 		if err != nil {
 			return nil, err
 		}
 
-		return resp.GenerateResult.Text, nil
+		return resp.Generation, nil
 	}
 }
 
-// CreateAnswerAgentTargetFunc creates a target function for evaluating Answer Agent.
-func (c *Client) CreateAnswerAgentTargetFunc(tables []string) eval.TargetFunc {
+// CreateRetrievalAgentClassificationTargetFunc creates a target function that returns
+// classification metadata (route_type, confidence) along with the answer.
+func (c *Client) CreateRetrievalAgentClassificationTargetFunc(tables []string) eval.TargetFunc {
 	return func(ctx context.Context, example eval.Example) (any, error) {
 		query, ok := example.Input.(string)
 		if !ok {
 			return nil, fmt.Errorf("input must be a string")
 		}
 
-		resp, err := c.CallAnswerAgent(ctx, antfly.AnswerAgentRequest{
+		resp, err := c.CallRetrievalAgent(ctx, antfly.RetrievalAgentRequest{
+			Table: tables[0],
 			Query: query,
-			Queries: []antfly.QueryRequest{{
-				Table: tables[0],
-			}},
 		})
 		if err != nil {
 			return nil, err
@@ -101,31 +78,9 @@ func (c *Client) CreateAnswerAgentTargetFunc(tables []string) eval.TargetFunc {
 
 		// Return structured response for classification evaluators
 		return map[string]any{
-			"route_type": resp.ClassificationTransformation.RouteType,
-			"confidence": resp.ClassificationTransformation.Confidence,
-			"answer":     resp.Answer,
+			"route_type": resp.Classification.RouteType,
+			"confidence": resp.Classification.Confidence,
+			"generation": resp.Generation,
 		}, nil
-	}
-}
-
-// CreateAnswerAgentAnswerTargetFunc creates a target function that returns just the answer.
-func (c *Client) CreateAnswerAgentAnswerTargetFunc(tables []string) eval.TargetFunc {
-	return func(ctx context.Context, example eval.Example) (any, error) {
-		query, ok := example.Input.(string)
-		if !ok {
-			return nil, fmt.Errorf("input must be a string")
-		}
-
-		resp, err := c.CallAnswerAgent(ctx, antfly.AnswerAgentRequest{
-			Query: query,
-			Queries: []antfly.QueryRequest{{
-				Table: tables[0],
-			}},
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		return resp.Answer, nil
 	}
 }

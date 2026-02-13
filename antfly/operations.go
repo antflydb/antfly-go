@@ -236,91 +236,41 @@ func (c *AntflyClient) ScanKeys(ctx context.Context, tableName string, request S
 	return documents, nil
 }
 
-// RAG performs a RAG (Retrieval-Augmented Generation) query and streams the response
-// Accepts a RAGRequest with one or more QueryRequests for single-table or multi-table RAG queries
-// The callback function is called for each chunk of the streaming response
-func (c *AntflyClient) RAG(ctx context.Context, ragReq RAGRequest, opts ...RAGOptions) (string, error) {
-	// Merge options
-	var opt RAGOptions
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
-
-	// Marshal RAGRequest - QueryRequest.MarshalJSON handles the conversion automatically
-	ragBody, err := json.Marshal(ragReq)
-	if err != nil {
-		return "", fmt.Errorf("marshalling RAG request: %w", err)
-	}
-
-	// Set Accept header based on streaming mode
-	acceptHeader := func(_ context.Context, req *http.Request) error {
-		if ragReq.WithStreaming {
-			req.Header.Set("Accept", "text/event-stream")
-		} else {
-			req.Header.Set("Accept", "application/json")
-		}
-		return nil
-	}
-
-	resp, err := c.client.RagQueryWithBody(ctx, "application/json", bytes.NewBuffer(ragBody), acceptHeader)
-	if err != nil {
-		return "", fmt.Errorf("sending RAG request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 300 {
-		return "", fmt.Errorf("RAG request failed: %w", readErrorResponse(resp))
-	}
-
-	// If streaming is disabled, read JSON response directly
-	if !ragReq.WithStreaming {
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return "", fmt.Errorf("reading response body: %w", err)
-		}
-		return string(respBody), nil
-	}
-
-	// Use callback if provided, otherwise accumulate in a buffer
-	var result strings.Builder
-	callback := opt.Callback
-	if callback == nil {
-		callback = func(chunk string) error {
-			result.WriteString(chunk)
-			return nil
-		}
-	}
-
-	// Read the SSE stream (RAG only uses data: lines, not event: lines)
-	for _, data := range readSSEEvents(resp.Body) {
-		if err := callback(data); err != nil {
-			return "", fmt.Errorf("callback error: %w", err)
-		}
-	}
-
-	return result.String(), nil
+// RetrievalAgentOptions configures streaming callbacks for the retrieval agent
+type RetrievalAgentOptions struct {
+	OnDFAState         func(state string, iteration int) error
+	OnHit              func(hit *Hit) error
+	OnError            func(err *RetrievalAgentError) error
+	OnTreeLevel        func(depth int, numNodes int) error        // Called for tree search level progress
+	OnSufficiencyCheck func(sufficient bool, reason string) error // Called when sufficiency is evaluated
+	OnTreeSearchStart  func(index string, maxDepth int, beamWidth int) error
+	OnTreeSearchDone   func(collected int, depth int) error
 }
 
-// ChatAgent performs a chat agent query with multi-turn conversation support.
-// The agent maintains conversation context, uses tools (search, filter, clarification),
-// and generates contextual answers.
-// Supports streaming responses with granular callbacks for different event types.
-func (c *AntflyClient) ChatAgent(ctx context.Context, req ChatAgentRequest, opts ...ChatAgentOptions) (*ChatAgentResult, error) {
+// RetrievalAgentError represents an error from the retrieval agent
+type RetrievalAgentError struct {
+	Error string `json:"error"`
+}
+
+// RetrievalAgent performs DFA-based document retrieval with strategy selection and query refinement.
+// The agent uses a state machine: clarify -> select_strategy -> refine_query -> execute.
+// Supports streaming responses with callbacks for DFA state transitions and retrieved documents.
+func (c *AntflyClient) RetrievalAgent(ctx context.Context, req RetrievalAgentRequest, opts ...RetrievalAgentOptions) (*RetrievalAgentResult, error) {
 	// Merge options
-	var opt ChatAgentOptions
+	var opt RetrievalAgentOptions
 	if len(opts) > 0 {
 		opt = opts[0]
 	}
 
-	// Marshal request - QueryRequest.MarshalJSON handles the conversion automatically
+	// Marshal request
 	reqBody, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf("marshalling chat agent request: %w", err)
+		return nil, fmt.Errorf("marshalling retrieval agent request: %w", err)
 	}
 
 	// Set Accept header based on streaming mode
 	acceptHeader := func(_ context.Context, httpReq *http.Request) error {
-		if req.WithStreaming {
+		if req.Stream {
 			httpReq.Header.Set("Accept", "text/event-stream")
 		} else {
 			httpReq.Header.Set("Accept", "application/json")
@@ -328,43 +278,42 @@ func (c *AntflyClient) ChatAgent(ctx context.Context, req ChatAgentRequest, opts
 		return nil
 	}
 
-	resp, err := c.client.ChatAgentWithBody(ctx, "application/json", bytes.NewBuffer(reqBody), acceptHeader)
+	resp, err := c.client.RetrievalAgentWithBody(ctx, "application/json", bytes.NewBuffer(reqBody), acceptHeader)
 	if err != nil {
-		return nil, fmt.Errorf("sending chat agent request: %w", err)
+		return nil, fmt.Errorf("sending retrieval agent request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("chat agent request failed: %w", readErrorResponse(resp))
+		return nil, fmt.Errorf("retrieval agent request failed: %w", readErrorResponse(resp))
 	}
 
 	// If streaming is disabled, read JSON response directly
-	if !req.WithStreaming {
+	if !req.Stream {
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("reading response body: %w", err)
 		}
-		var result ChatAgentResult
+		var result RetrievalAgentResult
 		if err := json.Unmarshal(respBody, &result); err != nil {
-			return nil, fmt.Errorf("parsing chat agent result: %w", err)
+			return nil, fmt.Errorf("parsing retrieval agent result: %w", err)
 		}
 		return &result, nil
 	}
 
 	// Build result from streaming events
-	result := &ChatAgentResult{}
-	var answerBuilder strings.Builder
+	result := &RetrievalAgentResult{}
 
 	for eventType, data := range readSSEEvents(resp.Body) {
 		switch eventType {
-		case "classification":
-			var classData ClassificationTransformationResult
-			if json.UnmarshalString(data, &classData) == nil {
-				result.ClassificationTransformation = classData
-				if opt.OnClassification != nil {
-					if err := opt.OnClassification(&classData); err != nil {
-						return nil, fmt.Errorf("classification callback: %w", err)
-					}
+		case "dfa_state":
+			var stateData struct {
+				State     string `json:"state"`
+				Iteration int    `json:"iteration"`
+			}
+			if json.UnmarshalString(data, &stateData) == nil && opt.OnDFAState != nil {
+				if err := opt.OnDFAState(stateData.State, stateData.Iteration); err != nil {
+					return nil, fmt.Errorf("dfa_state callback: %w", err)
 				}
 			}
 		case "hit":
@@ -374,70 +323,77 @@ func (c *AntflyClient) ChatAgent(ctx context.Context, req ChatAgentRequest, opts
 					return nil, fmt.Errorf("hit callback: %w", err)
 				}
 			}
-		case "answer":
-			var answerStr string
-			if json.UnmarshalString(data, &answerStr) == nil {
-				answerBuilder.WriteString(answerStr)
-				if opt.OnAnswer != nil {
-					if err := opt.OnAnswer(answerStr); err != nil {
-						return nil, fmt.Errorf("answer callback: %w", err)
-					}
+		case "tree_search_start":
+			var treeStartData struct {
+				Index     string `json:"index"`
+				MaxDepth  int    `json:"max_depth"`
+				BeamWidth int    `json:"beam_width"`
+			}
+			if json.UnmarshalString(data, &treeStartData) == nil && opt.OnTreeSearchStart != nil {
+				if err := opt.OnTreeSearchStart(treeStartData.Index, treeStartData.MaxDepth, treeStartData.BeamWidth); err != nil {
+					return nil, fmt.Errorf("tree_search_start callback: %w", err)
 				}
 			}
-		case "clarification_required":
-			var clarification ClarificationRequest
-			if json.UnmarshalString(data, &clarification) == nil {
-				result.PendingClarification = clarification
-				if opt.OnClarificationRequired != nil {
-					if err := opt.OnClarificationRequired(&clarification); err != nil {
-						return nil, fmt.Errorf("clarification callback: %w", err)
-					}
+		case "tree_level":
+			var levelData struct {
+				Depth    int `json:"depth"`
+				NumNodes int `json:"num_nodes"`
+			}
+			if json.UnmarshalString(data, &levelData) == nil && opt.OnTreeLevel != nil {
+				if err := opt.OnTreeLevel(levelData.Depth, levelData.NumNodes); err != nil {
+					return nil, fmt.Errorf("tree_level callback: %w", err)
+				}
+			}
+		case "sufficiency_check":
+			var suffData struct {
+				Sufficient bool   `json:"sufficient"`
+				Reason     string `json:"reason"`
+			}
+			if json.UnmarshalString(data, &suffData) == nil && opt.OnSufficiencyCheck != nil {
+				if err := opt.OnSufficiencyCheck(suffData.Sufficient, suffData.Reason); err != nil {
+					return nil, fmt.Errorf("sufficiency_check callback: %w", err)
+				}
+			}
+		case "tree_search_complete":
+			var treeDoneData struct {
+				Collected int `json:"collected"`
+				Depth     int `json:"depth"`
+			}
+			if json.UnmarshalString(data, &treeDoneData) == nil && opt.OnTreeSearchDone != nil {
+				if err := opt.OnTreeSearchDone(treeDoneData.Collected, treeDoneData.Depth); err != nil {
+					return nil, fmt.Errorf("tree_search_complete callback: %w", err)
 				}
 			}
 		case "done":
-			var doneData struct {
-				AppliedFilters   []FilterSpec `json:"applied_filters"`
-				AnswerConfidence float32      `json:"answer_confidence"`
-			}
-			if json.UnmarshalString(data, &doneData) == nil {
-				result.AppliedFilters = doneData.AppliedFilters
-				result.AnswerConfidence = doneData.AnswerConfidence
+			if json.UnmarshalString(data, result) != nil {
+				// If parsing fails, try to extract what we can
 			}
 		case "error":
-			var chatErr ChatAgentError
-			if json.UnmarshalString(data, &chatErr) != nil {
-				chatErr = ChatAgentError{Error: data}
+			var agentErr RetrievalAgentError
+			if json.UnmarshalString(data, &agentErr) != nil {
+				agentErr = RetrievalAgentError{Error: data}
 			}
 			if opt.OnError != nil {
-				if callbackErr := opt.OnError(&chatErr); callbackErr != nil {
+				if callbackErr := opt.OnError(&agentErr); callbackErr != nil {
 					return nil, callbackErr
 				}
 			}
-			return nil, fmt.Errorf("chat agent: %s", chatErr.Error)
+			return nil, fmt.Errorf("retrieval agent: %s", agentErr.Error)
 		}
 	}
 
-	result.Answer = answerBuilder.String()
 	return result, nil
 }
 
-// AnswerAgent performs an answer agent query with classification, query generation, and answer generation.
-// The agent classifies the query, generates appropriate searches, executes them, and generates answers.
-// Supports streaming responses with granular callbacks for different event types.
-func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, opts ...AnswerAgentOptions) (*AnswerAgentResult, error) {
-	// Merge options
-	var opt AnswerAgentOptions
-	if len(opts) > 0 {
-		opt = opts[0]
-	}
-
-	// Marshal request - AnswerAgentRequest.MarshalJSON handles the conversion automatically
+// AnswerAgent performs a deprecated answer agent request.
+// This is a backward-compatible wrapper around the /agents/answer endpoint.
+// New code should use RetrievalAgent instead.
+func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest) (*AnswerAgentResult, error) {
 	reqBody, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("marshalling answer agent request: %w", err)
 	}
 
-	// Set Accept header based on streaming mode
 	acceptHeader := func(_ context.Context, httpReq *http.Request) error {
 		if req.WithStreaming {
 			httpReq.Header.Set("Accept", "text/event-stream")
@@ -457,7 +413,6 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 		return nil, fmt.Errorf("answer agent request failed: %w", readErrorResponse(resp))
 	}
 
-	// If streaming is disabled, read JSON response directly
 	if !req.WithStreaming {
 		respBody, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -470,73 +425,21 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest, 
 		return &result, nil
 	}
 
-	// Build result from streaming events
-	result := &AnswerAgentResult{}
-	var answerBuilder strings.Builder
-
+	// Streaming mode: read SSE events, return the done payload
+	var result AnswerAgentResult
 	for eventType, data := range readSSEEvents(resp.Body) {
 		switch eventType {
-		case "classification":
-			var classData ClassificationTransformationResult
-			if json.UnmarshalString(data, &classData) == nil {
-				result.ClassificationTransformation = classData
-				if opt.OnClassification != nil {
-					if err := opt.OnClassification(&classData); err != nil {
-						return nil, fmt.Errorf("classification callback: %w", err)
-					}
-				}
-			}
-		case "reasoning":
-			var reasoningStr string
-			if json.UnmarshalString(data, &reasoningStr) == nil && opt.OnReasoning != nil {
-				if err := opt.OnReasoning(reasoningStr); err != nil {
-					return nil, fmt.Errorf("reasoning callback: %w", err)
-				}
-			}
-		case "hit":
-			var hitData Hit
-			if json.UnmarshalString(data, &hitData) == nil && opt.OnHit != nil {
-				if err := opt.OnHit(&hitData); err != nil {
-					return nil, fmt.Errorf("hit callback: %w", err)
-				}
-			}
-		case "answer":
-			var answerStr string
-			if json.UnmarshalString(data, &answerStr) == nil {
-				answerBuilder.WriteString(answerStr)
-				if opt.OnAnswer != nil {
-					if err := opt.OnAnswer(answerStr); err != nil {
-						return nil, fmt.Errorf("answer callback: %w", err)
-					}
-				}
-			}
-		case "followup_question":
-			var followupStr string
-			if json.UnmarshalString(data, &followupStr) == nil {
-				result.FollowupQuestions = append(result.FollowupQuestions, followupStr)
-				if opt.OnFollowupQuestion != nil {
-					if err := opt.OnFollowupQuestion(followupStr); err != nil {
-						return nil, fmt.Errorf("followup callback: %w", err)
-					}
-				}
-			}
+		case "done":
+			_ = json.UnmarshalString(data, &result)
 		case "error":
-			var agentErr AnswerAgentError
+			var agentErr RetrievalAgentError
 			if json.UnmarshalString(data, &agentErr) != nil {
-				agentErr = AnswerAgentError{Error: data}
-			}
-			if opt.OnError != nil {
-				if callbackErr := opt.OnError(&agentErr); callbackErr != nil {
-					return nil, callbackErr
-				}
-			}
-			if agentErr.Table != "" {
-				return nil, fmt.Errorf("answer agent on table %s (status %d): %s", agentErr.Table, agentErr.Status, agentErr.Error)
+				agentErr = RetrievalAgentError{Error: data}
 			}
 			return nil, fmt.Errorf("answer agent: %s", agentErr.Error)
 		}
 	}
 
-	result.Answer = answerBuilder.String()
-	return result, nil
+	return &result, nil
 }
+

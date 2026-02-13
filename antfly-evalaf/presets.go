@@ -7,8 +7,8 @@ import (
 	genkitpkg "github.com/firebase/genkit/go/genkit"
 )
 
-// RAGEvaluatorPreset returns a preset of evaluators for RAG evaluation.
-func RAGEvaluatorPreset(g *genkitpkg.Genkit, modelName string) []eval.Evaluator {
+// RetrievalAgentEvaluatorPreset returns a preset of evaluators for RetrievalAgent evaluation.
+func RetrievalAgentEvaluatorPreset(g *genkitpkg.Genkit, modelName string) []eval.Evaluator {
 	if modelName == "" {
 		modelName = "ollama/mistral"
 	}
