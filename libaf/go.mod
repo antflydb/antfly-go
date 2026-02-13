@@ -1,6 +1,6 @@
 module github.com/antflydb/antfly-go/libaf
 
-go 1.25
+go 1.26
 
 require (
 	github.com/minio/minio-go/v7 v7.0.98

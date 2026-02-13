@@ -1,6 +1,6 @@
 module github.com/antflydb/antfly-go/evalaf
 
-go 1.25
+go 1.26
 
 require (
 	github.com/firebase/genkit/go v1.4.0
