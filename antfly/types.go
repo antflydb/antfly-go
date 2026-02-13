@@ -137,10 +137,6 @@ type (
 	TreeSearchConfig        = oapi.TreeSearchConfig
 	QueryHit                = oapi.QueryHit
 
-	// Citation types (used by retrieval agent generation step)
-	Citation      = oapi.Citation
-	CitationStyle = oapi.CitationStyle
-
 	// Evaluation types
 	EvalConfig    = oapi.EvalConfig
 	EvalOptions   = oapi.EvalOptions
@@ -292,11 +288,6 @@ const (
 	RetrievalStrategyGraph    = oapi.RetrievalStrategyGraph
 	RetrievalStrategyMetadata = oapi.RetrievalStrategyMetadata
 	RetrievalStrategyHybrid   = oapi.RetrievalStrategyHybrid
-
-	// CitationStyle values
-	CitationStyleInline   = oapi.CitationStyleInline
-	CitationStyleFootnote = oapi.CitationStyleFootnote
-	CitationStyleNone     = oapi.CitationStyleNone
 
 	// EvaluatorName values
 	EvaluatorNameCitationQuality = oapi.EvaluatorNameCitationQuality
