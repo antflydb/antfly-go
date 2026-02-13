@@ -147,6 +147,12 @@ type QueryRequest struct {
 	// Join configuration for joining data from another table.
 	// Supports inner, left, and right joins with automatic strategy selection.
 	Join JoinClause `json:"join,omitempty"`
+
+	// ForeignSources maps table names to foreign data source configurations for
+	// query-time federated access. When a table name referenced in a query or join
+	// appears in this map, the query is routed to the external data source instead
+	// of Antfly storage.
+	ForeignSources map[string]ForeignSource `json:"foreign_sources,omitempty"`
 }
 
 // MarshalJSON implements custom JSON marshalling for QueryRequest.
@@ -175,6 +181,7 @@ func (q QueryRequest) MarshalJSON() ([]byte, error) {
 		DocumentRenderer: q.DocumentRenderer,
 		GraphSearches:    q.GraphSearches,
 		Join:             q.Join,
+		ForeignSources:   q.ForeignSources,
 	}
 
 	// Marshal query fields to json.RawMessage
@@ -231,6 +238,7 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 	q.DocumentRenderer = oapiReq.DocumentRenderer
 	q.GraphSearches = oapiReq.GraphSearches
 	q.Join = oapiReq.Join
+	q.ForeignSources = oapiReq.ForeignSources
 
 	// Unmarshal query fields (only if not null and not empty)
 	if len(oapiReq.FilterQuery) > 0 && !bytes.Equal(oapiReq.FilterQuery, []byte("null")) {

@@ -154,6 +154,11 @@ type (
 	JoinStrategy  = oapi.JoinStrategy
 	JoinType      = oapi.JoinType
 
+	// Foreign table types
+	ForeignSource     = oapi.ForeignSource
+	ForeignColumn     = oapi.ForeignColumn
+	ForeignSourceType = oapi.ForeignSourceType
+
 	// Graph index types
 	GraphIndexV0Config      = oapi.GraphIndexV0Config
 	GraphIndexV0Stats       = oapi.GraphIndexV0Stats
@@ -303,6 +308,9 @@ const (
 	EvaluatorNameRecall          = oapi.EvaluatorNameRecall
 	EvaluatorNameRelevance       = oapi.EvaluatorNameRelevance
 	EvaluatorNameSafety          = oapi.EvaluatorNameSafety
+
+	// ForeignSourceType values
+	ForeignSourceTypePostgres = oapi.ForeignSourceTypePostgres
 
 	// JoinOperator values
 	JoinOperatorEq  = oapi.JoinOperatorEq
