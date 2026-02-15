@@ -9,13 +9,13 @@ require (
 )
 
 require (
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260209221803-cbd589ffd1cd // indirect
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260213225909-bda8c908f339 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/getkin/kin-openapi v0.133.0 // indirect
-	github.com/go-json-experiment/json v0.0.0-20260213221400-4e358349a803 // indirect
+	github.com/go-json-experiment/json v0.0.0-20260214004413-d219187c3433 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
@@ -25,10 +25,10 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/kaptinlin/go-i18n v0.2.5 // indirect
-	github.com/kaptinlin/jsonpointer v0.4.11 // indirect
-	github.com/kaptinlin/jsonschema v0.6.11 // indirect
-	github.com/kaptinlin/messageformat-go v0.4.11 // indirect
+	github.com/kaptinlin/go-i18n v0.2.8 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.14 // indirect
+	github.com/kaptinlin/jsonschema v0.6.15 // indirect
+	github.com/kaptinlin/messageformat-go v0.4.16 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mbleigh/raymond v0.0.0-20250414171441-6b3a58ab9e0a // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
