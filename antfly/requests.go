@@ -263,4 +263,36 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MultiBatchRequest represents a cross-table batch operation.
+type MultiBatchRequest struct {
+	// Tables maps table names to their batch operations.
+	Tables map[string]BatchRequest `json:"tables"`
 
+	// SyncLevel Synchronization level for the batch operation.
+	SyncLevel SyncLevel `json:"sync_level,omitempty"`
+}
+
+// MultiBatchResult represents the result of a cross-table batch operation.
+type MultiBatchResult struct {
+	// Tables maps table names to their batch results.
+	Tables map[string]BatchResult `json:"tables,omitempty"`
+}
+
+// TransactionCommitResult represents the result of an OCC transaction commit.
+type TransactionCommitResult struct {
+	// Status is "committed" or "aborted".
+	Status string `json:"status"`
+
+	// Conflict details (only present when status is "aborted").
+	Conflict *TransactionConflict `json:"conflict,omitempty"`
+
+	// Tables maps table names to their batch results (only present when committed).
+	Tables map[string]BatchResult `json:"tables,omitempty"`
+}
+
+// TransactionConflict describes a version conflict that caused a transaction abort.
+type TransactionConflict struct {
+	Table   string `json:"table,omitempty"`
+	Key     string `json:"key,omitempty"`
+	Message string `json:"message,omitempty"`
+}

@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260213225909-bda8c908f339 // indirect
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260215003431-8c8c80510b4f // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -26,9 +26,9 @@ require (
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kaptinlin/go-i18n v0.2.8 // indirect
-	github.com/kaptinlin/jsonpointer v0.4.14 // indirect
-	github.com/kaptinlin/jsonschema v0.6.15 // indirect
-	github.com/kaptinlin/messageformat-go v0.4.16 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.15 // indirect
+	github.com/kaptinlin/jsonschema v0.7.0 // indirect
+	github.com/kaptinlin/messageformat-go v0.4.17 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mbleigh/raymond v0.0.0-20250414171441-6b3a58ab9e0a // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect

@@ -24,6 +24,7 @@ import (
 	"io"
 	"iter"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/antflydb/antfly-go/libaf/json"
@@ -383,6 +384,156 @@ func (c *AntflyClient) RetrievalAgent(ctx context.Context, req RetrievalAgentReq
 	}
 
 	return result, nil
+}
+
+// MultiBatch performs a cross-table batch operation atomically.
+func (c *AntflyClient) MultiBatch(ctx context.Context, request MultiBatchRequest) (*MultiBatchResult, error) {
+	batchBody, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("marshalling multi-batch request: %w", err)
+	}
+
+	resp, err := c.client.MultiBatchWriteWithBody(ctx, "application/json", bytes.NewBuffer(batchBody))
+	if err != nil {
+		return nil, fmt.Errorf("multi-batch operation failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("multi-batch failed: %w", readErrorResponse(resp))
+	}
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+
+	var result MultiBatchResult
+	if len(respBody) > 0 {
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return nil, fmt.Errorf("parsing multi-batch result: %w", err)
+		}
+	}
+
+	return &result, nil
+}
+
+// LookupKeyWithVersion looks up a document by key and returns its version token.
+// The version can be used with Transaction.Read for OCC transactions.
+func (c *AntflyClient) LookupKeyWithVersion(ctx context.Context, tableName, key string) (map[string]any, uint64, error) {
+	resp, err := c.client.LookupKey(ctx, tableName, key, nil)
+	if err != nil {
+		return nil, 0, fmt.Errorf("looking up key: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return nil, 0, fmt.Errorf("looking up key: %w", readErrorResponse(resp))
+	}
+
+	var version uint64
+	if v := resp.Header.Get("X-Antfly-Version"); v != "" {
+		version, _ = strconv.ParseUint(v, 10, 64)
+	}
+
+	var document map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&document); err != nil {
+		return nil, 0, fmt.Errorf("parsing response: %w", err)
+	}
+
+	return document, version, nil
+}
+
+// Transaction represents a stateless OCC transaction.
+// Use NewTransaction to create one, Read to capture versions, and Commit to execute.
+type Transaction struct {
+	client  *AntflyClient
+	readSet []oapi.TransactionReadItem
+}
+
+// NewTransaction creates a new OCC transaction builder.
+func (c *AntflyClient) NewTransaction() *Transaction {
+	return &Transaction{client: c}
+}
+
+// Read reads a document and captures its version for conflict detection at commit time.
+func (tx *Transaction) Read(ctx context.Context, table, key string) (map[string]any, error) {
+	doc, version, err := tx.client.LookupKeyWithVersion(ctx, table, key)
+	if err != nil {
+		return nil, err
+	}
+
+	tx.readSet = append(tx.readSet, oapi.TransactionReadItem{
+		Table:   table,
+		Key:     key,
+		Version: strconv.FormatUint(version, 10),
+	})
+
+	return doc, nil
+}
+
+// Commit submits the transaction's read set and writes to the server for atomic commit.
+// Returns a TransactionCommitResult with status "committed" or "aborted".
+// An error is returned only for transport/server failures, not for version conflicts.
+func (tx *Transaction) Commit(ctx context.Context, writes map[string]BatchRequest) (*TransactionCommitResult, error) {
+	// Convert SDK BatchRequest to oapi types
+	oapiTables := make(map[string]oapi.BatchRequest, len(writes))
+	for tableName, br := range writes {
+		// Convert map[string]any to map[string]map[string]interface{} for oapi compat
+		var oapiInserts map[string]map[string]interface{}
+		if len(br.Inserts) > 0 {
+			oapiInserts = make(map[string]map[string]interface{}, len(br.Inserts))
+			for k, v := range br.Inserts {
+				switch doc := v.(type) {
+				case map[string]interface{}:
+					oapiInserts[k] = doc
+				default:
+					// Marshal and re-unmarshal for struct types
+					b, err := json.Marshal(v)
+					if err != nil {
+						return nil, fmt.Errorf("marshalling insert for key %s: %w", k, err)
+					}
+					var m map[string]interface{}
+					if err := json.Unmarshal(b, &m); err != nil {
+						return nil, fmt.Errorf("converting insert for key %s: %w", k, err)
+					}
+					oapiInserts[k] = m
+				}
+			}
+		}
+		oapiTables[tableName] = oapi.BatchRequest{
+			Inserts:    oapiInserts,
+			Deletes:    br.Deletes,
+			Transforms: br.Transforms,
+			SyncLevel:  br.SyncLevel,
+		}
+	}
+
+	reqBody := oapi.TransactionCommitRequest{
+		ReadSet: tx.readSet,
+		Tables:  oapiTables,
+	}
+
+	resp, err := tx.client.client.CommitTransaction(ctx, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("commit transaction failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("reading response body: %w", err)
+	}
+
+	// Both 200 (committed) and 409 (conflict/aborted) return TransactionCommitResponse
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusConflict {
+		var result TransactionCommitResult
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			return nil, fmt.Errorf("parsing commit result: %w", err)
+		}
+		return &result, nil
+	}
+
+	return nil, fmt.Errorf("commit transaction failed (%d): %s", resp.StatusCode, string(respBody))
 }
 
 // AnswerAgent performs a deprecated answer agent request.
