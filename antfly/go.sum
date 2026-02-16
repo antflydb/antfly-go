@@ -38,12 +38,12 @@ github.com/hpcloud/tail v1.0.0/go.mod h1:ab1qPbhIpdTxEkNHXyeSf5vhxWSCs/tWer42PpO
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
 github.com/josharian/intern v1.0.0/go.mod h1:5DoeVV0s6jJacbCEi61lwdGj/aVlrQvzHFFd8Hwg//Y=
 github.com/juju/gnuflag v0.0.0-20171113085948-2ce1bb71843d/go.mod h1:2PavIy+JPciBPrBUjwbNvtwB6RQlve+hkpll6QSNmOE=
-github.com/kaptinlin/go-i18n v0.2.8 h1:ODxZe3pnvW0B6lFK2gSZQoqmwQm15llvN4My5T4XoSc=
-github.com/kaptinlin/go-i18n v0.2.8/go.mod h1:VuJlI2EpoW+dxCM8GStCKW6jSSDPDEf8/pQE7H3efyQ=
+github.com/kaptinlin/go-i18n v0.2.9 h1:96TWNQI0j5nPhcmeFaCyX8SfyNhA0CTjeilLTy7ol9M=
+github.com/kaptinlin/go-i18n v0.2.9/go.mod h1:Sm0GTLS6hbFDrUQahycQfHF377WR9VF5eDgWrwljCAk=
 github.com/kaptinlin/jsonpointer v0.4.15 h1:rvq0lBgS2eEB3XVBUpLf1dDMus2B67II9k3ETr7Dob0=
 github.com/kaptinlin/jsonpointer v0.4.15/go.mod h1:SsfsjqnHG5zuKo1DTBzk1VknaHlL4osHw+X9kZKukpU=
-github.com/kaptinlin/jsonschema v0.7.0 h1:rJsAy3reXevFrSgH+tigiSqAdD3Zfx3WyLjf0aTqFhE=
-github.com/kaptinlin/jsonschema v0.7.0/go.mod h1:wi7SIL+G797zVLhhrF5DgtZRbqADunDN/1cbGYbpffk=
+github.com/kaptinlin/jsonschema v0.7.1 h1:SYnr1+T2mMN7wSoJHvnHawZ4pQSUqSH72yMElEWa4Xg=
+github.com/kaptinlin/jsonschema v0.7.1/go.mod h1:r6pAMpgRZqHqE8C8cPhV5xsTS62/DCO1iFnAhNHX6EU=
 github.com/kaptinlin/messageformat-go v0.4.17 h1:OvPbVStKQoRwe4Iwa6ou3fnG2Rf1t+V8xHryjcCbSzc=
 github.com/kaptinlin/messageformat-go v0.4.17/go.mod h1:ntI3154RnqJgr7GaC+vZBnIExl2V3sv9selvRNNEM24=
 github.com/kr/pretty v0.1.0/go.mod h1:dAy3ld7l9f0ibDNOQOHHMYYIIbhfbHSm3C4ZsoJORNo=
