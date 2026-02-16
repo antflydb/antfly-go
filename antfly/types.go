@@ -42,6 +42,7 @@ type (
 	GoogleEmbedderConfig     = oapi.GoogleEmbedderConfig
 	BedrockEmbedderConfig    = oapi.BedrockEmbedderConfig
 	VertexEmbedderConfig     = oapi.VertexEmbedderConfig
+	AntflyEmbedderConfig     = oapi.AntflyEmbedderConfig
 	TermiteEmbedderConfig    = oapi.TermiteEmbedderConfig
 	OllamaGeneratorConfig    = oapi.OllamaGeneratorConfig
 	OpenAIGeneratorConfig    = oapi.OpenAIGeneratorConfig
@@ -51,6 +52,7 @@ type (
 	AnthropicGeneratorConfig = oapi.AnthropicGeneratorConfig
 	TermiteGeneratorConfig   = oapi.TermiteGeneratorConfig
 	RerankerConfig           = oapi.RerankerConfig
+	AntflyRerankerConfig     = oapi.AntflyRerankerConfig
 	OllamaRerankerConfig     = oapi.OllamaRerankerConfig
 	TermiteRerankerConfig    = oapi.TermiteRerankerConfig
 	RerankerProvider         = oapi.RerankerProvider
@@ -203,6 +205,7 @@ const (
 	IndexTypeAknnV0     = oapi.IndexTypeAknnV0
 
 	// Provider values
+	EmbedderProviderAntfly     = oapi.EmbedderProviderAntfly
 	EmbedderProviderOllama     = oapi.EmbedderProviderOllama
 	EmbedderProviderOpenai     = oapi.EmbedderProviderOpenai
 	EmbedderProviderGemini     = oapi.EmbedderProviderGemini
@@ -218,6 +221,7 @@ const (
 	GeneratorProviderAnthropic = oapi.GeneratorProviderAnthropic
 	GeneratorProviderTermite   = oapi.GeneratorProviderTermite
 	GeneratorProviderMock      = oapi.GeneratorProviderMock
+	RerankerProviderAntfly     = oapi.RerankerProviderAntfly
 	RerankerProviderOllama     = oapi.RerankerProviderOllama
 	RerankerProviderTermite    = oapi.RerankerProviderTermite
 
