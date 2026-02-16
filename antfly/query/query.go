@@ -419,25 +419,3 @@ func NewGeoBoundingBox(topLeftLon float64, topLeftLat float64, bottomRightLon fl
 		Field:       field,
 	}.ToQuery()
 }
-
-// Helper functions for creating pointers
-
-// PtrString creates a pointer to a string value.
-func PtrString(v string) *string {
-	return &v
-}
-
-// PtrFloat creates a pointer to a float64 value.
-func PtrFloat(v float64) *float64 {
-	return &v
-}
-
-// PtrInt creates a pointer to an int value.
-func PtrInt(v int) *int {
-	return &v
-}
-
-// PtrBool creates a pointer to a bool value.
-func PtrBool(v bool) *bool {
-	return &v
-}
