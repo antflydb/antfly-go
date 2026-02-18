@@ -9,7 +9,7 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/gocolly/colly/v2 v2.3.0
 	github.com/minio/minio-go/v7 v7.0.98
-	github.com/pb33f/libopenapi v0.33.10
+	github.com/pb33f/libopenapi v0.33.11
 	github.com/yuin/goldmark v1.7.16
 	go.yaml.in/yaml/v4 v4.0.0-rc.4
 	golang.org/x/oauth2 v0.35.0
