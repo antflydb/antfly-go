@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/antflydb/antfly-go/libaf v0.0.0-20260215003431-8c8c80510b4f
 	github.com/getkin/kin-openapi v0.133.0
-	github.com/kaptinlin/jsonschema v0.7.1
+	github.com/kaptinlin/jsonschema v0.7.2
 	github.com/oapi-codegen/runtime v1.1.2
 )
 
@@ -19,8 +19,8 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kaptinlin/go-i18n v0.2.9 // indirect
-	github.com/kaptinlin/jsonpointer v0.4.15 // indirect
-	github.com/kaptinlin/messageformat-go v0.4.17 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.16 // indirect
+	github.com/kaptinlin/messageformat-go v0.4.18 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
