@@ -19,6 +19,8 @@ limitations under the License.
 package antfly
 
 import (
+	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,7 +33,7 @@ type AntflyClient struct {
 	client *oapi.Client
 }
 
-// NewAntflyClient creates a new Antfly client
+// NewAntflyClient creates a new Antfly client with an HTTP client.
 func NewAntflyClient(baseURL string, httpClient *http.Client) (*AntflyClient, error) {
 	client, err := oapi.NewClient(baseURL, oapi.WithHTTPClient(httpClient))
 	if err != nil {
@@ -40,6 +42,47 @@ func NewAntflyClient(baseURL string, httpClient *http.Client) (*AntflyClient, er
 	return &AntflyClient{
 		client: client,
 	}, err
+}
+
+// NewAntflyClientWithOptions creates a new Antfly client with variadic options.
+// Use with WithBasicAuth, WithApiKey, or WithBearerToken for authentication.
+func NewAntflyClientWithOptions(baseURL string, opts ...oapi.ClientOption) (*AntflyClient, error) {
+	client, err := oapi.NewClient(baseURL, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &AntflyClient{
+		client: client,
+	}, err
+}
+
+// WithBasicAuth returns a RequestEditorFn that adds HTTP Basic Authentication.
+func WithBasicAuth(username, password string) oapi.RequestEditorFn {
+	encoded := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+	return func(_ context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", "Basic "+encoded)
+		return nil
+	}
+}
+
+// WithApiKey returns a RequestEditorFn that adds API Key authentication.
+// The credential is sent as: Authorization: ApiKey base64(keyID:keySecret)
+func WithApiKey(keyID, keySecret string) oapi.RequestEditorFn {
+	encoded := base64.StdEncoding.EncodeToString([]byte(keyID + ":" + keySecret))
+	return func(_ context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", "ApiKey "+encoded)
+		return nil
+	}
+}
+
+// WithBearerToken returns a RequestEditorFn that adds Bearer token authentication.
+// The token should be base64(keyID:keySecret) for Antfly API keys, or an opaque token
+// from a proxy.
+func WithBearerToken(token string) oapi.RequestEditorFn {
+	return func(_ context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", "Bearer "+token)
+		return nil
+	}
 }
 
 func readErrorResponse(resp *http.Response) error {

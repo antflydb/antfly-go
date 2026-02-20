@@ -5,7 +5,7 @@ go 1.26
 require (
 	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/ajroetker/pdf v0.0.1-antfly001
-	github.com/antflydb/antfly-go/libaf v0.0.0
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260218224627-c73d100d82d1
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/gocolly/colly/v2 v2.3.0
 	github.com/minio/minio-go/v7 v7.0.98
@@ -14,7 +14,7 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.4
 	golang.org/x/oauth2 v0.35.0
 	golang.org/x/text v0.34.0
-	google.golang.org/api v0.266.0
+	google.golang.org/api v0.267.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -78,9 +78,7 @@ require (
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260217215200-42d3e9bedb6d // indirect
 	google.golang.org/grpc v1.79.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
-
-replace github.com/antflydb/antfly-go/libaf => ../libaf

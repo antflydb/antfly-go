@@ -19,7 +19,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/google/dotprompt/go v0.0.0-20260210024049-37d539c5dd61 // indirect
+	github.com/google/dotprompt/go v0.0.0-20260219185359-d70752b9dfbb // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
