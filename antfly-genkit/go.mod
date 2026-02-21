@@ -5,14 +5,14 @@ go 1.26
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly-go/antfly v0.0.0-20260218224627-c73d100d82d1
+	github.com/antflydb/antfly-go/antfly v0.0.0-20260220060207-2d60adf8dc3f
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/firebase/genkit/go v1.4.0
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260218224627-c73d100d82d1 // indirect
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260220060207-2d60adf8dc3f // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -30,7 +30,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/kaptinlin/go-i18n v0.2.11 // indirect
 	github.com/kaptinlin/jsonpointer v0.4.16 // indirect
-	github.com/kaptinlin/jsonschema v0.7.2 // indirect
+	github.com/kaptinlin/jsonschema v0.7.3 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.18 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mbleigh/raymond v0.0.0-20250414171441-6b3a58ab9e0a // indirect
