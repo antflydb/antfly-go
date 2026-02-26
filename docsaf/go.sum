@@ -17,8 +17,8 @@ github.com/antchfx/xmlquery v1.5.0/go.mod h1:lJfWRXzYMK1ss32zm1GQV3gMIW/HFey3xDZ
 github.com/antchfx/xpath v1.3.5/go.mod h1:i54GszH55fYfBmoZXapTHN8T8tkcHfRgLyVwwqzXNcs=
 github.com/antchfx/xpath v1.3.6 h1:s0y+ElRRtTQdfHP609qFu0+c6bglDv20pqOViQjjdPI=
 github.com/antchfx/xpath v1.3.6/go.mod h1:i54GszH55fYfBmoZXapTHN8T8tkcHfRgLyVwwqzXNcs=
-github.com/antflydb/antfly-go/libaf v0.0.0-20260223033314-276b544065e0 h1:IHCLh7QyQygro6cWpTrJXI8WpjeeMF9uhW19wbnc0bA=
-github.com/antflydb/antfly-go/libaf v0.0.0-20260223033314-276b544065e0/go.mod h1:+xIcgNL31JoemGMNLWI8DgBvRJWtVHhHbrWF8WQua+8=
+github.com/antflydb/antfly-go/libaf v0.0.0-20260225222628-52403304422f h1:vrUNvKSba96zGkrXIqvl7anwi1bI701YL7UU58Wvjdc=
+github.com/antflydb/antfly-go/libaf v0.0.0-20260225222628-52403304422f/go.mod h1:fHsIpHCv+PFoW67wEPRNG0LIxSXLnkcfErdHB7FLprc=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/bits-and-blooms/bitset v1.20.0/go.mod h1:7hO7Gc7Pp1vODcmWvKMRA9BNmbv6a/7QIWpPxHddWR8=
