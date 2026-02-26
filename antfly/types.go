@@ -29,11 +29,10 @@ type (
 	IndexType          = oapi.IndexType
 
 	// Index config types
-	EmbeddingIndexConfig  = oapi.EmbeddingIndexConfig
-	BleveIndexV2Config    = oapi.BleveIndexV2Config
-	BleveIndexV2Stats     = oapi.BleveIndexV2Stats
-	SparseIndexV0Config   = oapi.SparseIndexV0Config
-	SparseIndexV0Stats    = oapi.SparseIndexV0Stats
+	EmbeddingsIndexConfig = oapi.EmbeddingsIndexConfig
+	EmbeddingsIndexStats  = oapi.EmbeddingsIndexStats
+	BleveIndexConfig      = oapi.BleveIndexConfig
+	BleveIndexStats       = oapi.BleveIndexStats
 
 	EmbedderProvider         = oapi.EmbedderProvider
 	GeneratorProvider        = oapi.GeneratorProvider
@@ -164,8 +163,8 @@ type (
 	ForeignSourceType = oapi.ForeignSourceType
 
 	// Graph index types
-	GraphIndexV0Config      = oapi.GraphIndexV0Config
-	GraphIndexV0Stats       = oapi.GraphIndexV0Stats
+	GraphIndexConfig        = oapi.GraphIndexConfig
+	GraphIndexStats         = oapi.GraphIndexStats
 	EdgeTypeConfig          = oapi.EdgeTypeConfig
 	EdgeTypeConfigTopology  = oapi.EdgeTypeConfigTopology
 	EdgeDirection           = oapi.EdgeDirection
@@ -203,9 +202,9 @@ type (
 // Constants from oapi
 const (
 	// IndexType values
-	IndexTypeFullTextV0 = oapi.IndexTypeFullTextV0
-	IndexTypeAknnV0     = oapi.IndexTypeAknnV0
-	IndexTypeSparseV0   = oapi.IndexTypeSparseV0
+	IndexTypeEmbeddings = oapi.IndexTypeEmbeddings
+	IndexTypeFullText   = oapi.IndexTypeFullText
+	IndexTypeGraph      = oapi.IndexTypeGraph
 
 	// Provider values
 	EmbedderProviderAntfly     = oapi.EmbedderProviderAntfly
@@ -351,8 +350,8 @@ const (
 	TransformOpTypeRename      = oapi.TransformOpTypeRename
 	TransformOpTypeCurrentDate = oapi.TransformOpTypeCurrentDate
 
-	// IndexType graph value
-	IndexTypeGraphV0 = oapi.IndexTypeGraphV0
+	// SyncLevel embeddings (renamed from SyncLevelAknn)
+	SyncLevelEmbeddings = oapi.SyncLevelAknn
 
 	// EdgeDirection values
 	EdgeDirectionBoth = oapi.EdgeDirectionBoth

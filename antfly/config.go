@@ -109,12 +109,15 @@ func NewIndexConfig(name string, config any) (*IndexConfig, error) {
 		Name: name,
 	}
 	switch v := config.(type) {
-	case EmbeddingIndexConfig:
-		t = IndexTypeAknnV0
-		idxConfig.FromEmbeddingIndexConfig(v)
-	case BleveIndexV2Config:
-		t = IndexTypeFullTextV0
-		idxConfig.FromBleveIndexV2Config(v)
+	case EmbeddingsIndexConfig:
+		t = IndexTypeEmbeddings
+		idxConfig.FromEmbeddingsIndexConfig(v)
+	case BleveIndexConfig:
+		t = IndexTypeFullText
+		idxConfig.FromBleveIndexConfig(v)
+	case GraphIndexConfig:
+		t = IndexTypeGraph
+		idxConfig.FromGraphIndexConfig(v)
 	default:
 		return nil, fmt.Errorf("unsupported index config type: %T", config)
 	}
