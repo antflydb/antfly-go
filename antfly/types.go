@@ -29,9 +29,11 @@ type (
 	IndexType          = oapi.IndexType
 
 	// Index config types
-	EmbeddingIndexConfig = oapi.EmbeddingIndexConfig
-	BleveIndexV2Config   = oapi.BleveIndexV2Config
-	BleveIndexV2Stats    = oapi.BleveIndexV2Stats
+	EmbeddingIndexConfig  = oapi.EmbeddingIndexConfig
+	BleveIndexV2Config    = oapi.BleveIndexV2Config
+	BleveIndexV2Stats     = oapi.BleveIndexV2Stats
+	SparseIndexV0Config   = oapi.SparseIndexV0Config
+	SparseIndexV0Stats    = oapi.SparseIndexV0Stats
 
 	EmbedderProvider         = oapi.EmbedderProvider
 	GeneratorProvider        = oapi.GeneratorProvider
@@ -203,6 +205,7 @@ const (
 	// IndexType values
 	IndexTypeFullTextV0 = oapi.IndexTypeFullTextV0
 	IndexTypeAknnV0     = oapi.IndexTypeAknnV0
+	IndexTypeSparseV0   = oapi.IndexTypeSparseV0
 
 	// Provider values
 	EmbedderProviderAntfly     = oapi.EmbedderProviderAntfly
