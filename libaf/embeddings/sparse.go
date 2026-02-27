@@ -6,7 +6,7 @@ import "context"
 // Indices are token IDs from the model's vocabulary, sorted ascending.
 // Values are the corresponding weights (always positive after SPLADE activation).
 type SparseVector struct {
-	Indices []int32   `json:"indices"`
+	Indices []uint32  `json:"indices"`
 	Values  []float32 `json:"values"`
 }
 

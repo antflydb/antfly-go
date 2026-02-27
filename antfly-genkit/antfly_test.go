@@ -43,7 +43,7 @@ func TestGenkit(t *testing.T) {
 	// TODO (ajr) Maybe we want a mock embedder for tests in antfly?
 	modelConfig, err := antfly.NewEmbedderConfig(antfly.OllamaEmbedderConfig{Model: "all-minilm"})
 	require.NoError(t, err)
-	idxConfig, err := antfly.NewIndexConfig(*testIndex, antfly.EmbeddingIndexConfig{
+	idxConfig, err := antfly.NewIndexConfig(*testIndex, antfly.EmbeddingsIndexConfig{
 		Field:    textKey,
 		Embedder: *modelConfig,
 	})
