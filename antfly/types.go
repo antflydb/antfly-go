@@ -77,6 +77,7 @@ type (
 	// Other types
 	AntflyType     = oapi.AntflyType
 	MergeStrategy  = oapi.MergeStrategy
+	MergeConfig    = oapi.MergeConfig
 	DocumentSchema = oapi.DocumentSchema
 
 	// Validation types
