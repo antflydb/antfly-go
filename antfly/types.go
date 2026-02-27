@@ -31,8 +31,8 @@ type (
 	// Index config types
 	EmbeddingsIndexConfig = oapi.EmbeddingsIndexConfig
 	EmbeddingsIndexStats  = oapi.EmbeddingsIndexStats
-	BleveIndexConfig      = oapi.BleveIndexConfig
-	BleveIndexStats       = oapi.BleveIndexStats
+	FullTextIndexConfig = oapi.FullTextIndexConfig
+	FullTextIndexStats  = oapi.FullTextIndexStats
 
 	EmbedderProvider         = oapi.EmbedderProvider
 	GeneratorProvider        = oapi.GeneratorProvider

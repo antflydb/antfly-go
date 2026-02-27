@@ -112,9 +112,9 @@ func NewIndexConfig(name string, config any) (*IndexConfig, error) {
 	case EmbeddingsIndexConfig:
 		t = IndexTypeEmbeddings
 		idxConfig.FromEmbeddingsIndexConfig(v)
-	case BleveIndexConfig:
+	case FullTextIndexConfig:
 		t = IndexTypeFullText
-		idxConfig.FromBleveIndexConfig(v)
+		idxConfig.FromFullTextIndexConfig(v)
 	case GraphIndexConfig:
 		t = IndexTypeGraph
 		idxConfig.FromGraphIndexConfig(v)
