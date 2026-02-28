@@ -13,16 +13,29 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
+	"golang.org/x/time/rate"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/option"
 )
 
-// Default export formats for Google Workspace MIME types.
-var defaultExportFormats = map[string]string{
-	"application/vnd.google-apps.document":     "text/html",
-	"application/vnd.google-apps.spreadsheet":  "text/csv",
-	"application/vnd.google-apps.presentation": "application/pdf",
-	"application/vnd.google-apps.drawing":      "image/png",
+// maxFileDownloadSize is the maximum size for a single file download (100MB).
+const maxFileDownloadSize = 100 * 1024 * 1024
+
+// Workspace MIME types that should be exported as text/plain.
+var workspaceExportFormats = map[string]string{
+	"application/vnd.google-apps.document":     "text/plain",
+	"application/vnd.google-apps.presentation": "text/plain",
+	"application/vnd.google-apps.form":         "text/plain",
+}
+
+// Workspace MIME types that should be skipped entirely.
+var workspaceSkipTypes = map[string]bool{
+	"application/vnd.google-apps.spreadsheet": true,
+	"application/vnd.google-apps.drawing":     true,
+	"application/vnd.google-apps.map":         true,
+	"application/vnd.google-apps.site":        true,
+	"application/vnd.google-apps.shortcut":    true,
+	"application/vnd.google-apps.folder":      true,
 }
 
 // folderIDRegexp extracts the folder ID from various Google Drive URL formats.
@@ -44,7 +57,7 @@ type GoogleDriveSourceConfig struct {
 	FolderID string
 
 	// BaseURL is the base URL for generating document links (optional).
-	// If empty, defaults to the Google Drive folder URL.
+	// If empty, defaults to "https://drive.google.com".
 	BaseURL string
 
 	// IncludePatterns is a list of glob patterns to include.
@@ -60,16 +73,9 @@ type GoogleDriveSourceConfig struct {
 	// Default: 5
 	Concurrency int
 
-	// Recursive controls whether subfolders are traversed.
-	// Default: true
-	Recursive bool
-
 	// IncludeSharedDrives enables listing files from shared/team drives.
-	IncludeSharedDrives bool
-
-	// ExportFormats overrides the default export MIME type for Google Workspace files.
-	// Keys are Google Workspace MIME types, values are the export MIME types.
-	ExportFormats map[string]string
+	// Default: true (when nil).
+	IncludeSharedDrives *bool
 }
 
 // GoogleDriveSource traverses files in a Google Drive folder and yields content items.
@@ -77,6 +83,7 @@ type GoogleDriveSource struct {
 	config    GoogleDriveSourceConfig
 	service   *drive.Service
 	semaphore chan struct{}
+	limiter   *rate.Limiter
 }
 
 // NewGoogleDriveSource creates a new Google Drive content source.
@@ -95,16 +102,6 @@ func NewGoogleDriveSource(ctx context.Context, config GoogleDriveSourceConfig) (
 	if config.Concurrency <= 0 {
 		config.Concurrency = 5
 	}
-
-	// Merge export formats with defaults
-	exportFormats := make(map[string]string, len(defaultExportFormats))
-	for k, v := range defaultExportFormats {
-		exportFormats[k] = v
-	}
-	for k, v := range config.ExportFormats {
-		exportFormats[k] = v
-	}
-	config.ExportFormats = exportFormats
 
 	// Build Drive service
 	var opts []option.ClientOption
@@ -129,11 +126,24 @@ func NewGoogleDriveSource(ctx context.Context, config GoogleDriveSourceConfig) (
 		return nil, fmt.Errorf("creating Drive service: %w", err)
 	}
 
+	// Rate limiter: 8 qps with burst of 2 (Google limit is 10 qps)
+	limiter := rate.NewLimiter(8.0, 2)
+
 	return &GoogleDriveSource{
 		config:    config,
 		service:   service,
 		semaphore: make(chan struct{}, config.Concurrency),
+		limiter:   limiter,
 	}, nil
+}
+
+// includeSharedDrives returns whether shared drives should be included.
+// Defaults to true when IncludeSharedDrives is nil.
+func (s *GoogleDriveSource) includeSharedDrives() bool {
+	if s.config.IncludeSharedDrives == nil {
+		return true
+	}
+	return *s.config.IncludeSharedDrives
 }
 
 // Type returns "google_drive" as the source type.
@@ -146,7 +156,7 @@ func (s *GoogleDriveSource) BaseURL() string {
 	if s.config.BaseURL != "" {
 		return s.config.BaseURL
 	}
-	return fmt.Sprintf("https://drive.google.com/drive/folders/%s", s.config.FolderID)
+	return "https://drive.google.com"
 }
 
 // Traverse lists files in the Google Drive folder and yields content items.
@@ -178,13 +188,18 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 		default:
 		}
 
+		// Rate limit list calls
+		if err := s.limiter.Wait(ctx); err != nil {
+			return err
+		}
+
 		query := fmt.Sprintf("'%s' in parents and trashed = false", folderID)
 		call := s.service.Files.List().
 			Q(query).
-			Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, webViewLink)").
+			Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, md5Checksum, webViewLink)").
 			PageSize(1000)
 
-		if s.config.IncludeSharedDrives {
+		if s.includeSharedDrives() {
 			call = call.SupportsAllDrives(true).IncludeItemsFromAllDrives(true)
 		}
 
@@ -210,19 +225,22 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 				relPath = pathPrefix + "/" + file.Name
 			}
 
-			// Handle folders
+			// Handle folders — recurse into subfolders
 			if file.MimeType == "application/vnd.google-apps.folder" {
-				if s.config.Recursive {
-					if err := s.traverseFolder(ctx, file.Id, relPath, items, wg); err != nil {
-						return err
-					}
+				if err := s.traverseFolder(ctx, file.Id, relPath, items, wg); err != nil {
+					return err
 				}
 				continue
 			}
 
-			// Skip Google Apps types that aren't exportable
+			// Skip non-exportable Workspace types
+			if workspaceSkipTypes[file.MimeType] {
+				continue
+			}
+
+			// Skip unknown Workspace types that aren't in our export map
 			if strings.HasPrefix(file.MimeType, "application/vnd.google-apps.") {
-				if _, ok := s.config.ExportFormats[file.MimeType]; !ok {
+				if _, ok := workspaceExportFormats[file.MimeType]; !ok {
 					continue
 				}
 			}
@@ -261,11 +279,12 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 					Content:     content,
 					ContentType: contentType,
 					Metadata: map[string]any{
-						"source_type": "google_drive",
-						"file_id":     f.Id,
-						"drive_url":   driveURL,
-						"mod_time":    f.ModifiedTime,
-						"size":        f.Size,
+						"source_type":   "google_drive",
+						"drive_file_id": f.Id,
+						"mime_type":     f.MimeType,
+						"modified_time": f.ModifiedTime,
+						"md5_checksum":  f.Md5Checksum,
+						"size":          f.Size,
 					},
 				}:
 				case <-ctx.Done():
@@ -285,15 +304,20 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 
 // downloadFile downloads a file from Google Drive, handling Google Workspace exports.
 func (s *GoogleDriveSource) downloadFile(ctx context.Context, file *drive.File) ([]byte, string, error) {
+	// Rate limit download calls
+	if err := s.limiter.Wait(ctx); err != nil {
+		return nil, "", err
+	}
+
 	// Check if this is an exportable Google Workspace file
-	if exportMIME, ok := s.config.ExportFormats[file.MimeType]; ok {
+	if exportMIME, ok := workspaceExportFormats[file.MimeType]; ok {
 		resp, err := s.service.Files.Export(file.Id, exportMIME).Context(ctx).Download()
 		if err != nil {
 			return nil, "", fmt.Errorf("exporting file %s: %w", file.Name, err)
 		}
 		defer resp.Body.Close()
 
-		data, err := io.ReadAll(resp.Body)
+		data, err := io.ReadAll(io.LimitReader(resp.Body, maxFileDownloadSize))
 		if err != nil {
 			return nil, "", fmt.Errorf("reading exported file %s: %w", file.Name, err)
 		}
@@ -307,7 +331,7 @@ func (s *GoogleDriveSource) downloadFile(ctx context.Context, file *drive.File) 
 	}
 	defer resp.Body.Close()
 
-	data, err := io.ReadAll(resp.Body)
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxFileDownloadSize))
 	if err != nil {
 		return nil, "", fmt.Errorf("reading file %s: %w", file.Name, err)
 	}

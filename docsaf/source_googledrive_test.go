@@ -30,18 +30,11 @@ func TestGoogleDriveSource_BaseURL(t *testing.T) {
 			expected: "https://docs.example.com",
 		},
 		{
-			name: "Default BaseURL from folder ID",
+			name: "Default BaseURL",
 			config: GoogleDriveSourceConfig{
 				FolderID: "abc123",
 			},
-			expected: "https://drive.google.com/drive/folders/abc123",
-		},
-		{
-			name: "Default BaseURL with long folder ID",
-			config: GoogleDriveSourceConfig{
-				FolderID: "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2wtIs",
-			},
-			expected: "https://drive.google.com/drive/folders/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2wtIs",
+			expected: "https://drive.google.com",
 		},
 	}
 
@@ -51,6 +44,42 @@ func TestGoogleDriveSource_BaseURL(t *testing.T) {
 			got := src.BaseURL()
 			if got != tt.expected {
 				t.Errorf("BaseURL() = %q, want %q", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestGoogleDriveSource_IncludeSharedDrives(t *testing.T) {
+	boolPtr := func(v bool) *bool { return &v }
+
+	tests := []struct {
+		name     string
+		config   GoogleDriveSourceConfig
+		expected bool
+	}{
+		{
+			name:     "Nil defaults to true",
+			config:   GoogleDriveSourceConfig{},
+			expected: true,
+		},
+		{
+			name:     "Explicit true",
+			config:   GoogleDriveSourceConfig{IncludeSharedDrives: boolPtr(true)},
+			expected: true,
+		},
+		{
+			name:     "Explicit false",
+			config:   GoogleDriveSourceConfig{IncludeSharedDrives: boolPtr(false)},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			src := &GoogleDriveSource{config: tt.config}
+			got := src.includeSharedDrives()
+			if got != tt.expected {
+				t.Errorf("includeSharedDrives() = %v, want %v", got, tt.expected)
 			}
 		})
 	}
@@ -236,22 +265,38 @@ func TestGoogleDriveSource_DefaultConcurrency(t *testing.T) {
 	}
 }
 
-func TestGoogleDriveSource_DefaultExportFormats(t *testing.T) {
+func TestGoogleDriveSource_WorkspaceExportFormats(t *testing.T) {
+	// Verify exportable types
 	expected := map[string]string{
-		"application/vnd.google-apps.document":     "text/html",
-		"application/vnd.google-apps.spreadsheet":  "text/csv",
-		"application/vnd.google-apps.presentation": "application/pdf",
-		"application/vnd.google-apps.drawing":      "image/png",
+		"application/vnd.google-apps.document":     "text/plain",
+		"application/vnd.google-apps.presentation": "text/plain",
+		"application/vnd.google-apps.form":         "text/plain",
 	}
 
 	for mimeType, exportType := range expected {
-		got, ok := defaultExportFormats[mimeType]
+		got, ok := workspaceExportFormats[mimeType]
 		if !ok {
-			t.Errorf("Missing default export format for %s", mimeType)
+			t.Errorf("Missing export format for %s", mimeType)
 			continue
 		}
 		if got != exportType {
-			t.Errorf("defaultExportFormats[%s] = %q, want %q", mimeType, got, exportType)
+			t.Errorf("workspaceExportFormats[%s] = %q, want %q", mimeType, got, exportType)
+		}
+	}
+
+	// Verify skipped types
+	skipped := []string{
+		"application/vnd.google-apps.spreadsheet",
+		"application/vnd.google-apps.drawing",
+		"application/vnd.google-apps.map",
+		"application/vnd.google-apps.site",
+		"application/vnd.google-apps.shortcut",
+		"application/vnd.google-apps.folder",
+	}
+
+	for _, mimeType := range skipped {
+		if !workspaceSkipTypes[mimeType] {
+			t.Errorf("Expected %s to be in workspaceSkipTypes", mimeType)
 		}
 	}
 }

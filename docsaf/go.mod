@@ -14,6 +14,7 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.4
 	golang.org/x/oauth2 v0.35.0
 	golang.org/x/text v0.34.0
+	golang.org/x/time v0.14.0
 	google.golang.org/api v0.269.0
 	gopkg.in/yaml.v3 v3.0.1
 )
