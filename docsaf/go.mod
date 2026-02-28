@@ -5,7 +5,8 @@ go 1.26
 require (
 	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/ajroetker/pdf v0.0.1-antfly001
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260226010651-7c5015049ef6
+	github.com/ajroetker/pdf/render v0.0.1-antfly003
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260228230634-2dce4e5ec059
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/gocolly/colly/v2 v2.3.0
 	github.com/minio/minio-go/v7 v7.0.98
@@ -25,7 +26,6 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/ajroetker/go-highway v0.0.4 // indirect
 	github.com/ajroetker/go-jpeg2000 v0.0.2 // indirect
-	github.com/ajroetker/pdf/render v0.0.1-antfly003 // indirect
 	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/antchfx/htmlquery v1.3.5 // indirect
 	github.com/antchfx/xmlquery v1.5.0 // indirect
