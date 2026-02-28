@@ -163,6 +163,11 @@ type (
 	ForeignColumn     = oapi.ForeignColumn
 	ForeignSourceType = oapi.ForeignSourceType
 
+	// Replication types
+	ReplicationSource      = oapi.ReplicationSource
+	ReplicationSourceType  = oapi.ReplicationSourceType
+	ReplicationTransformOp = oapi.ReplicationTransformOp
+
 	// Graph index types
 	GraphIndexConfig        = oapi.GraphIndexConfig
 	GraphIndexStats         = oapi.GraphIndexStats
@@ -318,6 +323,9 @@ const (
 
 	// ForeignSourceType values
 	ForeignSourceTypePostgres = oapi.ForeignSourceTypePostgres
+
+	// ReplicationSourceType values
+	ReplicationSourceTypePostgres = oapi.ReplicationSourceTypePostgres
 
 	// JoinOperator values
 	JoinOperatorEq  = oapi.JoinOperatorEq
