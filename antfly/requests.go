@@ -117,10 +117,8 @@ type QueryRequest struct {
 	// Limit maximum number of results to return or topk for semantic_search
 	Limit int `json:"limit,omitempty"`
 
-	// MergeStrategy for combining results from semantic_search and full_text_search
-	// rrf: Reciprocal Rank Fusion
-	// failover: Use full_text_search if embedding generation fails
-	MergeStrategy MergeStrategy `json:"merge_strategy,omitempty"`
+	// MergeConfig for combining results from semantic_search and full_text_search
+	MergeConfig MergeConfig `json:"merge_config,omitempty"`
 
 	// Offset number of results to skip for pagination (only available for full_text_search queries)
 	Offset int `json:"offset,omitempty"`
@@ -172,7 +170,7 @@ func (q QueryRequest) MarshalJSON() ([]byte, error) {
 		FilterPrefix:     q.FilterPrefix,
 		Indexes:          q.Indexes,
 		Limit:            q.Limit,
-		MergeStrategy:    q.MergeStrategy,
+		MergeConfig:      q.MergeConfig,
 		Offset:           q.Offset,
 		OrderBy:          q.OrderBy,
 		Reranker:         q.Reranker,
@@ -229,7 +227,7 @@ func (q *QueryRequest) UnmarshalJSON(data []byte) error {
 	q.FilterPrefix = oapiReq.FilterPrefix
 	q.Indexes = oapiReq.Indexes
 	q.Limit = oapiReq.Limit
-	q.MergeStrategy = oapiReq.MergeStrategy
+	q.MergeConfig = oapiReq.MergeConfig
 	q.Offset = oapiReq.Offset
 	q.OrderBy = oapiReq.OrderBy
 	q.Reranker = oapiReq.Reranker
