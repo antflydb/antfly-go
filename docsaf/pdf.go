@@ -2,12 +2,16 @@ package docsaf
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"maps"
 	"path/filepath"
 	"strings"
 
 	"github.com/ajroetker/pdf"
+	"github.com/ajroetker/pdf/render"
+	"github.com/antflydb/antfly-go/libaf/ai"
+	"github.com/antflydb/antfly-go/libaf/reading"
 )
 
 // PDFProgress reports progress during PDF processing.
@@ -43,6 +47,64 @@ type PDFProcessor struct {
 	// ProgressInterval controls how often ProgressFunc is called.
 	// If 0, defaults to every 100 pages.
 	ProgressInterval int
+
+	// OCR is an optional Reader for fallback OCR on pages with poor text extraction.
+	// When nil, no OCR fallback is attempted.
+	OCR reading.Reader
+
+	// OCRMinContent is the minimum character count before OCR fallback triggers.
+	// Default: 50 (DefaultOCRMinContent).
+	OCRMinContent int
+
+	// OCRRenderDPI is the DPI for rendering PDF pages to images for OCR.
+	// Default: 150 (DefaultOCRRenderDPI).
+	OCRRenderDPI float64
+}
+
+func (pp *PDFProcessor) ocrMinContent() int {
+	if pp.OCRMinContent > 0 {
+		return pp.OCRMinContent
+	}
+	return DefaultOCRMinContent
+}
+
+func (pp *PDFProcessor) ocrRenderDPI() float64 {
+	if pp.OCRRenderDPI > 0 {
+		return pp.OCRRenderDPI
+	}
+	return DefaultOCRRenderDPI
+}
+
+// ocrFallback renders a PDF page to PNG and runs OCR on it.
+// Returns the OCR text and true if OCR was used, or empty string and false.
+func (pp *PDFProcessor) ocrFallback(pdfData []byte, pageNum int) (string, bool) {
+	if pp.OCR == nil {
+		return "", false
+	}
+
+	renderer, err := render.NewRenderer(pdfData)
+	if err != nil {
+		return "", false
+	}
+	defer renderer.Close()
+
+	pngBytes, err := renderer.RenderPageToPNG(pageNum, pp.ocrRenderDPI())
+	if err != nil {
+		return "", false
+	}
+
+	results, err := pp.OCR.Read(context.TODO(), []ai.BinaryContent{
+		{MIMEType: "image/png", Data: pngBytes},
+	}, nil)
+	if err != nil || len(results) == 0 {
+		return "", false
+	}
+
+	text := strings.TrimSpace(results[0])
+	if text == "" {
+		return "", false
+	}
+	return text, true
 }
 
 func (pp *PDFProcessor) getTextRepair() *TextRepair {
@@ -160,6 +222,15 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 		// Note: SegmentWords was removed - it was designed for layout-analyzed text
 		// with merged words, but GetPlainText already handles word boundaries correctly
 
+		// OCR fallback: if text extraction produced poor results, try OCR
+		extractionMethod := "text_stream"
+		if pp.OCR != nil && NeedsOCRFallback(pageContent, pp.ocrMinContent()) {
+			if ocrText, used := pp.ocrFallback(content, pageNum); used {
+				pageContent = ocrText
+				extractionMethod = "ocr"
+			}
+		}
+
 		if pageContent == "" {
 			continue
 		}
@@ -180,8 +251,9 @@ func (pp *PDFProcessor) Process(path, sourceURL, baseURL string, content []byte)
 			Type:     "pdf_page",
 			URL:      url,
 			Metadata: pp.mergeSectionMetadata(docMetadata, map[string]any{
-				"page_number": pageNum,
-				"total_pages": totalPages,
+				"page_number":       pageNum,
+				"total_pages":       totalPages,
+				"extraction_method": extractionMethod,
 			}),
 		}
 
