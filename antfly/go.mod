@@ -3,10 +3,10 @@ module github.com/antflydb/antfly-go/antfly
 go 1.26
 
 require (
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260226010651-7c5015049ef6
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260301002911-7bda42e89b87
 	github.com/getkin/kin-openapi v0.133.0
-	github.com/kaptinlin/jsonschema v0.7.3
-	github.com/oapi-codegen/runtime v1.1.2
+	github.com/kaptinlin/jsonschema v0.7.5
+	github.com/oapi-codegen/runtime v1.2.0
 )
 
 require (
@@ -18,8 +18,8 @@ require (
 	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/kaptinlin/go-i18n v0.2.11 // indirect
-	github.com/kaptinlin/jsonpointer v0.4.16 // indirect
+	github.com/kaptinlin/go-i18n v0.2.12 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.17 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.18 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
@@ -33,7 +33,6 @@ require (
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	github.com/woodsbury/decimal128 v1.4.0 // indirect
 	golang.org/x/mod v0.32.0 // indirect
-	golang.org/x/net v0.51.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect

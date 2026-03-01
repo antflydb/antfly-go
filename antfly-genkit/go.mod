@@ -5,14 +5,14 @@ go 1.26
 replace github.com/antflydb/antfly-go/antfly => ../antfly
 
 require (
-	github.com/antflydb/antfly-go/antfly v0.0.0-20260226010651-7c5015049ef6
+	github.com/antflydb/antfly-go/antfly v0.0.0-20260301002911-7bda42e89b87
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/firebase/genkit/go v1.4.0
 	github.com/stretchr/testify v1.11.1
 )
 
 require (
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260226010651-7c5015049ef6 // indirect
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260301002911-7bda42e89b87 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
@@ -24,18 +24,18 @@ require (
 	github.com/go-openapi/jsonpointer v0.22.4 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.4 // indirect
 	github.com/goccy/go-yaml v1.19.2 // indirect
-	github.com/google/dotprompt/go v0.0.0-20260225014033-bb87a745a085 // indirect
+	github.com/google/dotprompt/go v0.0.0-20260227225921-0911cf9ecf0e // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
-	github.com/kaptinlin/go-i18n v0.2.11 // indirect
-	github.com/kaptinlin/jsonpointer v0.4.16 // indirect
-	github.com/kaptinlin/jsonschema v0.7.3 // indirect
+	github.com/kaptinlin/go-i18n v0.2.12 // indirect
+	github.com/kaptinlin/jsonpointer v0.4.17 // indirect
+	github.com/kaptinlin/jsonschema v0.7.5 // indirect
 	github.com/kaptinlin/messageformat-go v0.4.18 // indirect
 	github.com/mailru/easyjson v0.9.1 // indirect
 	github.com/mbleigh/raymond v0.0.0-20250414171441-6b3a58ab9e0a // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
-	github.com/oapi-codegen/runtime v1.1.2 // indirect
+	github.com/oapi-codegen/runtime v1.2.0 // indirect
 	github.com/oasdiff/yaml v0.0.0-20250309154309-f31be36b4037 // indirect
 	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
