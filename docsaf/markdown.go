@@ -713,6 +713,10 @@ func DetectContentType(path string, content []byte) string {
 		return "application/json"
 	case ".txt":
 		return "text/plain"
+	case ".docx":
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	case ".pptx":
+		return "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 	}
 
 	return "application/octet-stream"

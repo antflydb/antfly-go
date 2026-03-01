@@ -268,8 +268,8 @@ func TestGoogleDriveSource_DefaultConcurrency(t *testing.T) {
 func TestGoogleDriveSource_WorkspaceExportFormats(t *testing.T) {
 	// Verify exportable types
 	expected := map[string]string{
-		"application/vnd.google-apps.document":     "text/plain",
-		"application/vnd.google-apps.presentation": "text/plain",
+		"application/vnd.google-apps.document":     "text/html",
+		"application/vnd.google-apps.presentation": "application/pdf",
 		"application/vnd.google-apps.form":         "text/plain",
 	}
 

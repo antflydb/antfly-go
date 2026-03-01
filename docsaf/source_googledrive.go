@@ -21,10 +21,12 @@ import (
 // maxFileDownloadSize is the maximum size for a single file download (100MB).
 const maxFileDownloadSize = 100 * 1024 * 1024
 
-// Workspace MIME types that should be exported as text/plain.
+// Workspace MIME types and the format to export them as.
+// Google Docs export as HTML to preserve heading structure for HTMLProcessor.
+// Google Slides export as PDF to preserve slide layout for PDFProcessor.
 var workspaceExportFormats = map[string]string{
-	"application/vnd.google-apps.document":     "text/plain",
-	"application/vnd.google-apps.presentation": "text/plain",
+	"application/vnd.google-apps.document":     "text/html",
+	"application/vnd.google-apps.presentation": "application/pdf",
 	"application/vnd.google-apps.form":         "text/plain",
 }
 
