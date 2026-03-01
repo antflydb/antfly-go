@@ -51,8 +51,8 @@ type S3SourceConfig struct {
 
 // S3Source traverses objects in an S3-compatible bucket and yields content items.
 type S3Source struct {
-	config   S3SourceConfig
-	client   *minio.Client
+	config    S3SourceConfig
+	client    *minio.Client
 	semaphore chan struct{} // Concurrency control
 }
 
@@ -169,7 +169,7 @@ func (s *S3Source) Traverse(ctx context.Context) (<-chan ContentItem, <-chan err
 			wg.Add(1)
 			s.semaphore <- struct{}{} // Acquire slot
 
-			go func(key, relPath string, size int64, lastModified interface{}) {
+			go func(key, relPath string, size int64, lastModified any) {
 				defer wg.Done()
 				defer func() { <-s.semaphore }() // Release slot
 

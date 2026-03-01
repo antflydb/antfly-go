@@ -1,6 +1,7 @@
 package docsaf
 
 import (
+	"slices"
 	"strings"
 	"unicode"
 
@@ -1219,13 +1220,7 @@ func isListMarker(s string) bool {
 	lower := strings.ToLower(s)
 	romanNumerals := []string{"i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x",
 		"xi", "xii", "xiii", "xiv", "xv", "xvi", "xvii", "xviii", "xix", "xx"}
-	for _, rn := range romanNumerals {
-		if lower == rn {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(romanNumerals, lower)
 }
 
 // isHeaderLine checks if a line appears to be a section header.

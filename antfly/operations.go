@@ -27,8 +27,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/antflydb/antfly-go/antfly/oapi"
+	"github.com/antflydb/antfly-go/libaf/json"
 )
 
 // readSSEEvents reads SSE events from a reader and yields (eventType, data) pairs.
@@ -479,12 +479,12 @@ func (tx *Transaction) Commit(ctx context.Context, writes map[string]BatchReques
 	oapiTables := make(map[string]oapi.BatchRequest, len(writes))
 	for tableName, br := range writes {
 		// Convert map[string]any to map[string]map[string]interface{} for oapi compat
-		var oapiInserts map[string]map[string]interface{}
+		var oapiInserts map[string]map[string]any
 		if len(br.Inserts) > 0 {
-			oapiInserts = make(map[string]map[string]interface{}, len(br.Inserts))
+			oapiInserts = make(map[string]map[string]any, len(br.Inserts))
 			for k, v := range br.Inserts {
 				switch doc := v.(type) {
-				case map[string]interface{}:
+				case map[string]any:
 					oapiInserts[k] = doc
 				default:
 					// Marshal and re-unmarshal for struct types
@@ -492,7 +492,7 @@ func (tx *Transaction) Commit(ctx context.Context, writes map[string]BatchReques
 					if err != nil {
 						return nil, fmt.Errorf("marshalling insert for key %s: %w", k, err)
 					}
-					var m map[string]interface{}
+					var m map[string]any
 					if err := json.Unmarshal(b, &m); err != nil {
 						return nil, fmt.Errorf("converting insert for key %s: %w", k, err)
 					}
@@ -593,4 +593,3 @@ func (c *AntflyClient) AnswerAgent(ctx context.Context, req AnswerAgentRequest) 
 
 	return &result, nil
 }
-

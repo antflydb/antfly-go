@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"mime"
 	"path/filepath"
 	"regexp"
@@ -664,9 +665,7 @@ func copyMetadata(m map[string]any) map[string]any {
 		return make(map[string]any)
 	}
 	copy := make(map[string]any, len(m))
-	for k, v := range m {
-		copy[k] = v
-	}
+	maps.Copy(copy, m)
 	return copy
 }
 

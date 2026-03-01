@@ -58,11 +58,11 @@ func NewLayoutAnalyzerWithConfig(cfg LayoutConfig) *LayoutAnalyzer {
 // WithDepositionMode configures the analyzer for deposition transcript extraction.
 // This uses tighter column detection and filters out line number columns.
 func (la *LayoutAnalyzer) WithDepositionMode() *LayoutAnalyzer {
-	la.ColumnGapThreshold = 12.0  // Narrow gaps for line number columns
-	la.RowTolerance = 2.0         // Tight row grouping
-	la.MinRowsForColumnPct = 75   // Line numbers on most rows
-	la.FilterLineNumbers = true   // Remove line number column from output
-	la.AutoDetectLayout = false   // Explicit mode
+	la.ColumnGapThreshold = 12.0 // Narrow gaps for line number columns
+	la.RowTolerance = 2.0        // Tight row grouping
+	la.MinRowsForColumnPct = 75  // Line numbers on most rows
+	la.FilterLineNumbers = true  // Remove line number column from output
+	la.AutoDetectLayout = false  // Explicit mode
 	return la
 }
 
@@ -186,10 +186,7 @@ func (la *LayoutAnalyzer) detectColumns(texts []pdf.Text, pageLeft, pageRight fl
 	if pct <= 0 {
 		pct = 25
 	}
-	minRowsForColumn := len(rows) * pct / 100
-	if minRowsForColumn < 3 {
-		minRowsForColumn = 3
-	}
+	minRowsForColumn := max(len(rows)*pct/100, 3)
 
 	var columnBoundaries []float64
 	for bucket, count := range gapCounts {
@@ -401,7 +398,7 @@ func (la *LayoutAnalyzer) reverseMirroredRuns(texts []pdf.Text) []pdf.Text {
 
 			// Reverse the sorted order to correct the mirroring
 			reversed := make([]pdf.Text, len(sorted))
-			for j := 0; j < len(sorted); j++ {
+			for j := range sorted {
 				reversed[j] = sorted[len(sorted)-1-j]
 			}
 
@@ -521,10 +518,10 @@ func (la *LayoutAnalyzer) splitInterleavedRows(texts []pdf.Text) [][]pdf.Text {
 	// Check if this would cause interleaving:
 	// If different Y values have overlapping X ranges, they'll interleave when sorted by X
 	type yRange struct {
-		y        float64
-		xMin     float64
-		xMax     float64
-		texts    []pdf.Text
+		y         float64
+		xMin      float64
+		xMax      float64
+		texts     []pdf.Text
 		charCount int
 	}
 
@@ -1162,7 +1159,7 @@ func NewFontDecoder() *FontDecoder {
 			'\u3000': ' ', // ideographic space
 			// Other common substitutions
 			'\u2022': '*', // bullet
-			'\u2023': '>',  // triangular bullet
+			'\u2023': '>', // triangular bullet
 			'\u2043': '-', // hyphen bullet
 			'\u00B7': '.', // middle dot
 			// Note: '\u2026' (ellipsis) is handled specially in Decode()

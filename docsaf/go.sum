@@ -23,8 +23,8 @@ github.com/antchfx/xmlquery v1.5.0/go.mod h1:lJfWRXzYMK1ss32zm1GQV3gMIW/HFey3xDZ
 github.com/antchfx/xpath v1.3.5/go.mod h1:i54GszH55fYfBmoZXapTHN8T8tkcHfRgLyVwwqzXNcs=
 github.com/antchfx/xpath v1.3.6 h1:s0y+ElRRtTQdfHP609qFu0+c6bglDv20pqOViQjjdPI=
 github.com/antchfx/xpath v1.3.6/go.mod h1:i54GszH55fYfBmoZXapTHN8T8tkcHfRgLyVwwqzXNcs=
-github.com/antflydb/antfly-go/libaf v0.0.0-20260301002911-7bda42e89b87 h1:dQ5MaF+BzRGfSmIKo9FPKgVf96u0HJ8LMX1V9+ZpHBA=
-github.com/antflydb/antfly-go/libaf v0.0.0-20260301002911-7bda42e89b87/go.mod h1:fFLPpVrHKT7nP+MNrWyzrZTNjPmW/FzKnSZfQsJKAs4=
+github.com/antflydb/antfly-go/libaf v0.0.0-20260301042712-9269c2af7897 h1:yujpRH6rA834BA3guXksESkH1gSp+O51sg/pHW1hEq4=
+github.com/antflydb/antfly-go/libaf v0.0.0-20260301042712-9269c2af7897/go.mod h1:4+dUaYDdlV7Q2vxO/ImySlXjmez7CIG14AcQsSuzi4A=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/bits-and-blooms/bitset v1.20.0/go.mod h1:7hO7Gc7Pp1vODcmWvKMRA9BNmbv6a/7QIWpPxHddWR8=

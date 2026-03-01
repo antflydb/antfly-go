@@ -25,9 +25,9 @@ import (
 
 func TestReadSSEEvents(t *testing.T) {
 	tests := []struct {
-		name   string
-		input  string
-		want   []struct{ event, data string }
+		name  string
+		input string
+		want  []struct{ event, data string }
 	}{
 		{
 			name:  "single event",
@@ -112,10 +112,7 @@ func (r *chunkedReader) Read(p []byte) (n int, err error) {
 	if r.pos >= len(r.data) {
 		return 0, io.EOF
 	}
-	end := r.pos + r.chunkSize
-	if end > len(r.data) {
-		end = len(r.data)
-	}
+	end := min(r.pos+r.chunkSize, len(r.data))
 	n = copy(p, r.data[r.pos:end])
 	r.pos = end
 	return n, nil
@@ -165,4 +162,3 @@ func TestReadSSEEventsEarlyTermination(t *testing.T) {
 		t.Errorf("early termination: got %d events, want 1", count)
 	}
 }
-

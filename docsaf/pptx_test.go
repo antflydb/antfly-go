@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -49,14 +50,14 @@ func buildTestPptx(t *testing.T, slides map[int]string, notes map[int]string, co
 }
 
 func makeSlideXML(texts ...string) string {
-	var shapes string
+	var shapes strings.Builder
 	for _, text := range texts {
-		shapes += fmt.Sprintf(`
+		shapes.WriteString(fmt.Sprintf(`
       <p:sp>
         <p:txBody>
           <a:p><a:r><a:t>%s</a:t></a:r></a:p>
         </p:txBody>
-      </p:sp>`, text)
+      </p:sp>`, text))
 	}
 
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
@@ -66,7 +67,7 @@ func makeSlideXML(texts ...string) string {
     <p:spTree>%s
     </p:spTree>
   </p:cSld>
-</p:sld>`, shapes)
+</p:sld>`, shapes.String())
 }
 
 func makeNotesXML(text string) string {

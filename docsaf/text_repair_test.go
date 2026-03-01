@@ -1,6 +1,7 @@
 package docsaf
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -144,13 +145,7 @@ func TestTextRepair_HeaderFooterDetection(t *testing.T) {
 	if len(headers) == 0 {
 		t.Error("Expected to detect at least one header pattern")
 	} else {
-		found := false
-		for _, h := range headers {
-			if h == "COURT REPORTING INC" {
-				found = true
-				break
-			}
-		}
+		found := slices.Contains(headers, "COURT REPORTING INC")
 		if !found {
 			t.Errorf("Expected header 'COURT REPORTING INC', got %v", headers)
 		}
@@ -186,12 +181,7 @@ Page 1`
 }
 
 func containsLine(text, line string) bool {
-	for _, l := range splitLines(text) {
-		if l == line {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(splitLines(text), line)
 }
 
 func splitLines(text string) []string {
@@ -292,10 +282,10 @@ func TestTextRepair_DetectMirroredText(t *testing.T) {
 	tr := NewTextRepair()
 
 	tests := []struct {
-		name           string
-		text           string
-		wantMirrored   bool
-		minConfidence  float64
+		name          string
+		text          string
+		wantMirrored  bool
+		minConfidence float64
 	}{
 		{
 			name:         "normal English text",
@@ -343,8 +333,8 @@ func TestTextRepair_RepairMirroredText(t *testing.T) {
 	tr := NewTextRepair()
 
 	tests := []struct {
-		name     string
-		text     string
+		name      string
+		text      string
 		wantFixed bool
 	}{
 		{
@@ -639,13 +629,7 @@ func TestTextRepair_generateOCRVariants(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			variants := tr.generateOCRVariants(tt.word)
-			found := false
-			for _, v := range variants {
-				if v == tt.expectedVariant {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(variants, tt.expectedVariant)
 			if !found {
 				t.Errorf("generateOCRVariants(%q) did not include expected variant %q. Got: %v",
 					tt.word, tt.expectedVariant, variants)

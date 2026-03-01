@@ -48,8 +48,8 @@ func (c *Client) CreateRetrievalAgentTargetFunc(tables []string) eval.TargetFunc
 		}
 
 		resp, err := c.CallRetrievalAgent(ctx, antfly.RetrievalAgentRequest{
-			Table: tables[0],
-			Query: query,
+			Queries: []antfly.RetrievalQueryRequest{{Table: tables[0]}},
+			Query:   query,
 		})
 		if err != nil {
 			return nil, err
@@ -69,8 +69,8 @@ func (c *Client) CreateRetrievalAgentClassificationTargetFunc(tables []string) e
 		}
 
 		resp, err := c.CallRetrievalAgent(ctx, antfly.RetrievalAgentRequest{
-			Table: tables[0],
-			Query: query,
+			Queries: []antfly.RetrievalQueryRequest{{Table: tables[0]}},
+			Query:   query,
 		})
 		if err != nil {
 			return nil, err

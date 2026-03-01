@@ -20,9 +20,9 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/antflydb/antfly-go/antfly/oapi"
 	"github.com/antflydb/antfly-go/antfly/query"
+	"github.com/antflydb/antfly-go/libaf/json"
 )
 
 // BatchRequest represents a batch operation request with flexible insert types.
@@ -118,7 +118,7 @@ type QueryRequest struct {
 	Limit int `json:"limit,omitempty"`
 
 	// MergeConfig for combining results from semantic_search and full_text_search
-	MergeConfig MergeConfig `json:"merge_config,omitempty"`
+	MergeConfig MergeConfig `json:"merge_config"`
 
 	// Offset number of results to skip for pagination (only available for full_text_search queries)
 	Offset int `json:"offset,omitempty"`
@@ -144,7 +144,7 @@ type QueryRequest struct {
 
 	// Join configuration for joining data from another table.
 	// Supports inner, left, and right joins with automatic strategy selection.
-	Join JoinClause `json:"join,omitempty"`
+	Join JoinClause `json:"join"`
 
 	// ForeignSources maps table names to foreign data source configurations for
 	// query-time federated access. When a table name referenced in a query or join

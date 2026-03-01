@@ -3,6 +3,7 @@ package docsaf
 import (
 	"math"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"unicode"
@@ -90,7 +91,7 @@ func (tr *TextRepair) DetectEncodingShift(text string) (shift int, confidence fl
 	bestShift := 0
 	bestScore := 0.0
 
-	for testShift := 0; testShift < 26; testShift++ {
+	for testShift := range 26 {
 		// Apply shift to text frequency and compare with English
 		score := tr.calculateFrequencyMatchScore(textFreq, testShift)
 		if score > bestScore {
@@ -421,11 +422,8 @@ func (tr *TextRepair) calculateEnglishScore(text string) float64 {
 	commonWords := []string{"the", "and", "that", "have", "for", "not", "with", "you", "this", "but", "from", "they", "was", "are", "been"}
 	foundCommon := 0
 	for _, w := range words {
-		for _, common := range commonWords {
-			if w == common {
-				foundCommon++
-				break
-			}
+		if slices.Contains(commonWords, w) {
+			foundCommon++
 		}
 	}
 
@@ -791,10 +789,7 @@ func (tr *TextRepair) isSimilar(a, b string) bool {
 	}
 
 	// Calculate simple edit distance for short strings
-	maxLen := len(aNorm)
-	if len(bNorm) > maxLen {
-		maxLen = len(bNorm)
-	}
+	maxLen := max(len(bNorm), len(aNorm))
 	if maxLen == 0 {
 		return true
 	}

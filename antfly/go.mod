@@ -3,7 +3,7 @@ module github.com/antflydb/antfly-go/antfly
 go 1.26
 
 require (
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260301002911-7bda42e89b87
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260301042712-9269c2af7897
 	github.com/getkin/kin-openapi v0.133.0
 	github.com/kaptinlin/jsonschema v0.7.5
 	github.com/oapi-codegen/runtime v1.2.0
