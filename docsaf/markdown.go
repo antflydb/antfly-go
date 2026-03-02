@@ -2,8 +2,6 @@ package docsaf
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"maps"
 	"mime"
@@ -553,12 +551,21 @@ func extractFrontmatter(content []byte) (map[string]any, []byte) {
 	return frontmatter, content[contentStart:]
 }
 
-// generateID creates a unique ID for a section using SHA-256 hash.
+// GenerateID creates a deterministic, path-based ID for a section.
+// The ID format is "path#slug" which sorts lexicographically by file path,
+// enabling streaming LinearMerge without buffering all records for sorting.
+// This is exported so SDK users can compose with it via WithIDTransform.
+func GenerateID(path, identifier string) string {
+	slug := generateSlug(identifier)
+	if slug == "" {
+		slug = "doc"
+	}
+	return path + "#" + slug
+}
+
+// generateID is the internal alias used by content processors.
 func generateID(path, identifier string) string {
-	hasher := sha256.New()
-	hasher.Write([]byte(path + "|" + identifier))
-	hash := hex.EncodeToString(hasher.Sum(nil))
-	return "doc_" + hash[:16]
+	return GenerateID(path, identifier)
 }
 
 // generateSlug creates a GitHub-style URL slug from a heading.

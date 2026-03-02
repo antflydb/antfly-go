@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 
@@ -161,7 +162,8 @@ func (s *GoogleDriveSource) BaseURL() string {
 	return "https://drive.google.com"
 }
 
-// Traverse lists files in the Google Drive folder and yields content items.
+// Traverse lists files in the Google Drive folder and yields content items
+// in lexicographic path order (depth-first, sorted by name within each folder).
 func (s *GoogleDriveSource) Traverse(ctx context.Context) (<-chan ContentItem, <-chan error) {
 	items := make(chan ContentItem)
 	errs := make(chan error, 1)
@@ -170,18 +172,24 @@ func (s *GoogleDriveSource) Traverse(ctx context.Context) (<-chan ContentItem, <
 		defer close(items)
 		defer close(errs)
 
-		var wg sync.WaitGroup
-		if err := s.traverseFolder(ctx, s.config.FolderID, "", items, &wg); err != nil {
+		if err := s.traverseFolder(ctx, s.config.FolderID, "", items); err != nil {
 			errs <- err
 		}
-		wg.Wait()
 	}()
 
 	return items, errs
 }
 
+// downloadSlot holds the result channel for a single concurrent download,
+// allowing ordered emission after concurrent downloads complete.
+type downloadSlot struct {
+	ch chan ContentItem
+}
+
 // traverseFolder recursively lists files in a folder and sends them to the items channel.
-func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPrefix string, items chan<- ContentItem, wg *sync.WaitGroup) error {
+// Files are emitted in name-sorted order within each folder (depth-first traversal).
+// Downloads happen concurrently for performance, but results are emitted in order.
+func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPrefix string, items chan<- ContentItem) error {
 	var pageToken string
 	for {
 		select {
@@ -198,6 +206,7 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 		query := fmt.Sprintf("'%s' in parents and trashed = false", folderID)
 		call := s.service.Files.List().
 			Q(query).
+			OrderBy("name").
 			Fields("nextPageToken, files(id, name, mimeType, size, modifiedTime, md5Checksum, webViewLink)").
 			PageSize(1000)
 
@@ -214,24 +223,23 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 			return fmt.Errorf("listing folder %s: %w", folderID, err)
 		}
 
-		for _, file := range fileList.Files {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
+		// Separate folders from files so we can recurse folders in sorted order
+		// before emitting files. This produces depth-first, name-sorted traversal.
+		type fileEntry struct {
+			file    *drive.File
+			relPath string
+		}
+		var folders []fileEntry
+		var files []fileEntry
 
-			// Build relative path
+		for _, file := range fileList.Files {
 			relPath := file.Name
 			if pathPrefix != "" {
 				relPath = pathPrefix + "/" + file.Name
 			}
 
-			// Handle folders — recurse into subfolders
 			if file.MimeType == "application/vnd.google-apps.folder" {
-				if err := s.traverseFolder(ctx, file.Id, relPath, items, wg); err != nil {
-					return err
-				}
+				folders = append(folders, fileEntry{file: file, relPath: relPath})
 				continue
 			}
 
@@ -239,8 +247,6 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 			if workspaceSkipTypes[file.MimeType] {
 				continue
 			}
-
-			// Skip unknown Workspace types that aren't in our export map
 			if strings.HasPrefix(file.MimeType, "application/vnd.google-apps.") {
 				if _, ok := workspaceExportFormats[file.MimeType]; !ok {
 					continue
@@ -255,18 +261,45 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 				continue
 			}
 
-			// Download with concurrency control
+			files = append(files, fileEntry{file: file, relPath: relPath})
+		}
+
+		// Sort folders by name (API returns sorted, but be defensive)
+		sort.Slice(folders, func(i, j int) bool {
+			return folders[i].file.Name < folders[j].file.Name
+		})
+
+		// Recurse into subfolders first (depth-first, sorted by name)
+		for _, folder := range folders {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+			if err := s.traverseFolder(ctx, folder.file.Id, folder.relPath, items); err != nil {
+				return err
+			}
+		}
+
+		// Download files concurrently but emit in name-sorted order.
+		// Each file gets an ordered result channel; downloads fill them
+		// in parallel, but we read them sequentially to maintain order.
+		slots := make([]downloadSlot, len(files))
+		var wg sync.WaitGroup
+		for i, fe := range files {
+			slots[i] = downloadSlot{ch: make(chan ContentItem, 1)}
+
 			wg.Add(1)
 			s.semaphore <- struct{}{}
-
-			go func(f *drive.File, relPath string) {
+			go func(f *drive.File, relPath string, slot chan<- ContentItem) {
 				defer wg.Done()
 				defer func() { <-s.semaphore }()
+				defer close(slot)
 
 				content, contentType, err := s.downloadFile(ctx, f)
 				if err != nil {
 					log.Printf("Warning: Failed to download %s: %v", relPath, err)
-					return
+					return // slot closed empty — skipped in emission
 				}
 
 				driveURL := f.WebViewLink
@@ -275,7 +308,7 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 				}
 
 				select {
-				case items <- ContentItem{
+				case slot <- ContentItem{
 					Path:        relPath,
 					SourceURL:   driveURL,
 					Content:     content,
@@ -290,10 +323,26 @@ func (s *GoogleDriveSource) traverseFolder(ctx context.Context, folderID, pathPr
 					},
 				}:
 				case <-ctx.Done():
-					return
 				}
-			}(file, relPath)
+			}(fe.file, fe.relPath, slots[i].ch)
 		}
+
+		// Emit items in name-sorted order by reading slots sequentially.
+		// Each slot blocks until that file's download completes.
+		for _, slot := range slots {
+			if item, ok := <-slot.ch; ok {
+				select {
+				case items <- item:
+				case <-ctx.Done():
+					wg.Wait()
+					return ctx.Err()
+				}
+			}
+		}
+
+		// Wait for any remaining goroutines (e.g., failed downloads
+		// whose slots were already closed empty).
+		wg.Wait()
 
 		pageToken = fileList.NextPageToken
 		if pageToken == "" {

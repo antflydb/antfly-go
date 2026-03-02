@@ -109,8 +109,9 @@ func (s *S3Source) BaseURL() string {
 	return fmt.Sprintf("s3://%s/%s", s.config.Bucket, s.config.Prefix)
 }
 
-// Traverse lists objects in the S3 bucket and yields content items for all matching objects.
-// It returns a channel of ContentItems and a channel for errors.
+// Traverse lists objects in the S3 bucket and yields content items in
+// lexicographic key order. S3 ListObjects returns keys sorted; we download
+// concurrently but emit items in listing order via ordered result channels.
 func (s *S3Source) Traverse(ctx context.Context) (<-chan ContentItem, <-chan error) {
 	items := make(chan ContentItem)
 	errs := make(chan error, 1)
@@ -119,104 +120,144 @@ func (s *S3Source) Traverse(ctx context.Context) (<-chan ContentItem, <-chan err
 		defer close(items)
 		defer close(errs)
 
-		// List objects with the configured prefix
+		// List objects with the configured prefix.
+		// S3 returns objects in lexicographic key order.
 		objectCh := s.client.ListObjects(ctx, s.config.Bucket, minio.ListObjectsOptions{
 			Prefix:    s.config.Prefix,
 			Recursive: true,
 		})
 
-		// Use a WaitGroup to track in-flight goroutines
-		var wg sync.WaitGroup
+		// Collect eligible objects into a batch, download concurrently,
+		// then emit in listing order. We process in batches to bound
+		// memory while preserving ordering.
+		const batchSize = 100
+		type objectEntry struct {
+			key          string
+			relPath      string
+			size         int64
+			lastModified any
+		}
+		var batch []objectEntry
+
+		emitBatch := func(batch []objectEntry) error {
+			if len(batch) == 0 {
+				return nil
+			}
+
+			// Create ordered result channels
+			slots := make([]chan ContentItem, len(batch))
+			var wg sync.WaitGroup
+
+			for i, entry := range batch {
+				slots[i] = make(chan ContentItem, 1)
+
+				wg.Add(1)
+				s.semaphore <- struct{}{} // Acquire slot
+				go func(key, relPath string, size int64, lastModified any, slot chan<- ContentItem) {
+					defer wg.Done()
+					defer func() { <-s.semaphore }()
+					defer close(slot)
+
+					obj, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
+					if err != nil {
+						log.Printf("Warning: Failed to get object %s: %v", key, err)
+						return
+					}
+					defer obj.Close()
+
+					content, err := io.ReadAll(obj)
+					if err != nil {
+						log.Printf("Warning: Failed to read object %s: %v", key, err)
+						return
+					}
+
+					contentType := DetectContentType(relPath, content)
+					sourceURL := fmt.Sprintf("s3://%s/%s", s.config.Bucket, key)
+
+					select {
+					case slot <- ContentItem{
+						Path:        relPath,
+						SourceURL:   sourceURL,
+						Content:     content,
+						ContentType: contentType,
+						Metadata: map[string]any{
+							"source_type":   "s3",
+							"bucket":        s.config.Bucket,
+							"key":           key,
+							"size":          size,
+							"last_modified": lastModified,
+						},
+					}:
+					case <-ctx.Done():
+					}
+				}(entry.key, entry.relPath, entry.size, entry.lastModified, slots[i])
+			}
+
+			// Emit in listing order
+			for _, slot := range slots {
+				if item, ok := <-slot; ok {
+					select {
+					case items <- item:
+					case <-ctx.Done():
+						wg.Wait()
+						return ctx.Err()
+					}
+				}
+			}
+
+			wg.Wait()
+			return nil
+		}
 
 		for object := range objectCh {
-			// Check for cancellation
 			select {
 			case <-ctx.Done():
-				wg.Wait() // Wait for in-flight downloads
 				errs <- ctx.Err()
 				return
 			default:
 			}
 
-			// Check for list errors
 			if object.Err != nil {
 				log.Printf("Warning: Error listing objects: %v", object.Err)
 				continue
 			}
 
-			// Skip directories (objects ending with /)
 			if strings.HasSuffix(object.Key, "/") {
 				continue
 			}
 
-			// Get relative path (strip prefix)
 			relPath := object.Key
 			if s.config.Prefix != "" {
 				relPath = strings.TrimPrefix(object.Key, s.config.Prefix)
 			}
 
-			// Check exclude patterns first
 			if s.shouldExclude(relPath) {
 				continue
 			}
-
-			// Check include patterns
 			if !s.shouldInclude(relPath) {
 				continue
 			}
 
-			// Download object with concurrency control
-			wg.Add(1)
-			s.semaphore <- struct{}{} // Acquire slot
+			batch = append(batch, objectEntry{
+				key:          object.Key,
+				relPath:      relPath,
+				size:         object.Size,
+				lastModified: object.LastModified,
+			})
 
-			go func(key, relPath string, size int64, lastModified any) {
-				defer wg.Done()
-				defer func() { <-s.semaphore }() // Release slot
-
-				// Download object
-				obj, err := s.client.GetObject(ctx, s.config.Bucket, key, minio.GetObjectOptions{})
-				if err != nil {
-					log.Printf("Warning: Failed to get object %s: %v", key, err)
+			if len(batch) >= batchSize {
+				if err := emitBatch(batch); err != nil {
+					errs <- err
 					return
 				}
-				defer obj.Close()
-
-				// Read content
-				content, err := io.ReadAll(obj)
-				if err != nil {
-					log.Printf("Warning: Failed to read object %s: %v", key, err)
-					return
-				}
-
-				// Detect content type
-				contentType := DetectContentType(relPath, content)
-
-				// Build source URL
-				sourceURL := fmt.Sprintf("s3://%s/%s", s.config.Bucket, key)
-
-				// Send content item
-				select {
-				case items <- ContentItem{
-					Path:        relPath,
-					SourceURL:   sourceURL,
-					Content:     content,
-					ContentType: contentType,
-					Metadata: map[string]any{
-						"source_type":   "s3",
-						"bucket":        s.config.Bucket,
-						"key":           key,
-						"size":          size,
-						"last_modified": lastModified,
-					},
-				}:
-				case <-ctx.Done():
-					return
-				}
-			}(object.Key, relPath, object.Size, object.LastModified)
+				batch = batch[:0]
+			}
 		}
 
-		// Wait for all downloads to complete
-		wg.Wait()
+		// Emit remaining objects
+		if err := emitBatch(batch); err != nil {
+			errs <- err
+		}
 	}()
 
 	return items, errs
