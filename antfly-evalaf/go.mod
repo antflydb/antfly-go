@@ -9,7 +9,7 @@ require (
 )
 
 require (
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260302070729-e25bf6f18ec6 // indirect
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260303003844-110c235df183 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
