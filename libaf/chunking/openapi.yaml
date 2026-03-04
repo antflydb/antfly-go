@@ -65,6 +65,31 @@ components:
               type: string
               description: "MIME type: text/plain, audio/wav, image/png, etc."
 
+    TextChunkOptions:
+      type: object
+      description: "Options specific to text chunking."
+      properties:
+        target_tokens:
+          type: integer
+          description: "Target number of tokens per chunk."
+        overlap_tokens:
+          type: integer
+          description: "Number of tokens to overlap between consecutive chunks. Helps maintain context across chunk boundaries. Only used by fixed-size chunkers."
+        separator:
+          type: string
+          description: "Separator string for splitting (e.g., '\\n\\n' for paragraphs). Only used by fixed-size chunkers."
+
+    AudioChunkOptions:
+      type: object
+      description: "Options specific to audio chunking."
+      properties:
+        window_duration_ms:
+          type: integer
+          description: "Window duration in milliseconds for fixed-window audio chunking (default: 30000)."
+        overlap_duration_ms:
+          type: integer
+          description: "Overlap duration in milliseconds between audio chunks (default: 0)."
+
     ChunkOptions:
       type: object
       description: "Per-request configuration for chunking. All fields are optional - zero/omitted values use chunker defaults."
@@ -72,22 +97,11 @@ components:
         max_chunks:
           type: integer
           description: "Maximum number of chunks to generate per document."
-        overlap_tokens:
-          type: integer
-          description: "Number of tokens to overlap between consecutive chunks. Helps maintain context across chunk boundaries. Only used by fixed-size chunkers."
-        separator:
-          type: string
-          description: "Separator string for splitting (e.g., '\\n\\n' for paragraphs). Only used by fixed-size chunkers."
         threshold:
           type: number
           format: float
-          description: "Minimum confidence threshold for separator detection (0.0-1.0). Only used by ONNX models."
-        target_tokens:
-          type: integer
-          description: "Target number of tokens per chunk."
-        window_duration_ms:
-          type: integer
-          description: "Window duration in milliseconds for audio chunking (default: 30000)."
-        overlap_duration_ms:
-          type: integer
-          description: "Overlap duration in milliseconds between audio chunks (default: 0)."
+          description: "Confidence threshold for model-based chunking (0.0-1.0)."
+        text:
+          $ref: "#/components/schemas/TextChunkOptions"
+        audio:
+          $ref: "#/components/schemas/AudioChunkOptions"

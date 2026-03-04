@@ -17,6 +17,15 @@ import (
 	"github.com/oapi-codegen/runtime"
 )
 
+// AudioChunkOptions Options specific to audio chunking.
+type AudioChunkOptions struct {
+	// OverlapDurationMs Overlap duration in milliseconds between audio chunks (default: 0).
+	OverlapDurationMs int `json:"overlap_duration_ms,omitempty,omitzero"`
+
+	// WindowDurationMs Window duration in milliseconds for fixed-window audio chunking (default: 30000).
+	WindowDurationMs int `json:"window_duration_ms,omitempty,omitzero"`
+}
+
 // BinaryContent Binary media content with format-specific metadata.
 type BinaryContent struct {
 	// Data Base64-encoded binary data (valid WAV, PNG, etc.)
@@ -47,12 +56,21 @@ type Chunk struct {
 
 // ChunkOptions Per-request configuration for chunking. All fields are optional - zero/omitted values use chunker defaults.
 type ChunkOptions struct {
+	// Audio Options specific to audio chunking.
+	Audio AudioChunkOptions `json:"audio,omitempty,omitzero"`
+
 	// MaxChunks Maximum number of chunks to generate per document.
 	MaxChunks int `json:"max_chunks,omitempty,omitzero"`
 
-	// OverlapDurationMs Overlap duration in milliseconds between audio chunks (default: 0).
-	OverlapDurationMs int `json:"overlap_duration_ms,omitempty,omitzero"`
+	// Text Options specific to text chunking.
+	Text TextChunkOptions `json:"text,omitempty,omitzero"`
 
+	// Threshold Confidence threshold for model-based chunking (0.0-1.0).
+	Threshold float32 `json:"threshold,omitempty,omitzero"`
+}
+
+// TextChunkOptions Options specific to text chunking.
+type TextChunkOptions struct {
 	// OverlapTokens Number of tokens to overlap between consecutive chunks. Helps maintain context across chunk boundaries. Only used by fixed-size chunkers.
 	OverlapTokens int `json:"overlap_tokens,omitempty,omitzero"`
 
@@ -61,12 +79,6 @@ type ChunkOptions struct {
 
 	// TargetTokens Target number of tokens per chunk.
 	TargetTokens int `json:"target_tokens,omitempty,omitzero"`
-
-	// Threshold Minimum confidence threshold for separator detection (0.0-1.0). Only used by ONNX models.
-	Threshold float32 `json:"threshold,omitempty,omitzero"`
-
-	// WindowDurationMs Window duration in milliseconds for audio chunking (default: 30000).
-	WindowDurationMs int `json:"window_duration_ms,omitempty,omitzero"`
 }
 
 // TextContent Text content with character offsets.
@@ -191,23 +203,24 @@ func (t *Chunk) UnmarshalJSON(b []byte) error {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"Zlqtd/8EAAD//xenz5bqCwAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file
