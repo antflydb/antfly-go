@@ -74,6 +74,11 @@ type (
 	AggregationOption  = oapi.AggregationBucket
 	AggregationResult  = oapi.AggregationResult
 
+	// Embedding types
+	Embedding       = oapi.Embedding
+	DenseEmbedding  = oapi.Embedding0 // []float32
+	SparseEmbedding = oapi.Embedding1 // {Indices []uint32, Values []float32}
+
 	// Other types
 	AntflyType     = oapi.AntflyType
 	MergeStrategy  = oapi.MergeStrategy
