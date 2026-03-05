@@ -23,8 +23,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/antflydb/antfly-go/libaf/json"
 	"github.com/antflydb/antfly-go/antfly/oapi"
+	"github.com/antflydb/antfly-go/libaf/json"
 )
 
 // CreateTable creates a new table

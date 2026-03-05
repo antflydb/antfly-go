@@ -156,7 +156,7 @@ func inspectDataset(cmd *cobra.Command, args []string) error {
 	// Show first few examples
 	showCount := min(len(examples), 3)
 
-	for i := 0; i < showCount; i++ {
+	for i := range showCount {
 		fmt.Printf("Example %d:\n", i+1)
 
 		exampleJSON, err := json.MarshalIndent(examples[i], "  ", "  ")

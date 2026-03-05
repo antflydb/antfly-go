@@ -2,6 +2,7 @@ package eval
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -268,15 +269,15 @@ func TestRunnerWithTarget(t *testing.T) {
 		// Simulate a system that uppercases the input
 		if input, ok := example.Input.(string); ok {
 			// Simple uppercase implementation
-			result := ""
+			var result strings.Builder
 			for _, r := range input {
 				if r >= 'a' && r <= 'z' {
-					result += string(r - 32)
+					result.WriteString(string(r - 32))
 				} else {
-					result += string(r)
+					result.WriteString(string(r))
 				}
 			}
-			return result, nil
+			return result.String(), nil
 		}
 		return example.Input, nil
 	}

@@ -337,10 +337,3 @@ func longestCommonSubsequence(a, b []string) []string {
 
 	return lcs
 }
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}

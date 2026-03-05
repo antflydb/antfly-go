@@ -17,7 +17,7 @@ var bufferPool = buffer.NewPool()
 // flattenValue converts a value to dot-notation key=value pairs.
 // This is the industry standard for representing nested structs in logfmt.
 // Example: config.raft.url=http://localhost config.raft.replicas=3
-func flattenValue(val interface{}) string {
+func flattenValue(val any) string {
 	var pairs []string
 	flatten("", reflect.ValueOf(val), &pairs)
 	return strings.Join(pairs, " ")
@@ -37,7 +37,7 @@ func flatten(prefix string, v reflect.Value, pairs *[]string) {
 	switch v.Kind() {
 	case reflect.Struct:
 		// Special handling for time.Time
-		if v.Type() == reflect.TypeOf(time.Time{}) {
+		if v.Type() == reflect.TypeFor[time.Time]() {
 			t := v.Interface().(time.Time)
 			if !t.IsZero() {
 				*pairs = append(*pairs, formatPair(prefix, t.Format(time.RFC3339)))
@@ -304,8 +304,8 @@ func (e *logfmtEncoder) appendField(buf *buffer.Buffer, f zapcore.Field) {
 			flattened := flattenValue(f.Interface)
 			if flattened != "" {
 				// Prefix each flattened key with the field key
-				parts := strings.Split(flattened, " ")
-				for _, part := range parts {
+				parts := strings.SplitSeq(flattened, " ")
+				for part := range parts {
 					if part == "" {
 						continue
 					}
@@ -324,7 +324,7 @@ func (e *logfmtEncoder) appendField(buf *buffer.Buffer, f zapcore.Field) {
 func (e *logfmtEncoder) AddArray(key string, arr zapcore.ArrayMarshaler) error {
 	flattened := flattenValue(arr)
 	if flattened != "" {
-		for _, part := range strings.Split(flattened, " ") {
+		for part := range strings.SplitSeq(flattened, " ") {
 			if part == "" {
 				continue
 			}
@@ -340,7 +340,7 @@ func (e *logfmtEncoder) AddArray(key string, arr zapcore.ArrayMarshaler) error {
 func (e *logfmtEncoder) AddObject(key string, obj zapcore.ObjectMarshaler) error {
 	flattened := flattenValue(obj)
 	if flattened != "" {
-		for _, part := range strings.Split(flattened, " ") {
+		for part := range strings.SplitSeq(flattened, " ") {
 			if part == "" {
 				continue
 			}
@@ -454,10 +454,10 @@ func (e *logfmtEncoder) AddUintptr(key string, val uintptr) {
 	e.AddUint64(key, uint64(val))
 }
 
-func (e *logfmtEncoder) AddReflected(key string, val interface{}) error {
+func (e *logfmtEncoder) AddReflected(key string, val any) error {
 	flattened := flattenValue(val)
 	if flattened != "" {
-		for _, part := range strings.Split(flattened, " ") {
+		for part := range strings.SplitSeq(flattened, " ") {
 			if part == "" {
 				continue
 			}

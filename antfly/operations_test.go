@@ -152,7 +152,7 @@ func TestReadSSEEventsEarlyTermination(t *testing.T) {
 
 	// Stop after first event
 	count := 0
-	for _, _ = range readSSEEvents(strings.NewReader(input)) {
+	for range readSSEEvents(strings.NewReader(input)) {
 		count++
 		if count >= 1 {
 			break

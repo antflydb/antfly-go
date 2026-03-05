@@ -23,10 +23,7 @@ func NewRunner(config Config, evaluators []Evaluator) *Runner {
 		// Convert requests per minute to requests per second
 		rps := float64(config.Execution.RateLimitPerMinute) / 60.0
 		// Allow burst of up to 5 requests or 1/4 of the rate limit, whichever is smaller
-		burst := config.Execution.RateLimitPerMinute / 4
-		if burst < 1 {
-			burst = 1
-		}
+		burst := max(config.Execution.RateLimitPerMinute/4, 1)
 		if burst > 5 {
 			burst = 5
 		}

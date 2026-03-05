@@ -2,6 +2,7 @@ package genkitplugin
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/antflydb/antfly-go/evalaf/eval"
@@ -46,9 +47,7 @@ func FromEvalafResult(evalResult *eval.EvalResult, evaluatorName string) ai.Scor
 		"reason": evalResult.Reason,
 	}
 	if evalResult.Metadata != nil {
-		for k, v := range evalResult.Metadata {
-			score.Details[k] = v
-		}
+		maps.Copy(score.Details, evalResult.Metadata)
 	}
 
 	return score

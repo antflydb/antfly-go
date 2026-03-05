@@ -31,8 +31,8 @@ type (
 	// Index config types
 	EmbeddingsIndexConfig = oapi.EmbeddingsIndexConfig
 	EmbeddingsIndexStats  = oapi.EmbeddingsIndexStats
-	FullTextIndexConfig = oapi.FullTextIndexConfig
-	FullTextIndexStats  = oapi.FullTextIndexStats
+	FullTextIndexConfig   = oapi.FullTextIndexConfig
+	FullTextIndexStats    = oapi.FullTextIndexStats
 
 	EmbedderProvider         = oapi.EmbedderProvider
 	GeneratorProvider        = oapi.GeneratorProvider
@@ -131,20 +131,20 @@ type (
 	FilterSpecOperator   = oapi.FilterSpecOperator
 
 	// Retrieval Agent types
-	RetrievalAgentRequest   = oapi.RetrievalAgentRequest
-	RetrievalAgentResult    = oapi.RetrievalAgentResult
-	RetrievalAgentState     = oapi.RetrievalAgentState
-	RetrievalAgentSteps     = oapi.RetrievalAgentSteps
+	RetrievalAgentRequest = oapi.RetrievalAgentRequest
+	RetrievalAgentResult  = oapi.RetrievalAgentResult
+	RetrievalAgentState   = oapi.RetrievalAgentState
+	RetrievalAgentSteps   = oapi.RetrievalAgentSteps
 
 	// Answer Agent types (deprecated, use Retrieval Agent instead)
-	AnswerAgentRequest = oapi.AnswerAgentRequest
-	AnswerAgentResult  = oapi.AnswerAgentResult
-	AnswerAgentSteps   = oapi.AnswerAgentSteps
-	RetrievalQueryRequest   = oapi.RetrievalQueryRequest
-	RetrievalReasoningStep  = oapi.RetrievalReasoningStep
-	RetrievalStrategy = oapi.RetrievalStrategy
-	TreeSearchConfig        = oapi.TreeSearchConfig
-	QueryHit                = oapi.QueryHit
+	AnswerAgentRequest     = oapi.AnswerAgentRequest
+	AnswerAgentResult      = oapi.AnswerAgentResult
+	AnswerAgentSteps       = oapi.AnswerAgentSteps
+	RetrievalQueryRequest  = oapi.RetrievalQueryRequest
+	RetrievalReasoningStep = oapi.RetrievalReasoningStep
+	RetrievalStrategy      = oapi.RetrievalStrategy
+	TreeSearchConfig       = oapi.TreeSearchConfig
+	QueryHit               = oapi.QueryHit
 
 	// Evaluation types
 	EvalConfig    = oapi.EvalConfig
@@ -174,13 +174,13 @@ type (
 	ReplicationTransformOp = oapi.ReplicationTransformOp
 
 	// Graph index types
-	GraphIndexConfig        = oapi.GraphIndexConfig
-	GraphIndexStats         = oapi.GraphIndexStats
-	EdgeTypeConfig          = oapi.EdgeTypeConfig
-	EdgeTypeConfigTopology  = oapi.EdgeTypeConfigTopology
-	EdgeDirection           = oapi.EdgeDirection
-	Edge                    = oapi.Edge
-	EdgesResponse           = oapi.EdgesResponse
+	GraphIndexConfig       = oapi.GraphIndexConfig
+	GraphIndexStats        = oapi.GraphIndexStats
+	EdgeTypeConfig         = oapi.EdgeTypeConfig
+	EdgeTypeConfigTopology = oapi.EdgeTypeConfigTopology
+	EdgeDirection          = oapi.EdgeDirection
+	Edge                   = oapi.Edge
+	EdgesResponse          = oapi.EdgesResponse
 
 	// Graph query types
 	GraphQuery        = oapi.GraphQuery
@@ -199,12 +199,12 @@ type (
 	TraverseResponse = oapi.TraverseResponse
 
 	// Path types
-	Path                = oapi.Path
-	PathEdge            = oapi.PathEdge
-	PathFindRequest     = oapi.PathFindRequest
-	PathFindResult      = oapi.PathFindResult
-	PathFindWeightMode  = oapi.PathFindWeightMode
-	PathWeightMode      = oapi.PathWeightMode
+	Path               = oapi.Path
+	PathEdge           = oapi.PathEdge
+	PathFindRequest    = oapi.PathFindRequest
+	PathFindResult     = oapi.PathFindResult
+	PathFindWeightMode = oapi.PathFindWeightMode
+	PathWeightMode     = oapi.PathWeightMode
 )
 
 // ChunkingModel is just a string - use "fixed" or any ONNX model directory name

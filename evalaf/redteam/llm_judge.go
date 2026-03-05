@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/antflydb/antfly-go/evalaf/eval"
 	"github.com/firebase/genkit/go/ai"
@@ -235,11 +236,11 @@ func (e *LLMJudgeEvaluator) buildPrompt(input eval.EvalInput) string {
 	prompt = replaceTemplate(prompt, "Output", fmt.Sprintf("%v", input.Output))
 
 	if len(input.Context) > 0 {
-		contextStr := ""
+		var contextStr strings.Builder
 		for i, ctx := range input.Context {
-			contextStr += fmt.Sprintf("[%d] %v\n", i, ctx)
+			contextStr.WriteString(fmt.Sprintf("[%d] %v\n", i, ctx))
 		}
-		prompt = replaceTemplate(prompt, "Context", contextStr)
+		prompt = replaceTemplate(prompt, "Context", contextStr.String())
 	}
 
 	return prompt
@@ -293,17 +294,17 @@ func replaceAll(s, old, new string) string {
 }
 
 func simpleReplace(s, old, new string) string {
-	result := ""
+	var result strings.Builder
 	for len(s) > 0 {
 		idx := findString(s, old)
 		if idx < 0 {
-			result += s
+			result.WriteString(s)
 			break
 		}
-		result += s[:idx] + new
+		result.WriteString(s[:idx] + new)
 		s = s[idx+len(old):]
 	}
-	return result
+	return result.String()
 }
 
 func findString(s, substr string) int {

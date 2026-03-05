@@ -6,7 +6,7 @@ require (
 	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/ajroetker/pdf v0.0.1-antfly001
 	github.com/ajroetker/pdf/render v0.0.1-antfly003
-	github.com/antflydb/antfly-go/libaf v0.0.0-20260303003844-110c235df183
+	github.com/antflydb/antfly-go/libaf v0.0.0-20260304202045-da53f6505f4a
 	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/gocolly/colly/v2 v2.3.0
 	github.com/minio/minio-go/v7 v7.0.98
@@ -47,7 +47,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.3.12 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.3.13 // indirect
 	github.com/googleapis/gax-go/v2 v2.17.0 // indirect
 	github.com/hhrutter/lzw v1.0.0 // indirect
 	github.com/hhrutter/pkcs7 v0.2.0 // indirect
