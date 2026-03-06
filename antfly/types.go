@@ -133,7 +133,10 @@ type (
 	// Retrieval Agent types
 	RetrievalAgentRequest = oapi.RetrievalAgentRequest
 	RetrievalAgentResult  = oapi.RetrievalAgentResult
-	RetrievalAgentState   = oapi.RetrievalAgentState
+	RetrievalAgentStatus  = oapi.RetrievalAgentStatus
+	RetrievalAgentUsage   = oapi.RetrievalAgentUsage
+	IncompleteDetails     = oapi.IncompleteDetails
+	PruneStats            = oapi.PruneStats
 	RetrievalAgentSteps   = oapi.RetrievalAgentSteps
 
 	// Answer Agent types (deprecated, use Retrieval Agent instead)
@@ -298,10 +301,11 @@ const (
 	FilterSpecOperatorRange    = oapi.FilterSpecOperatorRange
 	FilterSpecOperatorIn       = oapi.FilterSpecOperatorIn
 
-	// RetrievalAgentState values
-	RetrievalAgentStateToolCalling           = oapi.RetrievalAgentStateToolCalling
-	RetrievalAgentStateComplete              = oapi.RetrievalAgentStateComplete
-	RetrievalAgentStateAwaitingClarification = oapi.RetrievalAgentStateAwaitingClarification
+	// RetrievalAgentStatus values
+	RetrievalAgentStatusCompleted  = oapi.RetrievalAgentStatusCompleted
+	RetrievalAgentStatusInProgress = oapi.RetrievalAgentStatusInProgress
+	RetrievalAgentStatusIncomplete = oapi.RetrievalAgentStatusIncomplete
+	RetrievalAgentStatusFailed     = oapi.RetrievalAgentStatusFailed
 
 	// RetrievalStrategy values
 	RetrievalStrategySemantic = oapi.RetrievalStrategySemantic
