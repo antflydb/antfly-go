@@ -119,6 +119,13 @@ func downloadHTTPWithMime(
 		return "", nil, fmt.Errorf("creating request: %w", err)
 	}
 
+	// Set User-Agent — many servers (e.g., Wikipedia) reject requests without one.
+	userAgent := "AntflyDB/1.0"
+	if securityConfig != nil && securityConfig.UserAgent != "" {
+		userAgent = securityConfig.UserAgent
+	}
+	req.Header.Set("User-Agent", userAgent)
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to fetch content: %w", err)

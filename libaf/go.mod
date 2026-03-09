@@ -3,7 +3,7 @@ module github.com/antflydb/antfly-go/libaf
 go 1.26
 
 require (
-	github.com/minio/minio-go/v7 v7.0.98
+	github.com/minio/minio-go/v7 v7.0.99
 	github.com/oapi-codegen/runtime v1.2.0
 	github.com/prometheus/client_golang v1.23.2
 	go.uber.org/zap v1.27.1
@@ -27,7 +27,7 @@ require (
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/tinylib/msgp v1.6.3 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
