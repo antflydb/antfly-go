@@ -6,7 +6,7 @@ import (
 	"log"
 	"strings"
 
-	antflyevalaf "github.com/antflydb/antfly-go/antfly-evalaf"
+	antflyevalaf "github.com/antflydb/antfly-go/evalaf/plugins/antfly"
 	"github.com/antflydb/antfly-go/evalaf/eval"
 )
 
